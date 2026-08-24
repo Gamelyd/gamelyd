@@ -23,7 +23,11 @@ import {
 import { joinPlatforms } from "@/lib/platforms";
 import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
-import type { SaveTournamentInput } from "@/lib/schemas/tournament";
+import {
+  placeLabel,
+  type PrizePosition,
+  type SaveTournamentInput,
+} from "@/lib/schemas/tournament";
 import type {
   Payment,
   Shuffle,
@@ -46,11 +50,19 @@ const optionGroups: {
   options: string[];
 }[] = [
   { key: "TournamentType", title: "Visibility", options: ["PUBLIC", "PRIVATE"] },
-  { key: "Payment", title: "Payment", options: ["FREE", "PAID", "SPONSORED"] },
+  {
+    key: "Payment",
+    title: "Payment",
+    options: [
+      "FREE",
+      // "PAID",
+      "SPONSORED",
+    ],
+  },
   {
     key: "TournamentMode",
     title: "Mode",
-    options: ["MULTIPLAYER", "BATTLEROYALE", "GROUPS"],
+    options: ["MULTIPLAYER", "BATTLEROYALE", "GROUPS", "LEAGUE"],
   },
   { key: "Team", title: "Team size", options: ["SINGLE", "DUO", "SQUAD"] },
   { key: "Shuffle", title: "Draw", options: ["MANUAL", "AUTOMATIC"] },
@@ -76,6 +88,12 @@ export default function CreateTournamentPage() {
     Team: "SINGLE",
     Shuffle: "AUTOMATIC",
   });
+  const [returnLeg, setReturnLeg] = useState(false);
+  const [prizes, setPrizes] = useState<PrizePosition[]>([
+    { Position: 1, Amount: 0 },
+    { Position: 2, Amount: 0 },
+    { Position: 3, Amount: 0 },
+  ]);
 
   const [details, setDetails] = useState({
     Name: "",
@@ -134,12 +152,18 @@ export default function CreateTournamentPage() {
       Date: details.Date,
       Note: details.Note,
       Platform: joinPlatforms(selectedPlatforms),
-      Amount: details.Amount,
-      RegistrationAmount: details.RegistrationAmount,
+      Amount:
+        choices.Payment === "SPONSORED"
+          ? prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
+          : details.Amount,
+      RegistrationAmount:
+        choices.Payment === "PAID" ? details.RegistrationAmount : 0,
+      Prizes: choices.Payment === "SPONSORED" ? prizes : [],
       Link: "",
       RefNumber: "",
       PaymentChannel: "",
       OrgId: orgId,
+      ReturnLeg: choices.TournamentMode === "LEAGUE" ? returnLeg : false,
     };
     const result = await saveTournamentAction(payload);
     setLoading(false);
@@ -196,6 +220,39 @@ export default function CreateTournamentPage() {
                     );
                   })}
                 </div>
+                {group.key === "TournamentMode" &&
+                  choices.TournamentMode === "LEAGUE" && (
+                    <div className="mt-6">
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
+                        Return leg
+                      </h3>
+                      <p className="mb-3 text-sm text-body">
+                        Play each pairing once, or again with sides swapped.
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        {[
+                          { label: "NO", value: false },
+                          { label: "YES", value: true },
+                        ].map((opt) => {
+                          const active = returnLeg === opt.value;
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => setReturnLeg(opt.value)}
+                              className={`rounded-xl border px-5 py-3 text-sm font-medium transition-colors ${
+                                active
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-surface-2 bg-surface text-body hover:border-primary/40"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
               </div>
             ))}
             <div>
@@ -352,6 +409,7 @@ export default function CreateTournamentPage() {
               ) : null}
             </div>
 
+            {/* Paid registration/prize fields are hidden for now.
             {choices.Payment === "PAID" && (
               <div className="grid gap-5 sm:grid-cols-2">
                 <Input
@@ -373,6 +431,82 @@ export default function CreateTournamentPage() {
                     setDetails({ ...details, Amount: Number(e.target.value) })
                   }
                 />
+              </div>
+            )}
+            */}
+
+            {choices.Payment === "SPONSORED" && (
+              <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
+                  Prize positions
+                </h3>
+                <p className="mb-4 text-sm text-body">
+                  Amount for each finishing place (₦).
+                </p>
+                <div className="flex flex-col gap-3">
+                  {prizes.map((prize, index) => (
+                    <div key={prize.Position} className="grid grid-cols-[5rem_1fr_auto] gap-3">
+                      <Input
+                        type="number"
+                        label={index === 0 ? "Place" : undefined}
+                        value={prize.Position}
+                        min={1}
+                        onChange={(e) => {
+                          const next = [...prizes];
+                          next[index] = {
+                            ...prize,
+                            Position: Number(e.target.value) || 1,
+                          };
+                          setPrizes(next);
+                        }}
+                      />
+                      <Input
+                        type="number"
+                        label={index === 0 ? `${placeLabel(prize.Position)} amount` : undefined}
+                        value={prize.Amount}
+                        min={0}
+                        onChange={(e) => {
+                          const next = [...prizes];
+                          next[index] = {
+                            ...prize,
+                            Amount: Number(e.target.value) || 0,
+                          };
+                          setPrizes(next);
+                        }}
+                      />
+                      {prizes.length > 1 ? (
+                        <button
+                          type="button"
+                          className={`text-sm text-body hover:text-white ${index === 0 ? "mt-7" : ""}`}
+                          onClick={() =>
+                            setPrizes(prizes.filter((_, i) => i !== index))
+                          }
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="dark"
+                  className="mt-4"
+                  onClick={() =>
+                    setPrizes([
+                      ...prizes,
+                      {
+                        Position:
+                          Math.max(...prizes.map((p) => p.Position), 0) + 1,
+                        Amount: 0,
+                      },
+                    ])
+                  }
+                >
+                  Add position
+                </Button>
               </div>
             )}
 

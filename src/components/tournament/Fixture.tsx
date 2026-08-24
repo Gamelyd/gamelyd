@@ -11,6 +11,7 @@ import {
   addTimeAction,
 } from "@/server/actions/drawActions";
 import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
+import { leagueMatchdayLabel } from "@/lib/leagueStandings";
 
 function scoreTone(
   self: number,
@@ -484,7 +485,12 @@ function BrFixture({
   );
 }
 
-export function roundLabel(matchCount: number, stage: number): string {
+export function roundLabel(
+  matchCount: number,
+  stage: number,
+  mode?: string,
+): string {
+  if (mode === "LEAGUE") return leagueMatchdayLabel(stage);
   if (matchCount < 2) return "FINALS";
   if (matchCount < 3) return "SEMI FINALS";
   if (matchCount < 5) return "QUARTER FINALS";

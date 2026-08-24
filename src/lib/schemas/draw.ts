@@ -56,6 +56,7 @@ export const drawSchema = z.object({
   Link: z.string().default(""),
   Group: z.string().default(""),
   BRTeams: z.array(brTeamsSchema).default([]),
+  Played: z.boolean().default(false),
 });
 export type Draw = z.infer<typeof drawSchema>;
 

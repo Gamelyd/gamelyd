@@ -93,8 +93,13 @@ export async function saveTournament(
     IsDrawn: false,
     RefNumber: input.RefNumber,
     PaymentChannel: input.PaymentChannel,
-    Amount: input.Amount,
-    RegistrationAmount: input.RegistrationAmount,
+    Amount:
+      input.Payment === "SPONSORED" && input.Prizes?.length
+        ? input.Prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
+        : input.Amount,
+    RegistrationAmount:
+      input.Payment === "PAID" ? input.RegistrationAmount : 0,
+    Prizes: input.Payment === "SPONSORED" ? (input.Prizes ?? []) : [],
     Note: input.Note,
     AcceptedInvites: [],
     Platform: input.Platform,
@@ -104,6 +109,7 @@ export async function saveTournament(
       Win: input.PointSystem?.Win || 3,
       Draw: input.PointSystem?.Draw || 1,
     },
+    ReturnLeg: input.TournamentMode === "LEAGUE" ? Boolean(input.ReturnLeg) : false,
   };
 
   await col.insertOne(doc);

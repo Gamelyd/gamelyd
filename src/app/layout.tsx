@@ -23,14 +23,27 @@ const lato = Lato({
 });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
+const description =
+  "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores — for friends, clubs, and communities.";
+
 export const metadata: Metadata = {
-  title: "Gamelyd — Esports Tournaments",
-  description:
-    "Create, join and manage esports tournaments. Compete and climb the leaderboard.",
+  title: "Gamelyd — Host and join game tournaments",
+  description,
   icons: {
     icon: "/icon.png",
     shortcut: "/favicon.ico",
     apple: "/icon.png",
+  },
+  openGraph: {
+    title: "Gamelyd — Host and join game tournaments",
+    description,
+    siteName: "Gamelyd",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Gamelyd — Host and join game tournaments",
+    description,
   },
 };
 

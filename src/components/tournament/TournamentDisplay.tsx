@@ -19,6 +19,13 @@ function naira(amount: number): string {
   return "₦" + (amount || 0).toLocaleString();
 }
 
+function modeBadge(mode: Tournament["TournamentMode"]): string {
+  if (mode === "LEAGUE") return "(LG)";
+  if (mode === "BATTLEROYALE") return "(BR)";
+  if (mode === "GROUPS") return "(GR)";
+  return "(MP)";
+}
+
 export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
   const showPrize =
@@ -61,7 +68,7 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
           </span>
           <span className="inline-block bg-black p-2.5 font-body text-[21px] font-bold uppercase leading-[93%] text-yellow-soft max-[700px]:text-[16px]">
             {tournament.Platform || "Cross Platform"}{" "}
-            {tournament.TournamentMode === "MULTIPLAYER" ? "(MP)" : "(BR)"}
+            {modeBadge(tournament.TournamentMode)}
           </span>
         </div>
       </div>

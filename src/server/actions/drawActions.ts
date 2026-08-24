@@ -17,6 +17,7 @@ import {
   addTime,
   addWinner,
   drawBr,
+  drawLeague,
   getDrawsByTournament,
   getDrawTournamentId,
   newDraw,
@@ -72,6 +73,23 @@ export async function drawBrAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong creating the draw");
+  }
+}
+
+export async function drawLeagueAction(
+  input: unknown,
+): Promise<ActionResult<Draw[]>> {
+  const parsed = parseInput(newDrawInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  const denied = await guardTournament(parsed.data.TournamentId);
+  if (denied) return denied;
+  try {
+    return ok(await drawLeague(parsed.data.TournamentId), "League started");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong starting the league");
   }
 }
 

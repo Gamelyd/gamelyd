@@ -5,6 +5,7 @@ import {
   EmptyTournaments,
 } from "@/components/tournament/TournamentCard";
 import { TournamentFilters } from "@/components/tournament/TournamentFilters";
+import { Button } from "@/components/ui/Button";
 import { getTournamentsByModeAction } from "@/server/actions/tournamentActions";
 
 export default async function TournamentsPage({
@@ -26,13 +27,18 @@ export default async function TournamentsPage({
   return (
     <SiteLayout>
       <section className="gradient-brand-page">
-        <div className="mx-auto max-w-7xl px-5 py-14">
-          <h1 className="font-display text-4xl text-white md:text-5xl">
-            Tournaments
-          </h1>
-          <p className="mt-2 text-white/80">
-            Browse {mode.toLowerCase()} {type.toLowerCase()} tournaments.
-          </p>
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-14 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-display text-4xl text-white md:text-5xl">
+              Tournaments
+            </h1>
+            <p className="mt-2 text-white/80">
+              Browse {mode.toLowerCase()} {type.toLowerCase()} tournaments.
+            </p>
+          </div>
+          <Link href="/tournament/new">
+            <Button>Create tournament</Button>
+          </Link>
         </div>
       </section>
 

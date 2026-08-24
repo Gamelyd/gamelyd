@@ -26,7 +26,8 @@ export function Footer() {
           className="mb-[30px] h-auto w-[200px]"
         />
         <p className="mb-[30px] w-[300px] max-w-full font-inter text-[16px] leading-6 text-purple-soft">
-          Gamelyd is an online platform used for organizing tournaments
+          Gamelyd helps you organize game tournaments: create an event, register
+          teams, draw fixtures, and keep scores in one place.
         </p>
         <div className="flex flex-wrap">
           {links.map((l, i) => (

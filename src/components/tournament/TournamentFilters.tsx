@@ -6,7 +6,7 @@ import type { Payment, TournamentMode } from "@/lib/schemas/common";
 
 const payments: { label: string; value: Payment }[] = [
   { label: "Free", value: "FREE" },
-  { label: "Paid", value: "PAID" },
+  // { label: "Paid", value: "PAID" },
   { label: "Sponsored", value: "SPONSORED" },
 ];
 
@@ -14,6 +14,7 @@ const modes: { label: string; value: TournamentMode }[] = [
   { label: "Multiplayer", value: "MULTIPLAYER" },
   { label: "Battle Royale", value: "BATTLEROYALE" },
   { label: "Groups", value: "GROUPS" },
+  { label: "League", value: "LEAGUE" },
 ];
 
 export function TournamentFilters({

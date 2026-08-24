@@ -36,7 +36,7 @@ export function registerEmail(name: string): EmailContent {
     subject: "Welcome To Gamelyd",
     html: layout(
       `${heading(`Welcome, ${name}!`)}
-       <p>Your Gamelyd account is ready. Create tournaments, invite players, and climb the leaderboard.</p>
+       <p>Your Gamelyd account is ready. Create a tournament, register teams, draw fixtures, and keep scores in one place.</p>
        ${button(env.appUrl, "Go to Gamelyd")}`,
     ),
   };

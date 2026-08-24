@@ -7,6 +7,7 @@ export type UserType = z.infer<typeof userTypeSchema>;
 export const tournamentTypeSchema = z.enum(["PUBLIC", "PRIVATE"]);
 export type TournamentType = z.infer<typeof tournamentTypeSchema>;
 
+/** PAID stays in the enum for existing docs; create/browse hide it for now. */
 export const paymentSchema = z.enum(["FREE", "PAID", "SPONSORED"]);
 export type Payment = z.infer<typeof paymentSchema>;
 
@@ -14,6 +15,7 @@ export const tournamentModeSchema = z.enum([
   "MULTIPLAYER",
   "BATTLEROYALE",
   "GROUPS",
+  "LEAGUE",
 ]);
 export type TournamentMode = z.infer<typeof tournamentModeSchema>;
 

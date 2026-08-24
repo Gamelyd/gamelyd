@@ -87,6 +87,7 @@ function normalizeMode(value: string): TournamentMode {
   const compact = value.replace(/\s+/g, "").toUpperCase();
   if (compact === "BATTLEROYALE") return "BATTLEROYALE";
   if (compact === "GROUPS") return "GROUPS";
+  if (compact === "LEAGUE") return "LEAGUE";
   return "MULTIPLAYER";
 }
 
@@ -156,7 +157,23 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
         Win: 3,
         Draw: 1,
       },
+    ReturnLeg: readBool(raw, ["ReturnLeg", "returnleg"]),
+    Prizes: serializePrizes(raw.Prizes ?? raw.prizes),
   };
+}
+
+function serializePrizes(raw: unknown): Tournament["Prizes"] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      const row = asRecord(item);
+      return {
+        Position: readNumber(row, ["Position", "position"]),
+        Amount: readNumber(row, ["Amount", "amount"]),
+      };
+    })
+    .filter((row) => row.Position > 0)
+    .sort((a, b) => a.Position - b.Position);
 }
 
 function serializePlayer(raw: unknown): Player {
@@ -216,6 +233,7 @@ export function serializeDraw(doc: DrawDoc): Draw {
     Link: readString(raw, ["Link", "link"]),
     Group: readString(raw, ["Group", "group"]),
     BRTeams: readArray(raw, ["BRTeams", "brteams"]).map(serializeBrTeam),
+    Played: readBool(raw, ["Played", "played"]),
   };
 }
 

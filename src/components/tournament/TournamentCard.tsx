@@ -14,10 +14,20 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
     >
       <Image
         src={image}
+        alt=""
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+        quality={90}
+        aria-hidden
+        className="scale-110 object-cover blur-lg"
+      />
+      <Image
+        src={image}
         alt={tournament.Name}
         fill
-        sizes="(max-width: 768px) 50vw, 225px"
-        className="object-cover transition-transform duration-300 group-hover:scale-105"
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+        quality={90}
+        className="object-contain"
       />
 
       <div className="absolute left-3 top-3">

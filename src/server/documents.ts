@@ -8,6 +8,7 @@ import type {
 import type { Player, Teams, BRTeams } from "@/lib/schemas/draw";
 import type {
   PointSystem,
+  PrizePosition,
   TournamentGroup,
 } from "@/lib/schemas/tournament";
 
@@ -72,6 +73,7 @@ export interface TournamentDoc {
   PaymentChannel: string;
   Amount: number;
   RegistrationAmount: number;
+  Prizes: PrizePosition[];
   Note: string;
   AcceptedInvites: string[];
   Platform: string;
@@ -79,6 +81,7 @@ export interface TournamentDoc {
   Stage: number;
   Groups: TournamentGroup[];
   PointSystem: PointSystem;
+  ReturnLeg: boolean;
 }
 
 export interface DrawDoc {
@@ -99,6 +102,7 @@ export interface DrawDoc {
   Link: string;
   Group: string;
   BRTeams: BRTeams[];
+  Played?: boolean;
 }
 
 export interface RegisterTournamentDoc {

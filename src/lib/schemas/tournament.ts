@@ -14,6 +14,18 @@ export const pointSystemSchema = z.object({
 });
 export type PointSystem = z.infer<typeof pointSystemSchema>;
 
+export const prizePositionSchema = z.object({
+  Position: z.number().int().positive(),
+  Amount: z.number().default(0),
+});
+export type PrizePosition = z.infer<typeof prizePositionSchema>;
+
+export function placeLabel(position: number): string {
+  const suffix = ["th", "st", "nd", "rd"];
+  const value = position % 100;
+  return `${position}${suffix[(value - 20) % 10] || suffix[value] || suffix[0]}`;
+}
+
 export const tournamentGroupSchema = z.object({
   GroupName: z.string(),
   Teams: z.array(teamsSchema).default([]),
@@ -50,6 +62,7 @@ export const tournamentSchema = z.object({
   PaymentChannel: z.string().default(""),
   Amount: z.number().default(0),
   RegistrationAmount: z.number().default(0),
+  Prizes: z.array(prizePositionSchema).default([]),
   Note: z.string(),
   AcceptedInvites: z.array(z.string()).default([]),
   Platform: z.string().default(""),
@@ -57,6 +70,7 @@ export const tournamentSchema = z.object({
   Stage: z.number().default(0),
   Groups: z.array(tournamentGroupSchema).default([]),
   PointSystem: pointSystemSchema.default({ Win: 3, Draw: 1 }),
+  ReturnLeg: z.boolean().default(false),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 
@@ -76,10 +90,12 @@ export const saveTournamentInputSchema = z.object({
   Platform: z.string().optional().default(""),
   Amount: z.coerce.number().default(0),
   RegistrationAmount: z.coerce.number().default(0),
+  Prizes: z.array(prizePositionSchema).optional().default([]),
   RefNumber: z.string().optional().default(""),
   PaymentChannel: z.string().optional().default(""),
   PointSystem: pointSystemSchema.optional(),
   OrgId: z.string().optional().default(""),
+  ReturnLeg: z.boolean().optional().default(false),
 });
 export type SaveTournamentInput = z.infer<typeof saveTournamentInputSchema>;
 
@@ -91,5 +107,6 @@ export const updateTournamentInputSchema = z.object({
   Team: teamSizeSchema,
   TournamentMode: tournamentModeSchema,
   TournamentSize: z.coerce.number().int().positive(),
+  ReturnLeg: z.boolean().optional(),
 });
 export type UpdateTournamentInput = z.infer<typeof updateTournamentInputSchema>;

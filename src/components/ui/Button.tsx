@@ -43,7 +43,7 @@ export function Button({
     <button
       {...rest}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${variants[variant]} ${fullWidth ? "w-full" : ""} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${variants[variant]} ${fullWidth ? "w-full" : ""} ${className}`}
     >
       {loading && (
         <span className="h-4 w-4 animate-[gamelyd-spin_0.7s_linear_infinite] rounded-full border-2 border-current border-t-transparent" />
