@@ -13,11 +13,9 @@ const ACCESS_MAX_AGE = 60 * 15; // 15 minutes
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function cookieBase() {
-  // Secure cookies are only sent over HTTPS. Until DNS/TLS is set up we serve
-  // over plain HTTP (e.g. http://45.147.251.199), so Secure must stay off or
-  // the browser drops the session and protected routes look like a logout.
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const secure = appUrl.startsWith("https://");
+  // Never set Secure on plain HTTP — browsers drop those cookies and protected
+  // routes look like a logout. Opt in only when COOKIE_SECURE=true (HTTPS).
+  const secure = process.env.COOKIE_SECURE === "true";
   return {
     httpOnly: true,
     secure,
@@ -53,8 +51,10 @@ export async function setSessionCookies(
 
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
-  store.delete(SESSION_COOKIE);
-  store.delete(REFRESH_COOKIE);
+  const base = cookieBase();
+  // delete() alone can miss cookies if Secure/path don't match; expire explicitly.
+  store.set(SESSION_COOKIE, "", { ...base, maxAge: 0 });
+  store.set(REFRESH_COOKIE, "", { ...base, maxAge: 0 });
 }
 
 export async function getSessionToken(): Promise<string | null> {
