@@ -1,5 +1,24 @@
 import { z } from "zod";
+import { isValidPhoneNumber } from "libphonenumber-js";
 import { userTypeSchema } from "./common";
+import { isStrongPassword, PASSWORD_MIN_LENGTH } from "@/lib/password";
+
+/** Password that satisfies every shared strength rule (used for new passwords). */
+const strongPasswordSchema = z
+  .string()
+  .min(PASSWORD_MIN_LENGTH)
+  .refine(isStrongPassword, {
+    message:
+      "Password must be at least 8 characters and include uppercase, lowercase, a number, and a symbol",
+  });
+
+/** Phone number in international E.164 format, e.g. +2348012345678. */
+const phoneSchema = z
+  .string()
+  .min(1, "Phone number is required")
+  .refine((value) => isValidPhoneNumber(value), {
+    message: "Enter a valid phone number including country code",
+  });
 
 /** Public-facing user (never includes password / refresh token). */
 export const userSchema = z.object({
@@ -31,8 +50,8 @@ export const signupInputSchema = z.object({
   last_name: z.string().min(2).max(100),
   user_name: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().min(1),
-  password: z.string().min(5),
+  phone: phoneSchema,
+  password: strongPasswordSchema,
   user_type: userTypeSchema.default("USER"),
 });
 export type SignupInput = z.infer<typeof signupInputSchema>;
@@ -49,13 +68,13 @@ export const forgotPasswordInputSchema = z.object({
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordInputSchema>;
 
 export const resetPasswordInputSchema = z.object({
-  newPassword: z.string().min(5),
+  newPassword: strongPasswordSchema,
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;
 
 export const changePasswordInputSchema = z.object({
-  password: z.string().min(5),
-  newPassword: z.string().min(5),
+  password: z.string().min(1),
+  newPassword: strongPasswordSchema,
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 

@@ -8,8 +8,11 @@ import type { RegisterTournament } from "@/lib/schemas/register";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordStrength } from "@/components/ui/PasswordStrength";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
+import { isStrongPassword } from "@/lib/password";
 import {
   changePasswordAction,
   updateProfileAction,
@@ -253,6 +256,10 @@ function ChangePasswordModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isStrongPassword(newPassword)) {
+      toast.error("New password does not meet the requirements");
+      return;
+    }
     setLoading(true);
     const result = await changePasswordAction({ password, newPassword });
     setLoading(false);
@@ -267,21 +274,24 @@ function ChangePasswordModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Change password">
-      <form onSubmit={submit} className="flex flex-col gap-4">
-        <Input
-          type="password"
+      <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+        <PasswordInput
           label="Current password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
           required
         />
-        <Input
-          type="password"
-          label="New password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          required
-        />
+        <div className="flex flex-col gap-2">
+          <PasswordInput
+            label="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+          <PasswordStrength value={newPassword} />
+        </div>
         <Button type="submit" loading={loading} fullWidth>
           Update password
         </Button>

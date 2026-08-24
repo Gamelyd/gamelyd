@@ -2,11 +2,13 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordStrength } from "@/components/ui/PasswordStrength";
 import { Button } from "@/components/ui/Button";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { useToast } from "@/components/ui/Toast";
 import { resetPasswordAction } from "@/server/actions/authActions";
+import { isStrongPassword } from "@/lib/password";
 
 export default function ResetPasswordPage({
   params,
@@ -22,6 +24,10 @@ export default function ResetPasswordPage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isStrongPassword(password)) {
+      toast.error("Password does not meet the requirements");
+      return;
+    }
     if (password !== confirm) {
       toast.error("Passwords do not match");
       return;
@@ -39,20 +45,28 @@ export default function ResetPasswordPage({
 
   return (
     <AuthShell title="Set a new password">
-      <form onSubmit={handleSubmit} className="w-full">
+      <form onSubmit={handleSubmit} noValidate className="w-full">
         <div className="flex flex-col gap-4">
-          <Input
-            type="password"
-            label="New password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <Input
-            type="password"
+          <div className="flex flex-col gap-2">
+            <PasswordInput
+              label="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+            <PasswordStrength value={password} />
+          </div>
+          <PasswordInput
             label="Confirm password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
+            error={
+              confirm && confirm !== password
+                ? "Passwords do not match"
+                : undefined
+            }
+            autoComplete="new-password"
             required
           />
           <Button type="submit" loading={loading} fullWidth>
