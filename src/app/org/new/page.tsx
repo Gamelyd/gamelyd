@@ -1,0 +1,124 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SiteLayout } from "@/components/layout/SiteLayout";
+import { Input } from "@/components/ui/Input";
+import { TextArea } from "@/components/ui/TextArea";
+import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ui/Toast";
+import { createOrgAction } from "@/server/actions/orgActions";
+import { IconPicker } from "@/components/ui/IconPicker";
+import { ORG_ICONS } from "@/lib/icons";
+import type { CreateOrgInput } from "@/lib/schemas/org";
+
+const empty: CreateOrgInput = {
+  name: "",
+  description: "",
+  image: ORG_ICONS[0]?.url ?? "",
+  banner: "",
+  website: "",
+  twitter: "",
+  instagram: "",
+  linkedin: "",
+  facebook: "",
+};
+
+export default function CreateOrgPage() {
+  const { isAuthenticated, refreshOrgs } = useAuth();
+  const router = useRouter();
+  const toast = useToast();
+  const [form, setForm] = useState<CreateOrgInput>(empty);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) router.push("/signup?redirect=/org/new");
+  }, [isAuthenticated, router]);
+
+  const update = <K extends keyof CreateOrgInput>(
+    key: K,
+    value: CreateOrgInput[K],
+  ) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const result = await createOrgAction(form);
+    setLoading(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Organization created");
+      await refreshOrgs();
+      router.push(`/org/${result.data.org_id}`);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  return (
+    <SiteLayout>
+      <section className="gradient-brand-page">
+        <div className="mx-auto max-w-3xl px-5 py-12">
+          <h1 className="font-display text-4xl text-white md:text-5xl">
+            Create an organization
+          </h1>
+          <p className="mt-2 text-white/80">
+            Host tournaments under your brand and invite teammates to help
+            manage them.
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-3xl px-5 py-12">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <Input
+            label="Organization name"
+            value={form.name}
+            onChange={(e) => update("name", e.target.value)}
+            required
+          />
+          <IconPicker
+            label="Logo"
+            icons={ORG_ICONS}
+            value={form.image}
+            onChange={(url) => update("image", url)}
+          />
+          <TextArea
+            label="Description"
+            rows={4}
+            value={form.description}
+            onChange={(e) => update("description", e.target.value)}
+          />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Input
+              label="Website"
+              placeholder="https://..."
+              value={form.website}
+              onChange={(e) => update("website", e.target.value)}
+            />
+            <Input
+              label="Twitter"
+              value={form.twitter}
+              onChange={(e) => update("twitter", e.target.value)}
+            />
+            <Input
+              label="Instagram"
+              value={form.instagram}
+              onChange={(e) => update("instagram", e.target.value)}
+            />
+            <Input
+              label="LinkedIn"
+              value={form.linkedin}
+              onChange={(e) => update("linkedin", e.target.value)}
+            />
+          </div>
+          <div>
+            <Button type="submit" loading={loading}>
+              Create organization
+            </Button>
+          </div>
+        </form>
+      </section>
+    </SiteLayout>
+  );
+}
