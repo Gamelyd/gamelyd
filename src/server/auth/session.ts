@@ -13,9 +13,14 @@ const ACCESS_MAX_AGE = 60 * 15; // 15 minutes
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function cookieBase() {
+  // Secure cookies are only sent over HTTPS. Until DNS/TLS is set up we serve
+  // over plain HTTP (e.g. http://45.147.251.199), so Secure must stay off or
+  // the browser drops the session and protected routes look like a logout.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const secure = appUrl.startsWith("https://");
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax" as const,
     path: "/",
   };
