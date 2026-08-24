@@ -11,6 +11,7 @@ import { registerForTournamentAction } from "@/server/actions/tournamentActions"
 import { FALLBACKS, PLAYER_ICONS, TEAM_ICONS, playerIconFor } from "@/lib/icons";
 import type { Player } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
+import type { User } from "@/lib/schemas/user";
 import type { TeamSize } from "@/lib/schemas/common";
 import { rosterSize } from "@/lib/schemas/common";
 

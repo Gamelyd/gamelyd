@@ -48,7 +48,7 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
-            NEXT_PUBLIC_APP_URL=https://gamelyd.co
+            NEXT_PUBLIC_APP_URL=${{ vars.APP_PUBLIC_URL || 'http://45.147.251.199' }}
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
