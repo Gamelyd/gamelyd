@@ -82,6 +82,8 @@ export interface TournamentDoc {
   Groups: TournamentGroup[];
   PointSystem: PointSystem;
   ReturnLeg: boolean;
+  Featured?: boolean;
+  FeaturedAt?: string;
 }
 
 export interface DrawDoc {

@@ -10,6 +10,7 @@ import type { Paginated } from "@/lib/result";
 import {
   adminListTournamentsAction,
   adminToggleDeleteTournamentAction,
+  adminToggleFeaturedTournamentAction,
   adminToggleSuspendTournamentAction,
 } from "@/server/actions/adminActions";
 
@@ -53,7 +54,10 @@ export default function AdminTournamentsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 font-display text-3xl text-white">Tournaments</h1>
+      <h1 className="mb-2 font-display text-3xl text-white">Tournaments</h1>
+      <p className="mb-6 text-sm text-body">
+        Home banner shows up to 2 tournaments. Adding a third replaces the oldest.
+      </p>
 
       <form
         onSubmit={(e) => {
@@ -83,6 +87,7 @@ export default function AdminTournamentsPage() {
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Date</th>
+              <th className="px-4 py-3 font-medium">Banner</th>
               <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -119,10 +124,28 @@ export default function AdminTournamentsPage() {
                   {t.Date ? new Date(t.Date).toLocaleDateString() : "—"}
                 </td>
                 <td className="px-4 py-3">
+                  {t.Featured ? (
+                    <span className="text-xs text-primary">On banner</span>
+                  ) : (
+                    <span className="text-xs text-body">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex flex-wrap justify-end gap-2">
                     <Link href={`/tournament/${t._id}`}>
                       <Button variant="outline">View</Button>
                     </Link>
+                    <Button
+                      variant={t.Featured ? "active" : "dark"}
+                      loading={busyId === t._id}
+                      onClick={() =>
+                        run(t._id, () =>
+                          adminToggleFeaturedTournamentAction(t._id),
+                        )
+                      }
+                    >
+                      {t.Featured ? "Remove banner" : "Add to banner"}
+                    </Button>
                     <Button
                       variant="dark"
                       loading={busyId === t._id}
@@ -151,7 +174,7 @@ export default function AdminTournamentsPage() {
             ))}
             {data && data.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-body">
+                <td colSpan={7} className="px-4 py-8 text-center text-body">
                   No tournaments found.
                 </td>
               </tr>

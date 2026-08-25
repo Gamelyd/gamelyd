@@ -110,6 +110,7 @@ export async function saveTournament(
       Draw: input.PointSystem?.Draw || 1,
     },
     ReturnLeg: input.TournamentMode === "LEAGUE" ? Boolean(input.ReturnLeg) : false,
+    Featured: false,
   };
 
   await col.insertOne(doc);
@@ -224,6 +225,81 @@ export async function getTournamentsByModeLimit(
     .limit(10)
     .toArray();
   return docs.map(serializeTournament);
+}
+
+const BANNER_SLOTS = 2;
+
+export async function getBannerTournaments(): Promise<Tournament[]> {
+  const col = await tournaments();
+  const docs = await col
+    .find(
+      asDocFilter<TournamentDoc>({
+        $and: [
+          { $or: [{ Featured: true }, { featured: true }] },
+          notDeleted(),
+          { IsSuspended: { $ne: true } },
+          { issuspended: { $ne: true } },
+        ],
+      }),
+    )
+    .sort({ FeaturedAt: -1, _id: -1 })
+    .limit(BANNER_SLOTS)
+    .toArray();
+  return docs.map(serializeTournament);
+}
+
+export async function adminToggleFeaturedTournament(id: string): Promise<boolean> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+  const current = serializeTournament(found);
+  const next = !current.Featured;
+  const now = new Date().toISOString();
+
+  if (next) {
+    const featured = await col
+      .find(
+        asDocFilter<TournamentDoc>({
+          $and: [
+            { $or: [{ Featured: true }, { featured: true }] },
+            { _id: { $ne: found._id } },
+          ],
+        }),
+      )
+      .sort({ FeaturedAt: 1, _id: 1 })
+      .toArray();
+    const overflow = featured.slice(0, Math.max(featured.length - (BANNER_SLOTS - 1), 0));
+    for (const extra of overflow) {
+      await col.updateOne(
+        { _id: extra._id },
+        {
+          $set: {
+            Featured: false,
+            featured: false,
+            FeaturedAt: "",
+            featuredAt: "",
+            Updated_at: now,
+            updated_at: now,
+          },
+        } as unknown as Parameters<typeof col.updateOne>[1],
+      );
+    }
+  }
+
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        Featured: next,
+        featured: next,
+        FeaturedAt: next ? now : "",
+        featuredAt: next ? now : "",
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return next;
 }
 
 export async function listUserTournaments(

@@ -6,20 +6,20 @@ import { Leaderboard } from "@/components/home/Leaderboard";
 import { Button } from "@/components/ui/Button";
 import {
   getTournamentsAction,
-  getTournamentsByModeLimitAction,
+  getBannerTournamentsAction,
 } from "@/server/actions/tournamentActions";
 
 export default async function HomePage() {
-  const [sponsoredResult, latestResult] = await Promise.all([
-    getTournamentsByModeLimitAction("SPONSORED"),
+  const [bannerResult, latestResult] = await Promise.all([
+    getBannerTournamentsAction(),
     getTournamentsAction("", 1),
   ]);
-  const sponsored = sponsoredResult.ok ? sponsoredResult.data : [];
+  const banner = bannerResult.ok ? bannerResult.data : [];
   const latest = latestResult.ok ? latestResult.data.items.slice(0, 10) : [];
 
   return (
     <SiteLayout>
-      <Hero sponsored={sponsored} />
+      <Hero banner={banner} />
 
       <LatestTournaments tournaments={latest} />
 

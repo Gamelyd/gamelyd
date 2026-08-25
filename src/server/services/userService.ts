@@ -4,7 +4,12 @@ import { users } from "../db";
 import { env } from "../env";
 import type { UserDoc } from "../documents";
 import { hashPassword, verifyPassword } from "../auth/password";
-import { generateAccessToken, generateTokens, verifyRefreshToken } from "../auth/jwt";
+import {
+  generateAccessToken,
+  generatePasswordResetToken,
+  generateTokens,
+  verifyRefreshToken,
+} from "../auth/jwt";
 import { getSessionClaims } from "../auth/session";
 import { serializeUser } from "../serialize";
 import { sendEmail } from "../email/mailer";

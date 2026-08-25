@@ -67,7 +67,7 @@ export function TournamentView({
       show: tournament.TournamentMode === "LEAGUE",
     },
     { id: "fixtures", label: "Fixtures", show: true },
-    { id: "register", label: "Register", show: !!user },
+    { id: "register", label: "Register", show: true },
     { id: "manage", label: "Manage", show: canManage },
   ];
 
@@ -195,6 +195,11 @@ export function TournamentView({
               </Link>
             )}
           </div>
+          {!user && (
+            <p className="mt-4 max-w-xl text-sm text-white/90">
+              Log in or create an account to register for this tournament.
+            </p>
+          )}
         </div>
       </section>
 
@@ -290,17 +295,20 @@ export function TournamentView({
           </div>
         )}
 
-        {tab === "register" && (
-          <RegisterTeam
-            tournamentId={tournament.TournamentId}
-            teamSize={tournament.Team}
-            onRegistered={(reg) => {
-              setParticipants((prev) => [...prev, reg]);
-              toast.success("Team registered");
-              setTab("teams");
-            }}
-          />
-        )}
+        {tab === "register" &&
+          (user ? (
+            <RegisterTeam
+              tournamentId={tournament.TournamentId}
+              teamSize={tournament.Team}
+              onRegistered={(reg) => {
+                setParticipants((prev) => [...prev, reg]);
+                toast.success("Team registered");
+                setTab("teams");
+              }}
+            />
+          ) : (
+            <GuestRegisterPrompt tournamentId={tournament.TournamentId} />
+          ))}
 
         {tab === "manage" && canManage && (
           <div className="flex max-w-md flex-col gap-4">
@@ -375,6 +383,31 @@ export function TournamentView({
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+    </div>
+  );
+}
+
+function GuestRegisterPrompt({ tournamentId }: { tournamentId: string }) {
+  const redirect = `/signup?redirect=${encodeURIComponent(`/tournament/${tournamentId}`)}`;
+
+  return (
+    <div className="mx-auto max-w-lg rounded-xl border border-surface-2 bg-surface p-8 text-center">
+      <h3 className="text-xl font-semibold text-white">
+        Sign in to register
+      </h3>
+      <p className="mt-3 text-sm leading-relaxed text-body">
+        You need an account before you can view the registration form and join
+        this tournament. Log in if you already have one, or create a free
+        account.
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link href={redirect}>
+          <Button>Log in</Button>
+        </Link>
+        <Link href={redirect}>
+          <Button variant="outline">Create account</Button>
+        </Link>
+      </div>
     </div>
   );
 }

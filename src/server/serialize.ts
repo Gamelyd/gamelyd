@@ -158,6 +158,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
         Draw: 1,
       },
     ReturnLeg: readBool(raw, ["ReturnLeg", "returnleg"]),
+    Featured: readBool(raw, ["Featured", "featured"]),
     Prizes: serializePrizes(raw.Prizes ?? raw.prizes),
   };
 }

@@ -71,6 +71,7 @@ export const tournamentSchema = z.object({
   Groups: z.array(tournamentGroupSchema).default([]),
   PointSystem: pointSystemSchema.default({ Win: 3, Draw: 1 }),
   ReturnLeg: z.boolean().default(false),
+  Featured: z.boolean().default(false),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 

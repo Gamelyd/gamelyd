@@ -19,6 +19,7 @@ import {
   getTournamentById,
   getTournamentsByMode,
   getTournamentsByModeLimit,
+  getBannerTournaments,
   groupTournament,
   inviteUser,
   listParticipants,
@@ -76,6 +77,12 @@ export async function getTournamentsByModeAction(
   page: number,
 ): Promise<ActionResult<Paginated<Tournament>>> {
   return ok(await getTournamentsByMode(payment, type, page));
+}
+
+export async function getBannerTournamentsAction(): Promise<
+  ActionResult<Tournament[]>
+> {
+  return ok(await getBannerTournaments());
 }
 
 export async function getTournamentsByModeLimitAction(

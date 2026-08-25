@@ -30,6 +30,7 @@ import {
 } from "@/server/services/orgService";
 import {
   adminToggleDeleteTournament,
+  adminToggleFeaturedTournament,
   adminToggleSuspendTournament,
   listTournamentsAdmin,
 } from "@/server/services/tournamentService";
@@ -190,6 +191,22 @@ export async function adminToggleDeleteTournamentAction(
   try {
     const deleted = await adminToggleDeleteTournament(id);
     return ok(deleted, deleted ? "Tournament deleted" : "Tournament restored");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminToggleFeaturedTournamentAction(
+  id: string,
+): Promise<ActionResult<boolean>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const featured = await adminToggleFeaturedTournament(id);
+    return ok(
+      featured,
+      featured ? "Added to home banner" : "Removed from home banner",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");
