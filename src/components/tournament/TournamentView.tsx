@@ -21,6 +21,7 @@ import { KnockoutBracket } from "./KnockoutBracket";
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
 import { LeagueTable } from "./LeagueTable";
+import { ShareTournamentButton } from "./ShareTournamentButton";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import {
   advanceGroupStageAction,
@@ -45,6 +46,7 @@ import type { TournamentManager } from "@/lib/schemas/tournament";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
+import { FALLBACKS, resolveIcon } from "@/lib/icons";
 
 type Tab =
   | "details"
@@ -479,51 +481,69 @@ export function TournamentView({
   return (
     <div>
       <section className="border-b border-surface-2 bg-bg">
-        <div className="mx-auto max-w-6xl px-5 py-10 lg:py-12">
-          <div className="flex flex-wrap items-center gap-3">
-            <Tag payment={tournament.Payment} className="rounded-md" />
-            <span className="rounded-full border border-white/15 bg-surface-2 px-3 py-1 text-xs text-white">
-              {tournament.TournamentMode}
-            </span>
+        <div className="mx-auto max-w-6xl px-5 py-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+            <div className="relative h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-surface-4 sm:h-40 sm:w-32">
+              <Image
+                src={resolveIcon(tournament.icon, FALLBACKS.tournament)}
+                alt=""
+                fill
+                sizes="128px"
+                quality={90}
+                className="object-contain p-1"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <Tag payment={tournament.Payment} className="rounded-md" />
+                <span className="rounded-full border border-white/15 bg-surface-2 px-3 py-1 text-xs text-white">
+                  {tournament.TournamentMode}
+                </span>
+              </div>
+              <h1 className="mt-3 font-display text-3xl text-white md:text-4xl">
+                {tournament.Name}
+              </h1>
+              <p className="mt-2 text-body">
+                {tournament.GameName} · {tournament.Date}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <ShareTournamentButton
+                  name={tournament.Name}
+                  urlPath={`/tournament/${tournament.TournamentId}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setTab("teams")}
+                  className="inline-flex h-9 items-center rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
+                >
+                  {participants.length} of {tournament.TournamentSize} teams
+                  registered
+                </button>
+                {tournament.OrgId && tournament.OrgName && (
+                  <Link
+                    href={`/org/${tournament.OrgId}`}
+                    className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
+                  >
+                    {tournament.OrgIcon ? (
+                      <Image
+                        src={tournament.OrgIcon}
+                        alt=""
+                        width={20}
+                        height={20}
+                        className="h-5 w-5 shrink-0 rounded-full object-cover"
+                      />
+                    ) : null}
+                    Hosted by {tournament.OrgName}
+                  </Link>
+                )}
+              </div>
+              {!user && (
+                <p className="mt-4 max-w-xl text-sm text-body">
+                  Log in or create an account to register for this tournament.
+                </p>
+              )}
+            </div>
           </div>
-          <h1 className="mt-4 font-display text-4xl text-white md:text-5xl">
-            {tournament.Name}
-          </h1>
-          <p className="mt-2 text-body">
-            {tournament.GameName} · {tournament.Date}
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setTab("teams")}
-              className="inline-flex h-9 items-center rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
-            >
-              {participants.length} of {tournament.TournamentSize} teams
-              registered
-            </button>
-            {tournament.OrgId && tournament.OrgName && (
-              <Link
-                href={`/org/${tournament.OrgId}`}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
-              >
-                {tournament.OrgIcon ? (
-                  <Image
-                    src={tournament.OrgIcon}
-                    alt=""
-                    width={20}
-                    height={20}
-                    className="h-5 w-5 shrink-0 rounded-full object-cover"
-                  />
-                ) : null}
-                Hosted by {tournament.OrgName}
-              </Link>
-            )}
-          </div>
-          {!user && (
-            <p className="mt-4 max-w-xl text-sm text-body">
-              Log in or create an account to register for this tournament.
-            </p>
-          )}
         </div>
       </section>
 

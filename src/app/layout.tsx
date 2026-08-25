@@ -27,6 +27,9 @@ const description =
   "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores — for friends, clubs, and communities.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://www.gamelyd.co",
+  ),
   title: "Gamelyd — Host and join game tournaments",
   description,
   icons: {

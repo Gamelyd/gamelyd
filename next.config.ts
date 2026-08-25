@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "**" },
     ],
+    qualities: [75, 90],
   },
   serverExternalPackages: ["mongodb", "nodemailer", "bcryptjs"],
 };

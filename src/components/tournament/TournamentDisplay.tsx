@@ -41,16 +41,16 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
   return (
     <Link
       href={`/tournament/${tournament.TournamentId}`}
-      className={`group flex min-h-56 overflow-hidden rounded-xl bg-surface ${paymentFrame(tournament.Payment)}`}
+      className={`group flex min-h-44 overflow-hidden rounded-xl bg-surface ${paymentFrame(tournament.Payment)}`}
     >
-      <div className="relative w-[42%] shrink-0 bg-surface-4 sm:w-48 md:w-[44%]">
+      <div className="relative w-32 shrink-0 bg-black sm:w-36">
         <Image
           src={image}
           alt={tournament.Name}
           fill
-          sizes="(max-width: 768px) 42vw, 280px"
+          sizes="144px"
           quality={90}
-          className="object-cover"
+          className="object-contain"
         />
         <div className="absolute left-3 top-3">
           <Tag payment={tournament.Payment} className="rounded-md" />
@@ -106,7 +106,7 @@ export function EmptyTournamentDisplay() {
   return (
     <Link
       href="/contact-us"
-      className="group flex min-h-56 items-center overflow-hidden rounded-xl border border-white/20 bg-surface px-5 py-6 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]"
+      className="group flex min-h-44 items-center overflow-hidden rounded-xl border border-white/20 bg-surface px-5 py-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]"
     >
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">

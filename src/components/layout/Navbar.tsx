@@ -33,9 +33,13 @@ export function Navbar() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let active = true;
-    void getMyOrgInvitesAction().then((result) => {
-      if (active && result.ok) setPendingInvites(result.data.length);
-    });
+    void getMyOrgInvitesAction()
+      .then((result) => {
+        if (active && result.ok) setPendingInvites(result.data.length);
+      })
+      .catch(() => {
+        // Ignore network blips while the dev server reloads.
+      });
     return () => {
       active = false;
     };
