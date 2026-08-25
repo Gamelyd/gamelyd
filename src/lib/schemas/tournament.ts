@@ -122,3 +122,18 @@ export const updateTournamentInputSchema = z.object({
   ReturnLeg: z.boolean().optional(),
 });
 export type UpdateTournamentInput = z.infer<typeof updateTournamentInputSchema>;
+
+/**
+ * Owner-editable settings, only applied before a tournament starts. Every field
+ * is optional so each control can be saved on its own.
+ */
+export const editTournamentInputSchema = z
+  .object({
+    TournamentType: tournamentTypeSchema.optional(),
+    Shuffle: shuffleSchema.optional(),
+    TournamentSize: z.coerce.number().int().positive().optional(),
+  })
+  .refine((data) => Object.values(data).some((v) => v !== undefined), {
+    message: "Nothing to update",
+  });
+export type EditTournamentInput = z.infer<typeof editTournamentInputSchema>;

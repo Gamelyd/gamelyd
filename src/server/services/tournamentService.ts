@@ -40,6 +40,7 @@ import type {
 } from "@/lib/schemas/tournament";
 import type { Paginated } from "@/lib/result";
 import type {
+  EditTournamentInput,
   SaveTournamentInput,
   UpdateTournamentInput,
 } from "@/lib/schemas/tournament";
@@ -928,6 +929,67 @@ export async function updateTournament(
   const updated = await col.findOneAndUpdate(
     { _id: found._id },
     { $set: { ...input, Updated_at: new Date().toISOString() } },
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Tournament not found");
+  return serializeTournament(updated);
+}
+
+/**
+ * Owner/admin: edit configurable settings before the tournament starts.
+ * The size cannot drop below the number of teams already registered.
+ */
+export async function editTournamentSettings(
+  actorUid: string,
+  id: string,
+  input: EditTournamentInput,
+): Promise<Tournament> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("Only the tournament owner can edit settings");
+  }
+
+  const current = serializeTournament(found);
+  if (current.Start) {
+    throw new ServiceError(
+      "Settings can't be changed after the tournament has started",
+    );
+  }
+
+  const now = new Date().toISOString();
+  const set: Record<string, unknown> = { Updated_at: now, updated_at: now };
+
+  if (input.TournamentSize !== undefined) {
+    const ids = relatedIdsFromDoc(found);
+    const registeredCount = await (await registrations()).countDocuments(
+      asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)),
+    );
+    if (input.TournamentSize < registeredCount) {
+      throw new ServiceError(
+        `Size can't be less than the ${registeredCount} team${
+          registeredCount === 1 ? "" : "s"
+        } already registered`,
+      );
+    }
+    set.TournamentSize = input.TournamentSize;
+    set.tournamentsize = input.TournamentSize;
+  }
+
+  if (input.Shuffle !== undefined) {
+    set.Shuffle = input.Shuffle;
+    set.shuffle = input.Shuffle;
+  }
+
+  if (input.TournamentType !== undefined) {
+    set.TournamentType = input.TournamentType;
+    set.tournamenttype = input.TournamentType;
+  }
+
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id },
+    { $set: set } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
     { returnDocument: "after" },
   );
   if (!updated) throw new ServiceError("Tournament not found");

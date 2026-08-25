@@ -3,6 +3,7 @@
 import { parseInput } from "@/lib/validate";
 import { ok, fail, type ActionResult, type Paginated } from "@/lib/result";
 import {
+  editTournamentInputSchema,
   saveTournamentInputSchema,
   updateTournamentInputSchema,
   type Tournament,
@@ -17,6 +18,7 @@ import type { Player } from "@/lib/schemas/draw";
 import {
   acceptInvite,
   addTournamentManager,
+  editTournamentSettings,
   getPublicTournaments,
   getTournamentById,
   getTournamentsByMode,
@@ -270,6 +272,28 @@ export async function groupTournamentAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong grouping the tournament");
+  }
+}
+
+export async function editTournamentSettingsAction(
+  id: string,
+  input: unknown,
+): Promise<ActionResult<Tournament>> {
+  const admin = await requireTournamentAdmin(id);
+  if (!admin.ok) return admin;
+
+  const parsed = parseInput(editTournamentInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  try {
+    return ok(
+      await editTournamentSettings(admin.uid, id, parsed.data),
+      "Settings saved",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong saving settings");
   }
 }
 
