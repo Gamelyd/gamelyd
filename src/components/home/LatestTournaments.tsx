@@ -12,31 +12,36 @@ export function LatestTournaments({
   tournaments: Tournament[];
 }) {
   return (
-    <section className="mx-auto max-w-7xl px-5 py-14">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="font-display text-4xl text-white md:text-5xl">
-            Latest tournaments
-          </h2>
-          <p className="mt-2 text-body">
-            Recently created events. Open one to register or watch.
-          </p>
+    <section className="bg-bg">
+      <div className="mx-auto max-w-7xl px-5 py-14">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+              Events
+            </p>
+            <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
+              Latest tournaments
+            </h2>
+            <p className="mt-2 text-body">
+              Recently opened. Register or follow results from the event page.
+            </p>
+          </div>
+          <Link href="/tournament/all/ALL/ALL">
+            <Button variant="outline">View all</Button>
+          </Link>
         </div>
-        <Link href="/tournament/all/ALL/ALL">
-          <Button variant="outline">View more</Button>
-        </Link>
-      </div>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-        {tournaments.length === 0 ? (
-          <EmptyTournaments message="No tournaments yet. Be the first to create one." />
-        ) : (
-          tournaments.map((t) => (
-            <TournamentCard
-              key={`${t._id}:${t.TournamentId}`}
-              tournament={t}
-            />
-          ))
-        )}
+        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          {tournaments.length === 0 ? (
+            <EmptyTournaments message="No tournaments yet. Create the first one." />
+          ) : (
+            tournaments.map((t) => (
+              <TournamentCard
+                key={`${t._id}:${t.TournamentId}`}
+                tournament={t}
+              />
+            ))
+          )}
+        </div>
       </div>
     </section>
   );

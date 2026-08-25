@@ -24,7 +24,7 @@ export function CreateOrgBanner() {
   };
 
   return (
-    <div className="gradient-brand">
+    <div className="border-b border-surface-2 bg-primary-panel">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3">
         <p className="text-sm text-white">
           You don&apos;t belong to an organization yet. Create one to host
@@ -33,7 +33,7 @@ export function CreateOrgBanner() {
         <div className="flex items-center gap-2">
           <Link
             href="/org/new"
-            className="rounded-lg bg-[#04201e] px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-[#04201e] hover:bg-primary-dark"
           >
             Create organization
           </Link>

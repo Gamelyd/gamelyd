@@ -1,83 +1,47 @@
-import Image from "next/image";
-import { FALLBACKS } from "@/lib/icons";
-
-interface LeaderEntry {
-  num: string;
-  color: string;
-  rgb: string;
-  size: "big" | "small";
-}
-
-const leaders: LeaderEntry[] = [
-  { num: "2", color: "#D01966", rgb: "190, 25, 95, 0.50", size: "small" },
-  { num: "1", color: "#d0be19", rgb: "190, 174, 25, 0.5", size: "big" },
-  { num: "3", color: "#1DD019", rgb: "29, 190, 25, 0.50", size: "small" },
-];
-
-function ProfileCard({ entry }: { entry: LeaderEntry }) {
-  const big = entry.size === "big";
-  const dim = big ? 314 : 200;
-  const numDim = big ? 60 : 40;
-  return (
-    <div className="relative mx-5 flex flex-col items-center max-[800px]:mx-2.5">
-      <div
-        className="relative rounded-full bg-surface-4 bg-cover bg-center bg-no-repeat max-[800px]:!h-[var(--sm)] max-[800px]:!w-[var(--sm)]"
-        style={
-          {
-            width: dim,
-            height: dim,
-            border: `${big ? 9.2 : 5}px solid ${entry.color}`,
-            boxShadow: `0px 5px 77px 1px rgba(${entry.rgb})`,
-            "--sm": big ? "214px" : "100px",
-          } as React.CSSProperties
-        }
-      >
-        <Image
-          src={FALLBACKS.player}
-          alt="player"
-          fill
-          className="rounded-full object-cover"
-        />
-        <div
-          className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center rounded-full font-display text-black"
-          style={{
-            width: numDim,
-            height: numDim,
-            backgroundColor: entry.color,
-            fontSize: big ? 40 : 20,
-            bottom: big ? -30 : -20,
-          }}
-        >
-          {entry.num}
-        </div>
-      </div>
-      <div
-        className="mt-8 text-center font-display text-white"
-        style={{ fontSize: big ? 40 : 25 }}
-      >
-        Coming Soon
-      </div>
-    </div>
-  );
-}
-
 export function Leaderboard() {
+  const rows = [1, 2, 3];
+
   return (
-    <section className="bg-[linear-gradient(180deg,#101014_41.42%,#1f262f_163.4%)] pb-[50px]">
-      <div className="flex flex-wrap items-center justify-center">
-        <h2 className="mt-10 text-center font-display text-[50px] capitalize leading-[93%] text-white max-[700px]:text-[30px]">
-          LEADERBOARD
+    <section className="bg-bg">
+      <div className="mx-auto max-w-7xl px-5 py-14">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          Rankings
+        </p>
+        <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
+          Leaderboard
         </h2>
-        <div className="ml-10 mt-10 flex flex-row">
-          <div className="flex h-[33px] w-[33px] items-center justify-center rounded-[3px] bg-primary">
-            <Image src="/icons/filter.svg" alt="filter" width={18} height={18} />
-          </div>
+        <p className="mt-2 max-w-xl text-body">
+          Season standings are not live yet. Rankings will fill from scored
+          tournament results.
+        </p>
+
+        <div className="mt-8 overflow-hidden rounded-xl border border-surface-2">
+          <table className="w-full text-left">
+            <thead className="bg-surface-2 text-[11px] font-semibold uppercase tracking-wider text-white/50">
+              <tr>
+                <th className="w-20 px-5 py-3">Rank</th>
+                <th className="px-5 py-3">Player</th>
+                <th className="px-5 py-3 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((rank) => (
+                <tr
+                  key={rank}
+                  className="border-t border-surface-2 bg-surface"
+                >
+                  <td className="px-5 py-4 font-display text-xl text-primary">
+                    {rank}
+                  </td>
+                  <td className="px-5 py-4 text-white/40">—</td>
+                  <td className="px-5 py-4 text-right text-sm text-body">
+                    Coming soon
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
-      <div className="my-[70px] flex flex-row items-center justify-center">
-        {leaders.map((l) => (
-          <ProfileCard key={l.num} entry={l} />
-        ))}
       </div>
     </section>
   );

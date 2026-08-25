@@ -1,18 +1,15 @@
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function AboutPage() {
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto max-w-4xl px-5 py-20 text-center">
-          <h1 className="font-display text-5xl text-white">About Gamelyd</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-white/80">
-            Gamelyd is a tool for running game tournaments. You set up the
-            event, people register as teams or solo, and you manage the
-            fixtures and scores from one page.
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Gamelyd"
+        title="About"
+        description="A tool for running game tournaments. You set up the event, people register as teams or solo, and you manage fixtures and scores from one page."
+        width="max-w-4xl"
+      />
 
       <section className="mx-auto max-w-4xl space-y-8 px-5 py-16 text-body">
         <div>

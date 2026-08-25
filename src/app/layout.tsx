@@ -56,9 +56,10 @@ export default async function RootLayout({
     : [];
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${roboto.variable} ${lalezar.variable} ${lato.variable} ${inter.variable} antialiased`}
+        suppressHydrationWarning
       >
         <AuthProvider initialUser={initialUser} initialOrgs={initialOrgs}>
           <ToastProvider>{children}</ToastProvider>

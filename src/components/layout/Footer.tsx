@@ -2,10 +2,10 @@ import Link from "next/link";
 import Image from "next/image";
 
 const links: { href: string; label: string }[] = [
-  { href: "/contact-us", label: "Contact Us" },
-  { href: "/terms", label: "Terms & Condition" },
-  { href: "/policy", label: "Privacy & Policy" },
-  { href: "/contact-us", label: "Report Abuse" },
+  { href: "/contact-us", label: "Contact" },
+  { href: "/terms", label: "Terms" },
+  { href: "/policy", label: "Privacy" },
+  { href: "/contact-us", label: "Report abuse" },
 ];
 
 const socials: { icon: string; label: string }[] = [
@@ -16,49 +16,46 @@ const socials: { icon: string; label: string }[] = [
 
 export function Footer() {
   return (
-    <footer className="bg-surface-2 px-[70px] py-[30px] max-[750px]:px-[30px]">
-      <div className="flex flex-col">
+    <footer className="border-t border-surface-2 bg-surface">
+      <div className="mx-auto max-w-7xl px-5 py-10">
         <Image
           src="/images/logoWhite.png"
           alt="Gamelyd"
-          width={200}
-          height={64}
-          className="mb-[30px] h-auto w-[200px]"
+          width={160}
+          height={52}
+          className="h-10 w-auto"
         />
-        <p className="mb-[30px] w-[300px] max-w-full font-inter text-[16px] leading-6 text-purple-soft">
-          Gamelyd helps you organize game tournaments: create an event, register
-          teams, draw fixtures, and keep scores in one place.
+        <p className="mt-4 max-w-md text-sm text-body">
+          Organize game tournaments: create an event, register teams, draw
+          fixtures, and keep scores in one place.
         </p>
-        <div className="flex flex-wrap">
+        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
           {links.map((l, i) => (
             <Link
               key={`${l.href}-${i}`}
               href={l.href}
-              className="mr-[30px] py-2.5 pl-0 font-inter text-[16px] leading-6 text-purple-soft transition-colors hover:text-white"
+              className="text-sm text-body hover:text-white"
             >
               {l.label}
             </Link>
           ))}
         </div>
-      </div>
 
-      <div className="mt-[60px] h-0.5 w-full bg-purple" />
-
-      <div className="mb-5 flex w-full flex-wrap items-center justify-between">
-        <div className="mt-10 font-inter text-[16px] leading-6 text-[#d6bbfb]">
-          © {new Date().getFullYear()} GAMELYD INC. All rights reserved.
-        </div>
-        <div className="mt-10 flex items-center">
-          {socials.map((s) => (
-            <Image
-              key={s.label}
-              src={s.icon}
-              alt={s.label}
-              width={24}
-              height={24}
-              className="ml-5 cursor-pointer"
-            />
-          ))}
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-surface-2 pt-6">
+          <p className="text-sm text-body">
+            © {new Date().getFullYear()} Gamelyd Inc. All rights reserved.
+          </p>
+          <div className="flex items-center gap-5">
+            {socials.map((s) => (
+              <Image
+                key={s.label}
+                src={s.icon}
+                alt={s.label}
+                width={20}
+                height={20}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </footer>

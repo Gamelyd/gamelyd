@@ -25,18 +25,10 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
-  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [pendingInvites, setPendingInvites] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -73,15 +65,11 @@ export function Navbar() {
   };
 
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        scrolled ? "bg-black/40 shadow-lg backdrop-blur" : "bg-nav"
-      }`}
-    >
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-surface-2 bg-nav">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
         <Link href="/" className="flex items-center">
           <Image
-            src={scrolled ? "/images/logos/logo.png" : "/images/logos/logoWhite.png"}
+            src="/images/logos/logoWhite.png"
             alt="Gamelyd"
             width={160}
             height={52}

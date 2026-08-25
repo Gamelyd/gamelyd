@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
-import { Tag } from "@/components/ui/Tag";
+import { Tag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 
 export function TournamentCard({ tournament }: { tournament: Tournament }) {
@@ -10,24 +10,15 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
   return (
     <Link
       href={`/tournament/${tournament.TournamentId}`}
-      className="group relative block aspect-[225/309] w-full overflow-hidden rounded-[22px] bg-surface-4"
+      className={`group relative block aspect-225/309 w-full overflow-hidden rounded-xl bg-surface-4 ${paymentFrame(tournament.Payment)}`}
     >
-      <Image
-        src={image}
-        alt=""
-        fill
-        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
-        quality={90}
-        aria-hidden
-        className="scale-110 object-cover blur-lg"
-      />
       <Image
         src={image}
         alt={tournament.Name}
         fill
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
         quality={90}
-        className="object-contain"
+        className="object-cover"
       />
 
       <div className="absolute left-3 top-3">
@@ -49,7 +40,7 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
         </div>
       )}
 
-      <div className="absolute bottom-0 flex min-h-[71px] w-full flex-col justify-center rounded-b-[22px] bg-black/80 px-3 py-2">
+      <div className="absolute bottom-0 flex min-h-[71px] w-full flex-col justify-center bg-black px-3 py-2">
         <span className="line-clamp-1 font-display text-[20px] leading-tight text-white">
           {tournament.Name}
         </span>
@@ -67,7 +58,7 @@ export function EmptyTournaments({
   message?: string;
 }) {
   return (
-    <div className="col-span-full rounded-2xl border border-dashed border-surface-2 bg-surface/50 py-16 text-center text-body">
+    <div className="col-span-full rounded-xl border border-white/15 bg-surface py-16 text-center text-body shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
       {message}
     </div>
   );

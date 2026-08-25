@@ -37,9 +37,9 @@ export function ProfileView({
 
   return (
     <div>
-      <section className="gradient-brand-page">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-16 text-center">
-          <div className="relative h-24 w-24 overflow-hidden rounded-full bg-primary">
+      <section className="border-b border-surface-2 bg-bg">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-12 text-center">
+          <div className="relative h-24 w-24 overflow-hidden rounded-full bg-surface-2 ring-2 ring-white/20">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={playerIconFor(profile.user_id)}
@@ -51,7 +51,7 @@ export function ProfileView({
             <h1 className="font-display text-4xl text-white">
               {profile.first_name} {profile.last_name}
             </h1>
-            <p className="text-white/80">@{profile.user_name}</p>
+            <p className="text-body">@{profile.user_name}</p>
           </div>
           {isOwn && (
             <div className="flex gap-3">
@@ -157,7 +157,7 @@ export function ProfileView({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-surface-2 bg-surface p-5 text-center">
+    <div className="rounded-xl border border-white/20 bg-surface p-5 text-center shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
       <p className="text-2xl font-bold text-primary">{value}</p>
       <p className="mt-1 text-sm text-body">{label}</p>
     </div>

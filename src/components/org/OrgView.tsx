@@ -72,9 +72,9 @@ export function OrgView({
 
   return (
     <div>
-      <section className="gradient-brand-page">
-        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-14 sm:flex-row sm:items-center">
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-black/20">
+      <section className="border-b border-surface-2 bg-bg">
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-10 lg:py-12 sm:flex-row sm:items-center">
+          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-surface-2">
             {current.image ? (
               <Image
                 src={current.image}
@@ -93,7 +93,7 @@ export function OrgView({
               {current.name}
             </h1>
             {current.description && (
-              <p className="mt-2 max-w-2xl text-white/80">
+              <p className="mt-2 max-w-2xl text-body">
                 {current.description}
               </p>
             )}

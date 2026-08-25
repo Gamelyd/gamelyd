@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import {
   TournamentCard,
   EmptyTournaments,
@@ -26,23 +27,20 @@ export default async function TournamentsPage({
 
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-14 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="font-display text-4xl text-white md:text-5xl">
-              Tournaments
-            </h1>
-            <p className="mt-2 text-white/80">
-              {mode.toUpperCase() === "ALL" && type.toUpperCase() === "ALL"
-                ? "Browse every tournament."
-                : `Browse ${mode.toLowerCase()} ${type.toLowerCase()} tournaments.`}
-            </p>
-          </div>
+      <PageHeader
+        kicker="Compete"
+        title="Tournaments"
+        description={
+          mode.toUpperCase() === "ALL" && type.toUpperCase() === "ALL"
+            ? "Browse every tournament."
+            : `Browse ${mode.toLowerCase()} ${type.toLowerCase()} tournaments.`
+        }
+        actions={
           <Link href="/tournament/new">
             <Button>Create tournament</Button>
           </Link>
-        </div>
-      </section>
+        }
+      />
 
       <section className="mx-auto max-w-7xl px-5 py-10">
         <TournamentFilters mode={mode} type={type} />

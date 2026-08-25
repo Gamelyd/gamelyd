@@ -478,25 +478,25 @@ export function TournamentView({
 
   return (
     <div>
-      <section className="gradient-brand-page">
-        <div className="mx-auto max-w-6xl px-5 py-14">
+      <section className="border-b border-surface-2 bg-bg">
+        <div className="mx-auto max-w-6xl px-5 py-10 lg:py-12">
           <div className="flex flex-wrap items-center gap-3">
-            <Tag payment={tournament.Payment} />
-            <span className="rounded-full bg-black/20 px-3 py-1 text-xs text-white">
+            <Tag payment={tournament.Payment} className="rounded-md" />
+            <span className="rounded-full border border-white/15 bg-surface-2 px-3 py-1 text-xs text-white">
               {tournament.TournamentMode}
             </span>
           </div>
           <h1 className="mt-4 font-display text-4xl text-white md:text-5xl">
             {tournament.Name}
           </h1>
-          <p className="mt-2 text-white/80">
+          <p className="mt-2 text-body">
             {tournament.GameName} · {tournament.Date}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => setTab("teams")}
-              className="inline-flex h-9 items-center rounded-full bg-black/20 px-3 text-sm text-white transition-colors hover:bg-black/30"
+              className="inline-flex h-9 items-center rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
             >
               {participants.length} of {tournament.TournamentSize} teams
               registered
@@ -504,7 +504,7 @@ export function TournamentView({
             {tournament.OrgId && tournament.OrgName && (
               <Link
                 href={`/org/${tournament.OrgId}`}
-                className="inline-flex h-9 items-center gap-2 rounded-full bg-black/20 px-3 text-sm text-white transition-colors hover:bg-black/30"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
               >
                 {tournament.OrgIcon ? (
                   <Image
@@ -520,7 +520,7 @@ export function TournamentView({
             )}
           </div>
           {!user && (
-            <p className="mt-4 max-w-xl text-sm text-white/90">
+            <p className="mt-4 max-w-xl text-sm text-body">
               Log in or create an account to register for this tournament.
             </p>
           )}

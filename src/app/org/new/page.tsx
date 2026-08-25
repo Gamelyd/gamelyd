@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
 import { Button } from "@/components/ui/Button";
@@ -57,17 +58,12 @@ export default function CreateOrgPage() {
 
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto max-w-3xl px-5 py-12">
-          <h1 className="font-display text-4xl text-white md:text-5xl">
-            Create an organization
-          </h1>
-          <p className="mt-2 text-white/80">
-            Host tournaments under your brand and invite teammates to help
-            manage them.
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Clubs"
+        title="Create an organization"
+        description="Host tournaments under your brand and invite teammates to help manage them."
+        width="max-w-3xl"
+      />
 
       <section className="mx-auto max-w-3xl px-5 py-12">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">

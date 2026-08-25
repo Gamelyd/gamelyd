@@ -22,21 +22,23 @@ export function DashboardView({
 }) {
   return (
     <div>
-      <section className="gradient-brand-page">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-14 sm:flex-row sm:items-center sm:justify-between">
+      <section className="border-b border-surface-2 bg-bg">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 lg:py-12 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={playerIconFor(profile.user_id)}
               alt=""
-              className="h-16 w-16 rounded-full object-cover"
+              className="h-16 w-16 rounded-full object-cover ring-2 ring-white/20"
             />
             <div>
-              <p className="text-sm text-white/70">Dashboard</p>
-              <h1 className="font-display text-4xl text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                Dashboard
+              </p>
+              <h1 className="mt-1 font-display text-4xl text-white">
                 {profile.first_name} {profile.last_name}
               </h1>
-              <p className="text-white/80">@{profile.user_name}</p>
+              <p className="text-body">@{profile.user_name}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -111,7 +113,7 @@ export function DashboardView({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-surface-2 bg-surface p-5">
+    <div className="rounded-xl border border-white/20 bg-surface p-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
       <p className="text-2xl font-bold text-primary">{value}</p>
       <p className="mt-1 text-sm text-body">{label}</p>
     </div>

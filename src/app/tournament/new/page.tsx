@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
 import { Select } from "@/components/ui/Select";
@@ -177,16 +178,12 @@ export default function CreateTournamentPage() {
 
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto max-w-4xl px-5 py-12">
-          <h1 className="font-display text-4xl text-white md:text-5xl">
-            Create a tournament
-          </h1>
-          <p className="mt-2 text-white/80">
-            Step {step === "choices" ? "1" : "2"} of 2
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Host"
+        title="Create a tournament"
+        description={`Step ${step === "choices" ? "1" : "2"} of 2`}
+        width="max-w-4xl"
+      />
 
       <section className="mx-auto max-w-4xl px-5 py-12">
         {step === "choices" ? (

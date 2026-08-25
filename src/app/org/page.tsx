@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
@@ -55,16 +56,15 @@ export default function OrgsIndexPage() {
 
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-12">
-          <h1 className="font-display text-4xl text-white md:text-5xl">
-            Organizations
-          </h1>
-          <Button variant="dark" onClick={() => router.push("/org/new")}>
-            Create new
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Clubs"
+        title="Organizations"
+        description="Host events under a shared brand and invite people to help run them."
+        width="max-w-6xl"
+        actions={
+          <Button onClick={() => router.push("/org/new")}>Create new</Button>
+        }
+      />
 
       <section className="mx-auto max-w-6xl px-5 py-10">
         {invites.length > 0 && (
@@ -110,7 +110,7 @@ export default function OrgsIndexPage() {
           Your organizations
         </h2>
         {orgs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-surface-2 bg-surface/50 py-16 text-center text-body">
+          <div className="rounded-xl border border-white/15 bg-surface py-16 text-center text-body">
             You don&apos;t belong to any organizations yet.{" "}
             <Link href="/org/new" className="text-primary hover:underline">
               Create one
@@ -123,7 +123,7 @@ export default function OrgsIndexPage() {
               <Link
                 key={org.org_id}
                 href={`/org/${org.org_id}`}
-                className="flex items-center gap-4 rounded-2xl border border-surface-2 bg-surface p-5 transition-colors hover:border-primary/50"
+                className="flex items-center gap-4 rounded-xl border border-white/20 bg-surface p-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] hover:border-primary"
               >
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-4">
                   {org.image ? (

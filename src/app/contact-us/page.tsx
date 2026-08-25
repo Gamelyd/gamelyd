@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
 import { Button } from "@/components/ui/Button";
@@ -28,16 +29,12 @@ export default function ContactPage() {
 
   return (
     <SiteLayout>
-      <section className="gradient-brand-page">
-        <div className="mx-auto max-w-4xl px-5 py-16">
-          <h1 className="font-display text-4xl text-white md:text-5xl">
-            Get in touch
-          </h1>
-          <p className="mt-2 text-white/80">
-            Questions, feedback or partnerships — we&apos;d love to hear from you.
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Support"
+        title="Get in touch"
+        description="Questions, feedback, or partnerships — send a message and we will get back to you."
+        width="max-w-5xl"
+      />
 
       <section className="mx-auto grid max-w-5xl gap-10 px-5 py-16 md:grid-cols-2">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
