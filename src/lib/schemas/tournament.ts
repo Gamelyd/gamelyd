@@ -32,6 +32,16 @@ export const tournamentGroupSchema = z.object({
 });
 export type TournamentGroup = z.infer<typeof tournamentGroupSchema>;
 
+/** A user allowed to help run a tournament, hydrated with their profile. */
+export const tournamentManagerSchema = z.object({
+  user_id: z.string(),
+  first_name: z.string().default(""),
+  last_name: z.string().default(""),
+  user_name: z.string().default(""),
+  email: z.string().default(""),
+});
+export type TournamentManager = z.infer<typeof tournamentManagerSchema>;
+
 export const tournamentSchema = z.object({
   _id: z.string(),
   Name: z.string(),
@@ -72,6 +82,7 @@ export const tournamentSchema = z.object({
   PointSystem: pointSystemSchema.default({ Win: 3, Draw: 1 }),
   ReturnLeg: z.boolean().default(false),
   Featured: z.boolean().default(false),
+  Managers: z.array(z.string()).default([]),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 

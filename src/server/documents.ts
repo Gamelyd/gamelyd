@@ -84,6 +84,7 @@ export interface TournamentDoc {
   ReturnLeg: boolean;
   Featured?: boolean;
   FeaturedAt?: string;
+  Managers?: string[];
 }
 
 export interface DrawDoc {

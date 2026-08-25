@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import type { Tournament } from "@/lib/schemas/tournament";
 import type { Paginated } from "@/lib/result";
@@ -23,6 +24,14 @@ export default function AdminTournamentsPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busyId, setBusyId] = useState("");
+  const [pending, setPending] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmVariant: "danger" | "default";
+    action: () => Promise<{ ok: boolean; message?: string; error?: string }>;
+  } | null>(null);
 
   useEffect(() => {
     let activeReq = true;
@@ -46,6 +55,7 @@ export default function AdminTournamentsPage() {
     setBusyId("");
     if (result.ok) {
       toast.success(result.message ?? "Done");
+      setPending(null);
       setReload((r) => r + 1);
     } else {
       toast.error(result.error ?? "Something went wrong");
@@ -56,7 +66,8 @@ export default function AdminTournamentsPage() {
     <div>
       <h1 className="mb-2 font-display text-3xl text-white">Tournaments</h1>
       <p className="mb-6 text-sm text-body">
-        Home banner shows up to 2 tournaments. Adding a third replaces the oldest.
+        Home banner shows up to 2 tournaments. Use Manage to reset a tournament
+        that was started by mistake.
       </p>
 
       <form
@@ -116,8 +127,10 @@ export default function AdminTournamentsPage() {
                     <span className="text-xs text-lose">Deleted</span>
                   ) : t.IsSuspended ? (
                     <span className="text-xs text-pink">Suspended</span>
+                  ) : t.Start ? (
+                    <span className="text-xs text-pink">Started</span>
                   ) : (
-                    <span className="text-xs text-win">Active</span>
+                    <span className="text-xs text-win">Open</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-body">
@@ -132,8 +145,8 @@ export default function AdminTournamentsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Link href={`/tournament/${t._id}`}>
-                      <Button variant="outline">View</Button>
+                    <Link href={`/admin/tournaments/${t._id}`}>
+                      <Button variant="outline">Manage</Button>
                     </Link>
                     <Button
                       variant={t.Featured ? "active" : "dark"}
@@ -150,9 +163,19 @@ export default function AdminTournamentsPage() {
                       variant="dark"
                       loading={busyId === t._id}
                       onClick={() =>
-                        run(t._id, () =>
-                          adminToggleSuspendTournamentAction(t._id),
-                        )
+                        setPending({
+                          id: t._id,
+                          title: t.IsSuspended
+                            ? "Unsuspend this tournament?"
+                            : "Suspend this tournament?",
+                          message: t.IsSuspended
+                            ? "The tournament will be visible and usable again."
+                            : "The tournament will be hidden from public listings until you unsuspend it.",
+                          confirmLabel: t.IsSuspended ? "Unsuspend" : "Suspend",
+                          confirmVariant: t.IsSuspended ? "default" : "danger",
+                          action: () =>
+                            adminToggleSuspendTournamentAction(t._id),
+                        })
                       }
                     >
                       {t.IsSuspended ? "Unsuspend" : "Suspend"}
@@ -161,9 +184,19 @@ export default function AdminTournamentsPage() {
                       variant="danger"
                       loading={busyId === t._id}
                       onClick={() =>
-                        run(t._id, () =>
-                          adminToggleDeleteTournamentAction(t._id),
-                        )
+                        setPending({
+                          id: t._id,
+                          title: t.IsDeleted
+                            ? "Restore this tournament?"
+                            : "Delete this tournament?",
+                          message: t.IsDeleted
+                            ? "The tournament will be restored and visible again."
+                            : "The tournament will be marked as deleted. You can restore it later.",
+                          confirmLabel: t.IsDeleted ? "Restore" : "Delete",
+                          confirmVariant: t.IsDeleted ? "default" : "danger",
+                          action: () =>
+                            adminToggleDeleteTournamentAction(t._id),
+                        })
                       }
                     >
                       {t.IsDeleted ? "Restore" : "Delete"}
@@ -204,6 +237,21 @@ export default function AdminTournamentsPage() {
           </Button>
         </div>
       )}
+
+      <Confirm
+        open={pending !== null}
+        title={pending?.title}
+        message={pending?.message ?? ""}
+        confirmLabel={pending?.confirmLabel}
+        confirmVariant={pending?.confirmVariant}
+        loading={busyId === pending?.id}
+        onConfirm={() => {
+          if (pending) void run(pending.id, pending.action);
+        }}
+        onCancel={() => {
+          if (!busyId) setPending(null);
+        }}
+      />
     </div>
   );
 }

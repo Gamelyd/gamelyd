@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import type { Platform } from "@/lib/schemas/platform";
 import {
@@ -33,6 +34,8 @@ export default function AdminPlatformsPage() {
   const [editing, setEditing] = useState<Platform | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Platform | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let activeReq = true;
@@ -87,13 +90,14 @@ export default function AdminPlatformsPage() {
     }
   };
 
-  const remove = async (platform: Platform) => {
-    if (!window.confirm(`Delete "${platform.name}"? This cannot be undone.`)) {
-      return;
-    }
-    const result = await deletePlatformAction(platform.platform_id);
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const result = await deletePlatformAction(deleteTarget.platform_id);
+    setDeleting(false);
     if (result.ok) {
       toast.success(result.message ?? "Deleted");
+      setDeleteTarget(null);
       refresh();
     } else {
       toast.error(result.error);
@@ -160,7 +164,7 @@ export default function AdminPlatformsPage() {
                       </Button>
                       <Button
                         variant="danger"
-                        onClick={() => remove(platform)}
+                        onClick={() => setDeleteTarget(platform)}
                       >
                         Delete
                       </Button>
@@ -209,6 +213,17 @@ export default function AdminPlatformsPage() {
           </div>
         </form>
       </Modal>
+      <Confirm
+        open={deleteTarget !== null}
+        title="Delete this platform?"
+        message={`Delete "${deleteTarget?.name ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={() => void remove()}
+        onCancel={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

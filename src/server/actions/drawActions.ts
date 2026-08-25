@@ -23,16 +23,12 @@ import {
   newDraw,
   updateBrDraw,
 } from "@/server/services/drawService";
-import { canManageTournamentById } from "@/server/services/tournamentService";
 import { ServiceError } from "@/server/services/userService";
-import { getSessionClaims } from "@/server/auth/session";
+import { guardManageTournament } from "@/server/auth/tournament";
 
 /** Ensures the caller can manage the given tournament. */
 async function guardTournament(tournamentId: string): Promise<Failure | null> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
-  const allowed = await canManageTournamentById(claims.uid, tournamentId);
-  return allowed ? null : fail("You are not allowed to manage this tournament");
+  return guardManageTournament(tournamentId);
 }
 
 /** Ensures the caller can manage the tournament that owns the given draw. */

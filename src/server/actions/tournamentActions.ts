@@ -7,6 +7,7 @@ import {
   updateTournamentInputSchema,
   type Tournament,
   type TournamentGroup,
+  type TournamentManager,
 } from "@/lib/schemas/tournament";
 import {
   registerTournamentInputSchema,
@@ -15,6 +16,7 @@ import {
 import type { Player } from "@/lib/schemas/draw";
 import {
   acceptInvite,
+  addTournamentManager,
   getPublicTournaments,
   getTournamentById,
   getTournamentsByMode,
@@ -22,10 +24,13 @@ import {
   getBannerTournaments,
   groupTournament,
   inviteUser,
+  listAssignableManagers,
   listParticipants,
+  listTournamentManagers,
   listUserTournaments,
   listUserTournamentsLimit,
   registerForTournament,
+  removeTournamentManager,
   removeUserFromTournament,
   saveTournament,
   toggleDeleteTournament,
@@ -36,6 +41,11 @@ import {
 } from "@/server/services/tournamentService";
 import { ServiceError } from "@/server/services/userService";
 import { getSessionClaims } from "@/server/auth/session";
+import {
+  guardManageTournament,
+  requireTournamentAdmin,
+  requireTournamentManager,
+} from "@/server/auth/tournament";
 
 export async function saveTournamentAction(
   input: unknown,
@@ -150,10 +160,10 @@ export async function inviteUserAction(
   userId: string,
   tournamentId: string,
 ): Promise<ActionResult<null>> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
+  const manager = await requireTournamentManager(tournamentId);
+  if (!manager.ok) return manager;
   try {
-    await inviteUser(userId, tournamentId);
+    await inviteUser(manager.uid, userId, tournamentId);
     return ok(null, "Invite sent successfully");
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
@@ -168,6 +178,9 @@ export async function acceptInviteAction(
 ): Promise<ActionResult<null>> {
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
+  if (claims.uid !== userId) {
+    return fail("You can only accept your own invite");
+  }
   await acceptInvite(userId, tournamentId);
   return ok(null, "Invite accepted");
 }
@@ -178,19 +191,28 @@ export async function removeUserAction(
 ): Promise<ActionResult<Player[]>> {
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
-  return ok(
-    await removeUserFromTournament(userId, tournamentId),
-    "Removed from tournament",
-  );
+  if (claims.uid !== userId) {
+    const denied = await guardManageTournament(tournamentId);
+    if (denied) return denied;
+  }
+  try {
+    return ok(
+      await removeUserFromTournament(claims.uid, userId, tournamentId),
+      "Removed from tournament",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
 }
 
 export async function deleteTournamentAction(
   id: string,
 ): Promise<ActionResult<{ isDeleted: boolean }>> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
+  const admin = await requireTournamentAdmin(id);
+  if (!admin.ok) return admin;
   try {
-    const isDeleted = await toggleDeleteTournament(claims.uid, id);
+    const isDeleted = await toggleDeleteTournament(admin.uid, id);
     return ok({ isDeleted });
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
@@ -201,10 +223,10 @@ export async function deleteTournamentAction(
 export async function suspendTournamentAction(
   id: string,
 ): Promise<ActionResult<{ isSuspended: boolean }>> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
+  const admin = await requireTournamentAdmin(id);
+  if (!admin.ok) return admin;
   try {
-    const isSuspended = await toggleSuspendTournament(claims.uid, id);
+    const isSuspended = await toggleSuspendTournament(admin.uid, id);
     return ok({ isSuspended });
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
@@ -216,15 +238,15 @@ export async function updateTournamentAction(
   id: string,
   input: unknown,
 ): Promise<ActionResult<Tournament>> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
+  const manager = await requireTournamentManager(id);
+  if (!manager.ok) return manager;
 
   const parsed = parseInput(updateTournamentInputSchema, input);
   if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
 
   try {
     return ok(
-      await updateTournament(claims.uid, id, parsed.data),
+      await updateTournament(manager.uid, id, parsed.data),
       "Tournament updated",
     );
   } catch (error) {
@@ -237,13 +259,76 @@ export async function updateTournamentAction(
 export async function groupTournamentAction(
   tournamentId: string,
 ): Promise<ActionResult<TournamentGroup[]>> {
-  const claims = await getSessionClaims();
-  if (!claims) return fail("You must be signed in");
+  const manager = await requireTournamentManager(tournamentId);
+  if (!manager.ok) return manager;
   try {
-    return ok(await groupTournament(claims.uid, tournamentId), "Groups created");
+    return ok(
+      await groupTournament(manager.uid, tournamentId),
+      "Groups created",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong grouping the tournament");
+  }
+}
+
+export async function listTournamentManagersAction(
+  tournamentId: string,
+): Promise<ActionResult<TournamentManager[]>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(await listTournamentManagers(admin.uid, tournamentId));
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function listAssignableManagersAction(
+  tournamentId: string,
+): Promise<ActionResult<TournamentManager[]>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(await listAssignableManagers(admin.uid, tournamentId));
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function addTournamentManagerAction(
+  tournamentId: string,
+  targetUserId: string,
+): Promise<ActionResult<TournamentManager[]>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(
+      await addTournamentManager(admin.uid, tournamentId, targetUserId),
+      "Manager added",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function removeTournamentManagerAction(
+  tournamentId: string,
+  targetUserId: string,
+): Promise<ActionResult<TournamentManager[]>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(
+      await removeTournamentManager(admin.uid, tournamentId, targetUserId),
+      "Manager removed",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
   }
 }

@@ -1,7 +1,11 @@
 import "server-only";
 import { ObjectId } from "mongodb";
-import { registrations, tournaments, invites } from "../db";
-import type { RegisterTournamentDoc, TournamentDoc } from "../documents";
+import { draws, orgMembers, registrations, tournaments, invites, users } from "../db";
+import type {
+  DrawDoc,
+  RegisterTournamentDoc,
+  TournamentDoc,
+} from "../documents";
 import {
   serializeRegistration,
   serializeTournament,
@@ -30,7 +34,10 @@ import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player } from "@/lib/schemas/draw";
 import type { Teams } from "@/lib/schemas/draw";
-import type { TournamentGroup } from "@/lib/schemas/tournament";
+import type {
+  TournamentGroup,
+  TournamentManager,
+} from "@/lib/schemas/tournament";
 import type { Paginated } from "@/lib/result";
 import type {
   SaveTournamentInput,
@@ -111,6 +118,7 @@ export async function saveTournament(
     },
     ReturnLeg: input.TournamentMode === "LEAGUE" ? Boolean(input.ReturnLeg) : false,
     Featured: false,
+    Managers: [],
   };
 
   await col.insertOne(doc);
@@ -397,6 +405,53 @@ export async function adminToggleDeleteTournament(id: string): Promise<boolean> 
   return next;
 }
 
+export async function adminResetTournament(id: string): Promise<{
+  tournament: Tournament;
+  deletedDraws: number;
+}> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+
+  const ids = relatedIdsFromDoc(found);
+  const dCol = await draws();
+  const deleted = await dCol.deleteMany(
+    asDocFilter<DrawDoc>(byAnyTournamentId(ids)),
+  );
+
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        Start: false,
+        start: false,
+        IsDrawn: false,
+        isdrawn: false,
+        Stage: 0,
+        stage: 0,
+        Active: false,
+        active: false,
+        Groups: [],
+        groups: [],
+        Updated_at: now,
+        updated_at: now,
+      },
+      $unset: {
+        Winner: 1,
+        winner: 1,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+
+  const updated = await col.findOne({ _id: found._id });
+  if (!updated) throw new ServiceError("Tournament not found");
+  return {
+    tournament: serializeTournament(updated),
+    deletedDraws: deleted.deletedCount,
+  };
+}
+
 export async function adminToggleSuspendTournament(id: string): Promise<boolean> {
   const col = await tournaments();
   const found = await findByAnyId(id);
@@ -461,6 +516,18 @@ export async function registerForTournament(
   const tournamentDoc = await findByAnyId(tournamentId);
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+
+  if (tournament.IsDeleted) {
+    throw new ServiceError("This tournament is no longer available");
+  }
+  if (tournament.IsSuspended) {
+    throw new ServiceError("This tournament is suspended");
+  }
+  if (tournament.Start) {
+    throw new ServiceError(
+      "Registration is closed. This tournament has already started.",
+    );
+  }
 
   const needed = rosterSize(tournament.Team);
   if (input.Players.length !== needed) {
@@ -544,11 +611,16 @@ export async function listParticipants(
 }
 
 export async function inviteUser(
+  actorUid: string,
   userId: string,
   tournamentId: string,
 ): Promise<void> {
-  const tournament = await getTournamentById(tournamentId);
-  if (!tournament) throw new ServiceError("Tournament not found");
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canManageTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+  const tournament = serializeTournament(found);
   const invitee = await getUserById(userId);
   if (!invitee) throw new ServiceError("User not found");
 
@@ -583,9 +655,19 @@ export async function acceptInvite(
 }
 
 export async function removeUserFromTournament(
+  actorUid: string,
   userId: string,
   tournamentId: string,
 ): Promise<Player[]> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (
+    actorUid !== userId &&
+    !(await canManageTournament(actorUid, found))
+  ) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+
   const col = await registrations();
   const ids = await relatedTournamentIds(tournamentId);
   const reg = await col.findOne(
@@ -608,7 +690,10 @@ export async function removeUserFromTournament(
   return remaining;
 }
 
-/** True if the user created the tournament or is a member of the owning org. */
+/**
+ * True if the user can run the tournament: the creator, a platform admin, or
+ * a co-manager the owner added.
+ */
 export async function canManageTournament(
   uid: string,
   doc: TournamentDoc,
@@ -617,8 +702,7 @@ export async function canManageTournament(
   if (user?.user_type === "ADMIN") return true;
   const t = serializeTournament(doc);
   if (t.User_id === uid) return true;
-  if (t.OrgId) return isMember(t.OrgId, uid);
-  return false;
+  return t.Managers.includes(uid);
 }
 
 export async function canManageTournamentById(
@@ -628,6 +712,153 @@ export async function canManageTournamentById(
   const found = await findByAnyId(tournamentId);
   if (!found) return false;
   return canManageTournament(uid, found);
+}
+
+/**
+ * True if the user owns the tournament or is a platform admin. Co-managers are
+ * NOT included — only these two can manage co-managers or delete/suspend.
+ */
+export async function canAdministerTournament(
+  uid: string,
+  doc: TournamentDoc,
+): Promise<boolean> {
+  const user = await getUserById(uid);
+  if (user?.user_type === "ADMIN") return true;
+  return serializeTournament(doc).User_id === uid;
+}
+
+export async function canAdministerTournamentById(
+  uid: string,
+  tournamentId: string,
+): Promise<boolean> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) return false;
+  return canAdministerTournament(uid, found);
+}
+
+async function hydrateManagers(userIds: string[]): Promise<TournamentManager[]> {
+  const unique = [...new Set(userIds.filter((id) => id.length > 0))];
+  if (unique.length === 0) return [];
+  const userCol = await users();
+  const docs = await userCol.find({ user_id: { $in: unique } }).toArray();
+  const byId = new Map(docs.map((u) => [u.user_id, u]));
+  return unique.map((id) => {
+    const u = byId.get(id);
+    return {
+      user_id: id,
+      first_name: u?.first_name ?? "",
+      last_name: u?.last_name ?? "",
+      user_name: u?.user_name ?? "",
+      email: u?.email ?? "",
+    };
+  });
+}
+
+/** Owner/admin: the co-managers currently allowed to help run the tournament. */
+export async function listTournamentManagers(
+  actorUid: string,
+  tournamentId: string,
+): Promise<TournamentManager[]> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+  return hydrateManagers(serializeTournament(found).Managers);
+}
+
+/**
+ * Owner/admin: org members that can still be added as co-managers (excludes the
+ * owner and anyone already added).
+ */
+export async function listAssignableManagers(
+  actorUid: string,
+  tournamentId: string,
+): Promise<TournamentManager[]> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+  const t = serializeTournament(found);
+  if (!t.OrgId) return [];
+
+  const memberCol = await orgMembers();
+  const memberships = await memberCol
+    .find({ org_id: t.OrgId })
+    .limit(500)
+    .toArray();
+  const taken = new Set([t.User_id, ...t.Managers]);
+  const candidateIds = memberships
+    .map((m) => m.user_id)
+    .filter((id) => !taken.has(id));
+  return hydrateManagers(candidateIds);
+}
+
+/** Owner/admin: grant an org member co-manager access. */
+export async function addTournamentManager(
+  actorUid: string,
+  tournamentId: string,
+  targetUserId: string,
+): Promise<TournamentManager[]> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+  const t = serializeTournament(found);
+  if (targetUserId === t.User_id) {
+    throw new ServiceError("The owner already manages this tournament");
+  }
+  if (!t.OrgId) {
+    throw new ServiceError(
+      "Host this tournament under an organization to add managers",
+    );
+  }
+  if (!(await isMember(t.OrgId, targetUserId))) {
+    throw new ServiceError("That user is not a member of the organization");
+  }
+
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $addToSet: { Managers: targetUserId },
+      $set: { Updated_at: now, updated_at: now },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+
+  const next = [...new Set([...t.Managers, targetUserId])];
+  return hydrateManagers(next);
+}
+
+/** Owner/admin: revoke a co-manager's access. */
+export async function removeTournamentManager(
+  actorUid: string,
+  tournamentId: string,
+  targetUserId: string,
+): Promise<TournamentManager[]> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $pull: { Managers: targetUserId },
+      $set: { Updated_at: now, updated_at: now },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+
+  const next = serializeTournament(found).Managers.filter(
+    (id) => id !== targetUserId,
+  );
+  return hydrateManagers(next);
 }
 
 export async function toggleDeleteTournament(
@@ -744,6 +975,8 @@ export async function groupTournament(
       $set: {
         Groups: groups,
         groups,
+        Start: true,
+        start: true,
         IsDrawn: true,
         isdrawn: true,
         Updated_at: now,

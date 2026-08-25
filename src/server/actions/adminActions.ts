@@ -29,11 +29,14 @@ import {
   toggleDeleteOrg,
 } from "@/server/services/orgService";
 import {
+  adminResetTournament,
   adminToggleDeleteTournament,
   adminToggleFeaturedTournament,
   adminToggleSuspendTournament,
+  getTournamentById,
   listTournamentsAdmin,
 } from "@/server/services/tournamentService";
+import { getDrawsByTournament } from "@/server/services/drawService";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { guardAdmin } from "@/server/auth/admin";
 
@@ -223,6 +226,33 @@ export async function adminToggleSuspendTournamentAction(
       suspended,
       suspended ? "Tournament suspended" : "Tournament unsuspended",
     );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminGetTournamentAction(
+  id: string,
+): Promise<ActionResult<{ tournament: Tournament; drawCount: number }>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  const tournament = await getTournamentById(id);
+  if (!tournament) return fail("Tournament not found");
+  const drawDocs = await getDrawsByTournament(id);
+  return ok({ tournament, drawCount: drawDocs.length });
+}
+
+export async function adminResetTournamentAction(
+  id: string,
+): Promise<ActionResult<{ tournament: Tournament; deletedDraws: number }>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const result = await adminResetTournament(id);
+    const extra =
+      result.deletedDraws === 1
+        ? "1 draw removed."
+        : `${result.deletedDraws} draws removed.`;
+    return ok(result, `Tournament reset. ${extra} Teams can join again.`);
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");

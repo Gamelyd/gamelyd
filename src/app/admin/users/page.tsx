@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import type { User } from "@/lib/schemas/user";
@@ -24,6 +25,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busyId, setBusyId] = useState("");
+  const [pending, setPending] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmVariant: "danger" | "default";
+    action: () => Promise<{ ok: boolean; message?: string; error?: string }>;
+  } | null>(null);
 
   useEffect(() => {
     let activeReq = true;
@@ -47,6 +56,7 @@ export default function AdminUsersPage() {
     setBusyId("");
     if (result.ok) {
       toast.success(result.message ?? "Done");
+      setPending(null);
       setReload((r) => r + 1);
     } else {
       toast.error(result.error ?? "Something went wrong");
@@ -141,9 +151,16 @@ export default function AdminUsersPage() {
                         variant="dark"
                         disabled={isSelf}
                         onClick={() =>
-                          run(u.user_id, () =>
-                            adminToggleBanUserAction(u.user_id),
-                          )
+                          setPending({
+                            id: u.user_id,
+                            title: u.isSuspended ? "Unban this user?" : "Ban this user?",
+                            message: u.isSuspended
+                              ? "They will be able to sign in again."
+                              : "They will be signed out and blocked from signing in.",
+                            confirmLabel: u.isSuspended ? "Unban" : "Ban",
+                            confirmVariant: u.isSuspended ? "default" : "danger",
+                            action: () => adminToggleBanUserAction(u.user_id),
+                          })
                         }
                       >
                         {u.isSuspended ? "Unban" : "Ban"}
@@ -152,9 +169,19 @@ export default function AdminUsersPage() {
                         variant="danger"
                         disabled={isSelf}
                         onClick={() =>
-                          run(u.user_id, () =>
-                            adminToggleDeleteUserAction(u.user_id),
-                          )
+                          setPending({
+                            id: u.user_id,
+                            title: u.isDeleted
+                              ? "Restore this user?"
+                              : "Delete this user?",
+                            message: u.isDeleted
+                              ? "The account will be restored."
+                              : "The account will be marked as deleted. You can restore it later.",
+                            confirmLabel: u.isDeleted ? "Restore" : "Delete",
+                            confirmVariant: u.isDeleted ? "default" : "danger",
+                            action: () =>
+                              adminToggleDeleteUserAction(u.user_id),
+                          })
                         }
                       >
                         {u.isDeleted ? "Restore" : "Delete"}
@@ -196,6 +223,21 @@ export default function AdminUsersPage() {
           </Button>
         </div>
       )}
+
+      <Confirm
+        open={pending !== null}
+        title={pending?.title}
+        message={pending?.message ?? ""}
+        confirmLabel={pending?.confirmLabel}
+        confirmVariant={pending?.confirmVariant}
+        loading={busyId === pending?.id}
+        onConfirm={() => {
+          if (pending) void run(pending.id, pending.action);
+        }}
+        onCancel={() => {
+          if (!busyId) setPending(null);
+        }}
+      />
     </div>
   );
 }

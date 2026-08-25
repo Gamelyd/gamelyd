@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
@@ -44,6 +45,8 @@ export default function AdminGamesPage() {
   const [editing, setEditing] = useState<Game | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let activeReq = true;
@@ -113,11 +116,14 @@ export default function AdminGamesPage() {
     }
   };
 
-  const remove = async (game: Game) => {
-    if (!window.confirm(`Delete "${game.name}"? This cannot be undone.`)) return;
-    const result = await deleteGameAction(game.game_id);
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const result = await deleteGameAction(deleteTarget.game_id);
+    setDeleting(false);
     if (result.ok) {
       toast.success(result.message ?? "Deleted");
+      setDeleteTarget(null);
       refresh();
     } else {
       toast.error(result.error);
@@ -185,7 +191,7 @@ export default function AdminGamesPage() {
                   <Button variant="dark" onClick={() => toggleActive(game)}>
                     {game.active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="danger" onClick={() => remove(game)}>
+                  <Button variant="danger" onClick={() => setDeleteTarget(game)}>
                     Delete
                   </Button>
                 </div>
@@ -257,6 +263,17 @@ export default function AdminGamesPage() {
           </div>
         </form>
       </Modal>
+      <Confirm
+        open={deleteTarget !== null}
+        title="Delete this game?"
+        message={`Delete "${deleteTarget?.name ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={() => void remove()}
+        onCancel={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,12 +25,24 @@ import {
   newDrawAction,
 } from "@/server/actions/drawActions";
 import {
+  addTournamentManagerAction,
   deleteTournamentAction,
   groupTournamentAction,
+  listAssignableManagersAction,
+  listTournamentManagersAction,
+  removeTournamentManagerAction,
 } from "@/server/actions/tournamentActions";
+import type { TournamentManager } from "@/lib/schemas/tournament";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
 
-type Tab = "details" | "teams" | "table" | "fixtures" | "register" | "manage";
+type Tab =
+  | "details"
+  | "teams"
+  | "table"
+  | "fixtures"
+  | "register"
+  | "manage"
+  | "settings";
 
 export function TournamentView({
   tournament,
@@ -52,11 +64,28 @@ export function TournamentView({
     useState<RegisterTournament[]>(initialParticipants);
   const [draws, setDraws] = useState<Draw[]>(initialDraws);
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [leagueStarted, setLeagueStarted] = useState(tournament.IsDrawn);
+  const [started, setStarted] = useState(tournament.Start);
+  const [groups, setGroups] = useState(tournament.Groups ?? []);
+  const [pending, setPending] = useState<
+    "start" | "nextStage" | "groups" | "delete" | null
+  >(null);
 
-  const isOwner = user?.user_id === tournament.User_id;
-  const canManage = isOwner || user?.user_type === "ADMIN";
+  const isOwner = Boolean(user?.user_id && user.user_id === tournament.User_id);
+  const isAdmin = user?.user_type === "ADMIN";
+  const isManager = Boolean(
+    user?.user_id && (tournament.Managers ?? []).includes(user.user_id),
+  );
+  const canManage = isOwner || isAdmin || isManager;
+  const canAdminister = isOwner || isAdmin;
+  const groupsCreated = groups.length > 0;
+  const leagueStarted =
+    tournament.TournamentMode === "LEAGUE" &&
+    (started || tournament.IsDrawn || draws.length > 0);
+
+  useEffect(() => {
+    if (tab === "manage" && !canManage) setTab("details");
+    if (tab === "settings" && !canAdminister) setTab("details");
+  }, [tab, canManage, canAdminister]);
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "details", label: "Details", show: true },
@@ -69,6 +98,7 @@ export function TournamentView({
     { id: "fixtures", label: "Fixtures", show: true },
     { id: "register", label: "Register", show: true },
     { id: "manage", label: "Manage", show: canManage },
+    { id: "settings", label: "Settings", show: canAdminister },
   ];
 
   const teamIcons = useMemo(
@@ -105,6 +135,10 @@ export function TournamentView({
     if (result.ok) setDraws(result.data);
   };
 
+  const requestDraw = () => {
+    setPending(draws.length === 0 && !started ? "start" : "nextStage");
+  };
+
   const handleDraw = async () => {
     setBusy(true);
     const action =
@@ -115,16 +149,16 @@ export function TournamentView({
           : newDrawAction;
     const result = await action({ TournamentId: tournament.TournamentId });
     setBusy(false);
+    setPending(null);
     if (result.ok) {
-      if (tournament.TournamentMode === "LEAGUE") {
-        setLeagueStarted(true);
-      }
+      setStarted(true);
       toast.success(
         tournament.TournamentMode === "LEAGUE"
           ? "League started"
           : "Draw created",
       );
       await refreshDraws();
+      router.refresh();
       setTab(tournament.TournamentMode === "LEAGUE" ? "table" : "fixtures");
     } else {
       toast.error(result.error);
@@ -135,21 +169,63 @@ export function TournamentView({
     setBusy(true);
     const result = await groupTournamentAction(tournament.TournamentId);
     setBusy(false);
-    if (result.ok) toast.success("Groups created");
-    else toast.error(result.error);
+    setPending(null);
+    if (result.ok) {
+      setGroups(result.data);
+      setStarted(true);
+      toast.success("Groups created");
+      router.refresh();
+      setTab("teams");
+    } else {
+      toast.error(result.error);
+    }
   };
 
   const handleDelete = async () => {
     setBusy(true);
     const result = await deleteTournamentAction(tournament.TournamentId);
     setBusy(false);
-    setConfirmDelete(false);
+    setPending(null);
     if (result.ok) {
       toast.success("Tournament updated");
       router.push("/");
     } else {
       toast.error(result.error);
     }
+  };
+
+  const confirmCopy = {
+    start: {
+      title: "Start this tournament?",
+      message:
+        "If you start this tournament, nobody else can join. Fixtures will be generated from the teams already registered.",
+      confirmLabel: "Yes, start",
+      confirmVariant: "default" as const,
+      onConfirm: handleDraw,
+    },
+    nextStage: {
+      title: "Draw next stage?",
+      message:
+        "This will generate the next round of fixtures. Existing results will stay as they are.",
+      confirmLabel: "Yes, draw",
+      confirmVariant: "default" as const,
+      onConfirm: handleDraw,
+    },
+    groups: {
+      title: "Create groups?",
+      message:
+        "Registered teams will be split into groups and registration will close. Nobody else can join.",
+      confirmLabel: "Yes, create groups",
+      confirmVariant: "default" as const,
+      onConfirm: handleGroup,
+    },
+    delete: {
+      title: "Delete tournament?",
+      message: "Are you sure you want to delete this tournament?",
+      confirmLabel: "Delete",
+      confirmVariant: "danger" as const,
+      onConfirm: handleDelete,
+    },
   };
 
   return (
@@ -231,17 +307,42 @@ export function TournamentView({
         )}
 
         {tab === "teams" && (
-          <div className="flex flex-wrap justify-center gap-5 py-2">
-            {participants.length === 0 ? (
-              <p className="w-full py-16 text-center text-body">
-                No registered teams yet
-              </p>
-            ) : (
-              participants.map((p) => (
-                <TeamCard key={p.RegisterTournamentId || p._id} team={p} />
-              ))
-            )}
-          </div>
+          groupsCreated ? (
+            <div className="space-y-10 py-2">
+              {groups.map((group) => (
+                <div key={group.GroupName}>
+                  <h3 className="mb-5 text-center font-display text-xl text-white">
+                    {group.GroupName}
+                  </h3>
+                  <div className="flex flex-wrap justify-center gap-5">
+                    {group.Teams.map((team) => {
+                      const registered = participants.find(
+                        (p) => p.TeamName === team.TeamName,
+                      );
+                      return registered ? (
+                        <TeamCard
+                          key={registered.RegisterTournamentId || registered._id}
+                          team={registered}
+                        />
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center gap-5 py-2">
+              {participants.length === 0 ? (
+                <p className="w-full py-16 text-center text-body">
+                  No registered teams yet
+                </p>
+              ) : (
+                participants.map((p) => (
+                  <TeamCard key={p.RegisterTournamentId || p._id} team={p} />
+                ))
+              )}
+            </div>
+          )
         )}
 
         {tab === "fixtures" && (
@@ -249,11 +350,11 @@ export function TournamentView({
             {drawsByStage.length === 0 ? (
               <div className="py-16 text-center">
                 <p className="text-body">
-                  {tournament.Start
+                  {started
                     ? "No draws available, come back later"
                     : "Fixtures appear after the tournament starts."}
                 </p>
-                {!tournament.Start && participants.length > 0 && (
+                {!started && participants.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setTab("teams")}
@@ -296,7 +397,16 @@ export function TournamentView({
         )}
 
         {tab === "register" &&
-          (user ? (
+          (started ? (
+            <div className="mx-auto max-w-lg rounded-xl border border-surface-2 bg-surface p-8 text-center">
+              <h3 className="text-xl font-semibold text-white">
+                Registration closed
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                This tournament has already started, so new teams cannot join.
+              </p>
+            </div>
+          ) : user ? (
             <RegisterTeam
               tournamentId={tournament.TournamentId}
               teamSize={tournament.Team}
@@ -324,7 +434,7 @@ export function TournamentView({
                       ? " Return-leg fixtures are included."
                       : ""}
                   </p>
-                  <Button loading={busy} onClick={handleDraw}>
+                  <Button loading={busy} onClick={requestDraw}>
                     Start league
                   </Button>
                 </div>
@@ -333,41 +443,85 @@ export function TournamentView({
                   <h3 className="mb-1 font-semibold text-white">League started</h3>
                   <p className="text-sm text-body">
                     All matchdays are generated. Record scores from the fixtures
-                    tab.
+                    tab. New teams can no longer join.
+                    {isAdmin
+                      ? " If this was started by mistake, reset it from Admin → Tournaments → Manage."
+                      : ""}
                   </p>
+                </div>
+              )
+            ) : tournament.TournamentMode === "GROUPS" ? (
+              groupsCreated ? (
+                <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                  <h3 className="mb-1 font-semibold text-white">
+                    Draw next stage
+                  </h3>
+                  <p className="mb-4 text-sm text-body">
+                    Groups are ready. Generate the next round of fixtures.
+                  </p>
+                  <Button loading={busy} onClick={requestDraw}>
+                    Draw next stage
+                  </Button>
+                  {isAdmin ? (
+                    <p className="mt-3 text-xs text-body">
+                      If this was started by mistake, reset it from Admin →
+                      Tournaments → Manage.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                  <h3 className="mb-1 font-semibold text-white">
+                    Create groups
+                  </h3>
+                  <p className="mb-4 text-sm text-body">
+                    Split registered teams into groups (min 7 teams). After
+                    groups are created, you can draw the next stage.
+                  </p>
+                  <Button
+                    loading={busy}
+                    onClick={() => setPending("groups")}
+                  >
+                    Create groups
+                  </Button>
                 </div>
               )
             ) : (
               <div className="rounded-xl border border-surface-2 bg-surface p-5">
                 <h3 className="mb-1 font-semibold text-white">Draw fixtures</h3>
                 <p className="mb-4 text-sm text-body">
-                  Generate {tournament.Shuffle.toLowerCase()} fixtures from the
-                  registered teams.
+                  {draws.length > 0
+                    ? "Generate the next round of fixtures."
+                    : `Generate ${tournament.Shuffle.toLowerCase()} fixtures from the registered teams. Starting closes registration.`}
                 </p>
-                <Button loading={busy} onClick={handleDraw}>
-                  {draws.length > 0 ? "Draw next stage" : "Create draw"}
+                <Button loading={busy} onClick={requestDraw}>
+                  {draws.length > 0 ? "Draw next stage" : "Start tournament"}
                 </Button>
+                {started && isAdmin ? (
+                  <p className="mt-3 text-xs text-body">
+                    If this was started by mistake, reset it from Admin →
+                    Tournaments → Manage.
+                  </p>
+                ) : null}
               </div>
             )}
+          </div>
+        )}
 
-            {tournament.TournamentMode === "GROUPS" && (
-              <div className="rounded-xl border border-surface-2 bg-surface p-5">
-                <h3 className="mb-1 font-semibold text-white">Group teams</h3>
-                <p className="mb-4 text-sm text-body">
-                  Split registered teams into groups (min 7 teams).
-                </p>
-                <Button variant="active" loading={busy} onClick={handleGroup}>
-                  Create groups
-                </Button>
-              </div>
-            )}
+        {tab === "settings" && canAdminister && (
+          <div className="flex max-w-xl flex-col gap-4">
+            <ManagerSettings
+              tournamentId={tournament.TournamentId}
+              hasOrg={Boolean(tournament.OrgId)}
+              orgName={tournament.OrgName}
+            />
 
             <div className="rounded-xl border border-lose/30 bg-surface p-5">
               <h3 className="mb-1 font-semibold text-white">Danger zone</h3>
               <p className="mb-4 text-sm text-body">
                 Delete this tournament. This can be toggled.
               </p>
-              <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+              <Button variant="danger" onClick={() => setPending("delete")}>
                 Delete tournament
               </Button>
             </div>
@@ -376,13 +530,189 @@ export function TournamentView({
       </section>
 
       <Confirm
-        open={confirmDelete}
-        message="Are you sure you want to delete this tournament?"
-        confirmLabel="Delete"
+        open={pending !== null}
+        title={pending ? confirmCopy[pending].title : undefined}
+        message={pending ? confirmCopy[pending].message : ""}
+        confirmLabel={pending ? confirmCopy[pending].confirmLabel : "Confirm"}
+        confirmVariant={
+          pending ? confirmCopy[pending].confirmVariant : "danger"
+        }
         loading={busy}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          if (pending) void confirmCopy[pending].onConfirm();
+        }}
+        onCancel={() => {
+          if (!busy) setPending(null);
+        }}
       />
+    </div>
+  );
+}
+
+function managerName(m: TournamentManager): string {
+  const full = `${m.first_name} ${m.last_name}`.trim();
+  return full || m.user_name || m.email || "Member";
+}
+
+function ManagerSettings({
+  tournamentId,
+  hasOrg,
+  orgName,
+}: {
+  tournamentId: string;
+  hasOrg: boolean;
+  orgName: string;
+}) {
+  const toast = useToast();
+  const [managers, setManagers] = useState<TournamentManager[]>([]);
+  const [candidates, setCandidates] = useState<TournamentManager[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      listTournamentManagersAction(tournamentId),
+      listAssignableManagersAction(tournamentId),
+    ]).then(([managersResult, candidatesResult]) => {
+      if (!active) return;
+      if (managersResult.ok) setManagers(managersResult.data);
+      else toast.error(managersResult.error);
+      if (candidatesResult.ok) setCandidates(candidatesResult.data);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [tournamentId, toast]);
+
+  const add = async (userId: string) => {
+    setBusyId(userId);
+    const result = await addTournamentManagerAction(tournamentId, userId);
+    setBusyId("");
+    if (result.ok) {
+      setManagers(result.data);
+      setCandidates((prev) => prev.filter((c) => c.user_id !== userId));
+      toast.success(result.message ?? "Manager added");
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const remove = async (member: TournamentManager) => {
+    setBusyId(member.user_id);
+    const result = await removeTournamentManagerAction(
+      tournamentId,
+      member.user_id,
+    );
+    setBusyId("");
+    if (result.ok) {
+      setManagers(result.data);
+      setCandidates((prev) =>
+        prev.some((c) => c.user_id === member.user_id)
+          ? prev
+          : [...prev, member],
+      );
+      toast.success(result.message ?? "Manager removed");
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-surface-2 bg-surface p-5">
+      <h3 className="mb-1 font-semibold text-white">Tournament managers</h3>
+      <p className="mb-4 text-sm text-body">
+        Add people from your organization who can help run this tournament —
+        draw fixtures, record scores and create groups. Only you and platform
+        admins can manage this list.
+      </p>
+
+      {!hasOrg ? (
+        <p className="rounded-lg border border-surface-2 bg-surface-2/40 p-4 text-sm text-body">
+          Host this tournament under an organization to add managers.
+        </p>
+      ) : loading ? (
+        <p className="text-sm text-body">Loading…</p>
+      ) : (
+        <div className="flex flex-col gap-6">
+          <div>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-body">
+              Current managers
+            </h4>
+            {managers.length === 0 ? (
+              <p className="text-sm text-body">
+                No managers yet. Add someone from {orgName || "your organization"}
+                below.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {managers.map((m) => (
+                  <li
+                    key={m.user_id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-surface-2 px-3 py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-white">
+                        {managerName(m)}
+                      </span>
+                      {m.user_name ? (
+                        <span className="block truncate text-xs text-body">
+                          @{m.user_name}
+                        </span>
+                      ) : null}
+                    </span>
+                    <Button
+                      variant="danger"
+                      loading={busyId === m.user_id}
+                      onClick={() => remove(m)}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-body">
+              Add from {orgName || "your organization"}
+            </h4>
+            {candidates.length === 0 ? (
+              <p className="text-sm text-body">
+                No other organization members to add.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {candidates.map((c) => (
+                  <li
+                    key={c.user_id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-surface-2 px-3 py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-white">
+                        {managerName(c)}
+                      </span>
+                      {c.user_name ? (
+                        <span className="block truncate text-xs text-body">
+                          @{c.user_name}
+                        </span>
+                      ) : null}
+                    </span>
+                    <Button
+                      loading={busyId === c.user_id}
+                      onClick={() => add(c.user_id)}
+                    >
+                      Add
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
