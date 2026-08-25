@@ -2,17 +2,12 @@ import { ImageResponse } from "next/og";
 import { getOrgById } from "@/server/services/orgService";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { orgShareDescription } from "@/lib/seo";
-import {
-  DefaultOgMarkup,
-  EntityOgMarkup,
-  OG_CONTENT_TYPE,
-  OG_SIZE,
-} from "@/lib/ogCard";
+import { DefaultOgMarkup, EntityOgMarkup } from "@/lib/ogCard";
 
 export const runtime = "nodejs";
 export const alt = "Organization";
-export const size = OG_SIZE;
-export const contentType = OG_CONTENT_TYPE;
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
 
 export default async function Image({
   params,
@@ -22,7 +17,7 @@ export default async function Image({
   const { id } = await params;
   const org = await getOrgById(id);
   if (!org) {
-    return new ImageResponse(<DefaultOgMarkup title="Organization" />, OG_SIZE);
+    return new ImageResponse(<DefaultOgMarkup title="Organization" />, size);
   }
 
   return new ImageResponse(
@@ -34,6 +29,6 @@ export default async function Image({
         subtitle={orgShareDescription(org).slice(0, 140)}
       />
     ),
-    OG_SIZE,
+    size,
   );
 }

@@ -1,8 +1,5 @@
 /** Markup for Next.js ImageResponse cards. Every node must use display:flex. */
 
-export const OG_SIZE = { width: 1200, height: 630 };
-export const OG_CONTENT_TYPE = "image/png";
-
 export function DefaultOgMarkup({
   kicker = "Gamelyd",
   title = "Host and join game tournaments",
