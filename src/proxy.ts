@@ -4,7 +4,13 @@ const SESSION_COOKIE = "gamelyd_token";
 const REFRESH_COOKIE = "gamelyd_refresh";
 
 /** Paths that require an authenticated session. */
-const protectedPaths = ["/tournament/new", "/org/new", "/org", "/admin"];
+const protectedPaths = [
+  "/tournament/new",
+  "/org/new",
+  "/org",
+  "/admin",
+  "/dashboard",
+];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -29,5 +35,7 @@ export const config = {
     "/org/new/:path*",
     "/org",
     "/admin/:path*",
+    "/dashboard",
+    "/dashboard/:path*",
   ],
 };

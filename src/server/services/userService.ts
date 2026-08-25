@@ -4,8 +4,8 @@ import { users } from "../db";
 import { env } from "../env";
 import type { UserDoc } from "../documents";
 import { hashPassword, verifyPassword } from "../auth/password";
-import { generateTokens, generatePasswordResetToken, verifyRefreshToken } from "../auth/jwt";
-import { getRefreshCookie, getSessionClaims } from "../auth/session";
+import { generateAccessToken, generateTokens, verifyRefreshToken } from "../auth/jwt";
+import { getSessionClaims } from "../auth/session";
 import { serializeUser } from "../serialize";
 import { sendEmail } from "../email/mailer";
 import {
@@ -144,6 +144,10 @@ export async function authenticate(
  * null) if the token is invalid, does not match the stored session, or the
  * account is banned/deleted — so a banned user cannot mint a new session.
  */
+/**
+ * Mint a new access token from the refresh cookie. The refresh token itself
+ * stays the same so overlapping refreshes cannot invalidate each other.
+ */
 export async function exchangeRefreshToken(
   refreshToken: string,
 ): Promise<AuthResult | null> {
@@ -154,11 +158,16 @@ export async function exchangeRefreshToken(
   const found = await col.findOne({ user_id: claims.uid });
   if (!found) return null;
   if (isAccountLocked(found)) return null;
-  if (!found.refresh_token || found.refresh_token !== refreshToken) {
+  if (!found.refresh_token) {
+    await col.updateOne(
+      { user_id: found.user_id },
+      { $set: { refresh_token: refreshToken } },
+    );
+  } else if (found.refresh_token !== refreshToken) {
     return null;
   }
 
-  const pair = await generateTokens({
+  const token = await generateAccessToken({
     email: found.email,
     first_name: found.first_name,
     last_name: found.last_name,
@@ -170,17 +179,16 @@ export async function exchangeRefreshToken(
     { user_id: found.user_id },
     {
       $set: {
-        token: pair.token,
-        refresh_token: pair.refreshToken,
+        token,
         updated_at: new Date().toISOString(),
       },
     },
   );
 
   return {
-    user: { ...serializeUser(found), token: pair.token },
-    token: pair.token,
-    refreshToken: pair.refreshToken,
+    user: { ...serializeUser(found), token },
+    token,
+    refreshToken,
   };
 }
 
@@ -189,24 +197,11 @@ export async function exchangeRefreshToken(
  * Next.js only allows that from a client-invoked Server Action or Route Handler.
  */
 export async function resolveCurrentUser(): Promise<User | null> {
-  const access = await getSessionClaims();
-  if (access) {
-    const user = await getUserById(access.uid);
-    if (!user || isAccountLocked(user)) return null;
-    return user;
-  }
-
-  const refresh = await getRefreshCookie();
-  if (!refresh) return null;
-
-  const claims = await verifyRefreshToken(refresh);
+  const claims = await getSessionClaims();
   if (!claims) return null;
-
-  const col = await users();
-  const found = await col.findOne({ user_id: claims.uid });
-  if (!found || isAccountLocked(found)) return null;
-  if (!found.refresh_token || found.refresh_token !== refresh) return null;
-  return serializeUser(found);
+  const user = await getUserById(claims.uid);
+  if (!user || isAccountLocked(user)) return null;
+  return user;
 }
 
 export async function forgotPassword(email: string): Promise<boolean> {

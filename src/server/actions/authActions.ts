@@ -23,7 +23,7 @@ import {
 } from "@/server/services/userService";
 import {
   clearSessionCookie,
-  getRefreshClaims,
+  getAccessClaims,
   getRefreshCookie,
   getSessionClaims,
   setSessionCookies,
@@ -77,7 +77,7 @@ export async function loginAction(input: unknown): Promise<ActionResult<User>> {
 }
 
 export async function logoutAction(): Promise<ActionResult<null>> {
-  const claims = (await getSessionClaims()) ?? (await getRefreshClaims());
+  const claims = await getSessionClaims();
   await destroySession(claims?.uid);
   return ok(null, "Signed out");
 }
@@ -114,23 +114,24 @@ export async function resetPasswordAction(
 }
 
 /**
- * Rotate the access token using the httpOnly refresh cookie. Returns the
- * current user, or null if the refresh token is missing/revoked or the
- * account is banned — in which case cookies are cleared.
+ * Keep the access cookie alive from the httpOnly refresh cookie. Returns the
+ * current user. Cookies are cleared only when the refresh token is gone or
+ * actually invalid — not on a failed cookie write.
  */
 export async function refreshSessionAction(): Promise<
   ActionResult<User | null>
 > {
+  const access = await getAccessClaims();
   const refresh = await getRefreshCookie();
+
   if (!refresh) {
-    const claims = await getSessionClaims();
-    if (!claims) {
+    if (!access) {
       await clearSessionCookie();
       return ok(null);
     }
-    const user = await getUserById(claims.uid);
+    const user = await getUserById(access.uid);
     if (!user || isAccountLocked(user)) {
-      await destroySession(claims.uid);
+      await destroySession(access.uid);
       return ok(null);
     }
     return ok(user);
@@ -138,6 +139,10 @@ export async function refreshSessionAction(): Promise<
 
   const session = await exchangeRefreshToken(refresh);
   if (!session) {
+    if (access) {
+      const user = await getUserById(access.uid);
+      if (user && !isAccountLocked(user)) return ok(user);
+    }
     await clearSessionCookie();
     return ok(null);
   }
@@ -145,8 +150,8 @@ export async function refreshSessionAction(): Promise<
   try {
     await setSessionCookies(session.token, session.refreshToken);
   } catch {
-    // Cookie writes are not allowed during RSC render; the client keepalive
-    // will persist the new pair on the next Server Action call.
+    // Cookie writes are not allowed during RSC render; identity still holds
+    // via the refresh cookie until the next client-side Server Action.
   }
   return ok(session.user);
 }

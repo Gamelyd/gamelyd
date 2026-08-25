@@ -33,7 +33,9 @@ export default async function TournamentsPage({
               Tournaments
             </h1>
             <p className="mt-2 text-white/80">
-              Browse {mode.toLowerCase()} {type.toLowerCase()} tournaments.
+              {mode.toUpperCase() === "ALL" && type.toUpperCase() === "ALL"
+                ? "Browse every tournament."
+                : `Browse ${mode.toLowerCase()} ${type.toLowerCase()} tournaments.`}
             </p>
           </div>
           <Link href="/tournament/new">

@@ -93,8 +93,9 @@ export async function listUserTournamentsAction(
 
 export async function listUserTournamentsLimitAction(
   userId: string,
+  limit = 7,
 ): Promise<ActionResult<Tournament[]>> {
-  return ok(await listUserTournamentsLimit(userId));
+  return ok(await listUserTournamentsLimit(userId, limit));
 }
 
 export async function userRegisteredTournamentsAction(

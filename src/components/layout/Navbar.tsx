@@ -13,10 +13,10 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
   [
     { href: "/", label: "Home" },
     {
-      href: "/tournament/all/FREE/MULTIPLAYER",
+      href: "/tournament/all/ALL/ALL",
       label: "Tournaments",
-      auth: true,
     },
+    { href: "/dashboard", label: "Dashboard", auth: true },
     { href: "/org", label: "Organizations", auth: true },
     { href: "/about", label: "About" },
     { href: "/contact-us", label: "Contact" },
@@ -64,6 +64,14 @@ export function Navbar() {
     return true;
   });
 
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (href.startsWith("/tournament/all")) {
+      return pathname.startsWith("/tournament/all");
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
@@ -88,7 +96,7 @@ export function Navbar() {
               key={l.href}
               href={l.href}
               className={`relative text-sm transition-colors hover:text-primary ${
-                pathname === l.href ? "text-primary" : "text-white"
+                isActive(l.href) ? "text-primary" : "text-white"
               }`}
             >
               {l.label}

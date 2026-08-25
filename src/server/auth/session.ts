@@ -68,10 +68,18 @@ export async function getRefreshCookie(): Promise<string | null> {
 }
 
 /** Returns verified access-token claims, or null if missing/expired/invalid. */
-export async function getSessionClaims(): Promise<TokenClaims | null> {
+export async function getAccessClaims(): Promise<TokenClaims | null> {
   const token = await getSessionToken();
   if (!token) return null;
   return verifyToken(token);
+}
+
+/**
+ * Session identity from the access cookie, or the refresh cookie if access
+ * has expired. Does not write cookies (safe in Server Components).
+ */
+export async function getSessionClaims(): Promise<TokenClaims | null> {
+  return (await getAccessClaims()) ?? (await getRefreshClaims());
 }
 
 export async function getRefreshClaims(): Promise<TokenClaims | null> {

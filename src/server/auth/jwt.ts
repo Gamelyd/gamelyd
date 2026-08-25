@@ -48,6 +48,20 @@ export async function generateTokens(claims: TokenClaims): Promise<TokenPair> {
   return { token, refreshToken };
 }
 
+export async function generateAccessToken(claims: TokenClaims): Promise<string> {
+  return sign(
+    {
+      email: claims.email,
+      first_name: claims.first_name,
+      last_name: claims.last_name,
+      uid: claims.uid,
+      user_type: claims.user_type,
+      typ: "access",
+    },
+    ACCESS_TTL,
+  );
+}
+
 export async function verifyToken(token: string): Promise<TokenClaims | null> {
   try {
     const { payload } = await jwtVerify(token, secret());

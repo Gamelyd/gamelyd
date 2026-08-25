@@ -179,13 +179,17 @@ export async function getTournamentsByMode(
   const col = await tournaments();
   const perPage = 15;
   const safePage = Math.max(page, 1);
-  const filter = asDocFilter<TournamentDoc>({
-    $and: [
-      { $or: [{ Payment: payment }, { payment: payment }] },
-      { $or: [{ TournamentMode: type }, { tournamentmode: type }] },
-      notDeleted(),
-    ],
-  });
+  const clauses: Record<string, unknown>[] = [notDeleted()];
+  if (payment && payment.toUpperCase() !== "ALL") {
+    clauses.push({ $or: [{ Payment: payment }, { payment: payment }] });
+  }
+  if (type && type.toUpperCase() !== "ALL") {
+    clauses.push({
+      $or: [{ TournamentMode: type }, { tournamentmode: type }],
+    });
+  }
+
+  const filter = asDocFilter<TournamentDoc>({ $and: clauses });
 
   const total = await col.countDocuments(filter);
   const docs = await col
@@ -249,12 +253,13 @@ export async function listUserTournaments(
 
 export async function listUserTournamentsLimit(
   userId: string,
+  limit = 7,
 ): Promise<Tournament[]> {
   const col = await tournaments();
   const docs = await col
     .find(asDocFilter<TournamentDoc>(byUserId(userId)))
     .sort({ _id: -1 })
-    .limit(7)
+    .limit(limit)
     .toArray();
   return docs.map(serializeTournament);
 }

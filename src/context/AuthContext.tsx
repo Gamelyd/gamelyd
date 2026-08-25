@@ -29,7 +29,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_REFRESH_MS = 8 * 60 * 1000;
+const SESSION_REFRESH_MS = 5 * 60 * 1000;
 
 export function AuthProvider({
   initialUser,
@@ -62,15 +62,23 @@ export function AuthProvider({
 
   useEffect(() => {
     let active = true;
+    let inFlight = false;
     const tick = () => {
-      void refreshSessionAction().then((result) => {
-        if (!active || !result.ok) return;
-        if (result.data) setUser(result.data);
-        else {
-          setUser(null);
-          setOrgs([]);
-        }
-      });
+      if (inFlight) return;
+      inFlight = true;
+      void refreshSessionAction()
+        .then((result) => {
+          if (!active) return;
+          if (!result.ok) return;
+          if (result.data) setUser(result.data);
+          else {
+            setUser(null);
+            setOrgs([]);
+          }
+        })
+        .finally(() => {
+          inFlight = false;
+        });
     };
     tick();
     const id = window.setInterval(tick, SESSION_REFRESH_MS);

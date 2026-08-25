@@ -2,15 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/ui/Select";
-import type { Payment, TournamentMode } from "@/lib/schemas/common";
 
-const payments: { label: string; value: Payment }[] = [
+const payments: { label: string; value: string }[] = [
+  { label: "All", value: "ALL" },
   { label: "Free", value: "FREE" },
   // { label: "Paid", value: "PAID" },
   { label: "Sponsored", value: "SPONSORED" },
 ];
 
-const modes: { label: string; value: TournamentMode }[] = [
+const modes: { label: string; value: string }[] = [
+  { label: "All", value: "ALL" },
   { label: "Multiplayer", value: "MULTIPLAYER" },
   { label: "Battle Royale", value: "BATTLEROYALE" },
   { label: "Groups", value: "GROUPS" },
