@@ -26,27 +26,18 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const description =
   "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores — for friends, clubs, and communities.";
 
+const defaultTitle = "Gamelyd — Host and join game tournaments";
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL || "https://www.gamelyd.co",
   ),
-  title: "Gamelyd — Host and join game tournaments",
+  title: defaultTitle,
   description,
   icons: {
     icon: "/icon.png",
     shortcut: "/favicon.ico",
     apple: "/icon.png",
-  },
-  openGraph: {
-    title: "Gamelyd — Host and join game tournaments",
-    description,
-    siteName: "Gamelyd",
-    type: "website",
-  },
-  twitter: {
-    card: "summary",
-    title: "Gamelyd — Host and join game tournaments",
-    description,
   },
 };
 

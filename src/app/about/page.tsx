@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata: Metadata = pageMeta({
+  title: "About",
+  description:
+    "A tool for running game tournaments. You set up the event, people register as teams or solo, and you manage fixtures and scores from one page.",
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (

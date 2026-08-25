@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { pageMeta } from "@/lib/seo";
 import { Hero } from "@/components/home/Hero";
 import { LatestTournaments } from "@/components/home/LatestTournaments";
 import { HostCta } from "@/components/home/HostCta";
@@ -15,6 +17,17 @@ import {
   getBannerTournamentsAction,
 } from "@/server/actions/tournamentActions";
 import { getGamesAction } from "@/server/actions/gameActions";
+
+const homeTitle = "Gamelyd — Host and join game tournaments";
+const homeDescription =
+  "Create a tournament, register teams, draw fixtures, and keep scores in one place — leagues, groups, knockouts, and battle royale.";
+
+export const metadata: Metadata = pageMeta({
+  title: homeTitle,
+  description: homeDescription,
+  path: "/",
+  absoluteTitle: true,
+});
 
 export default async function HomePage() {
   const [bannerResult, latestResult, gamesResult] = await Promise.all([

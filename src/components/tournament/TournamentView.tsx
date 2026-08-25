@@ -47,6 +47,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { tournamentShareDescription } from "@/lib/tournamentShare";
 
 type Tab =
   | "details"
@@ -509,6 +510,7 @@ export function TournamentView({
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <ShareTournamentButton
                   name={tournament.Name}
+                  description={tournamentShareDescription(tournament)}
                   urlPath={`/tournament/${tournament.TournamentId}`}
                 />
                 <button

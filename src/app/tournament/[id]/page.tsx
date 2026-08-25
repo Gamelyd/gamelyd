@@ -5,9 +5,10 @@ import { TournamentView } from "@/components/tournament/TournamentView";
 import { getTournamentById, listParticipants } from "@/server/services/tournamentService";
 import { getDrawsByTournament } from "@/server/services/drawService";
 import {
-  publicAppUrl,
+  tournamentCoverUrl,
   tournamentShareDescription,
 } from "@/lib/tournamentShare";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,30 +19,21 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const tournament = await getTournamentById(id);
-  if (!tournament) return { title: "Tournament" };
+  if (!tournament) {
+    return pageMeta({ title: "Tournament", path: `/tournament/${id}` });
+  }
 
   const title = `${tournament.Name} · ${tournament.GameName}`;
-  const description = tournamentShareDescription(tournament);
-  const url = `${publicAppUrl()}/tournament/${tournament.TournamentId}`;
+  const image = tournamentCoverUrl(tournament);
 
-  return {
+  return pageMeta({
     title,
-    description,
-    alternates: { canonical: url },
-    openGraph: {
-      title: tournament.Name,
-      description,
-      url,
-      siteName: "Gamelyd",
-      type: "website",
-      locale: "en_GB",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: tournament.Name,
-      description,
-    },
-  };
+    description: tournamentShareDescription(tournament),
+    path: `/tournament/${tournament.TournamentId}`,
+    image,
+    imageAlt: tournament.Name,
+    absoluteTitle: true,
+  });
 }
 
 export default async function SingleTournamentPage({

@@ -1,7 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { Button } from "@/components/ui/Button";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata: Metadata = pageMeta({
+  title: "Page not found",
+  description: "This page could not be found on Gamelyd.",
+  path: "/",
+  noIndex: true,
+});
 
 export default function NotFound() {
   return (

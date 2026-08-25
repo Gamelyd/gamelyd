@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { browseTournamentsMeta, pageMeta } from "@/lib/seo";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   TournamentCard,
@@ -8,6 +10,20 @@ import {
 import { TournamentFilters } from "@/components/tournament/TournamentFilters";
 import { Button } from "@/components/ui/Button";
 import { getTournamentsByModeAction } from "@/server/actions/tournamentActions";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ mode: string; type: string }>;
+}): Promise<Metadata> {
+  const { mode, type } = await params;
+  const copy = browseTournamentsMeta(mode, type);
+  return pageMeta({
+    title: copy.title,
+    description: copy.description,
+    path: `/tournament/all/${mode}/${type}`,
+  });
+}
 
 export default async function TournamentsPage({
   params,

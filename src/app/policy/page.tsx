@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "@/components/LegalPage";
+import { pageMeta } from "@/lib/seo";
+
+export const metadata: Metadata = pageMeta({
+  title: "Privacy Policy",
+  description:
+    "How Gamelyd collects, uses, and stores account and tournament information.",
+  path: "/policy",
+});
 
 const sections: LegalSection[] = [
   {

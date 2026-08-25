@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminStats } from "@/server/services/adminService";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = pageMeta({
+  title: "Dashboard · Admin",
+  description: "Gamelyd administration overview.",
+  path: "/admin",
+  noIndex: true,
+  absoluteTitle: true,
+});
 
 export default async function AdminDashboardPage() {
   const stats = await getAdminStats();
