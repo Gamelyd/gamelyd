@@ -8,19 +8,25 @@ import type { Tournament } from "@/lib/schemas/tournament";
 import { placeLabel } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw, Teams } from "@/lib/schemas/draw";
+import type { ActionResult } from "@/lib/result";
 import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
 import { Confirm } from "@/components/ui/Confirm";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { TeamCard } from "./TeamCard";
-import { GroupsBoard } from "./GroupsBoard";
+import { GroupsBoard, type GroupArrangement } from "./GroupsBoard";
+import { GroupStandings } from "./GroupStandings";
+import { KnockoutBracket } from "./KnockoutBracket";
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
 import { LeagueTable } from "./LeagueTable";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import {
+  advanceGroupStageAction,
   drawBrAction,
+  drawGroupStageAction,
+  drawKnockoutNextAction,
   drawLeagueAction,
   getDrawsAction,
   newDrawAction,
@@ -33,6 +39,7 @@ import {
   listAssignableManagersAction,
   listTournamentManagersAction,
   removeTournamentManagerAction,
+  setTournamentGroupsAction,
 } from "@/server/actions/tournamentActions";
 import type { TournamentManager } from "@/lib/schemas/tournament";
 import { Input } from "@/components/ui/Input";
@@ -44,6 +51,7 @@ type Tab =
   | "teams"
   | "table"
   | "fixtures"
+  | "bracket"
   | "register"
   | "manage"
   | "settings";
@@ -70,8 +78,18 @@ export function TournamentView({
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(tournament.Start);
   const [groups, setGroups] = useState(tournament.Groups ?? []);
+  const [advanceCount, setAdvanceCount] = useState(
+    String(tournament.AdvancePerGroup || 2),
+  );
   const [pending, setPending] = useState<
-    "start" | "nextStage" | "groups" | "delete" | null
+    | "start"
+    | "nextStage"
+    | "groups"
+    | "groupFixtures"
+    | "advance"
+    | "knockoutNext"
+    | "delete"
+    | null
   >(null);
 
   const isOwner = Boolean(user?.user_id && user.user_id === tournament.User_id);
@@ -91,15 +109,27 @@ export function TournamentView({
     if (tab === "settings" && !canAdminister) setTab("details");
   }, [tab, canManage, canAdminister]);
 
+  const isGroups = tournament.TournamentMode === "GROUPS";
+  const endsInKnockout =
+    tournament.TournamentMode === "GROUPS" ||
+    tournament.TournamentMode === "MULTIPLAYER";
+
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "details", label: "Details", show: true },
-    { id: "teams", label: `Teams (${participants.length})`, show: true },
+    {
+      id: "teams",
+      label: isGroups
+        ? `Groups (${groups.length})`
+        : `Teams (${participants.length})`,
+      show: true,
+    },
     {
       id: "table",
       label: "Table",
       show: tournament.TournamentMode === "LEAGUE",
     },
     { id: "fixtures", label: "Fixtures", show: true },
+    { id: "bracket", label: "Bracket", show: endsInKnockout },
     { id: "register", label: "Register", show: true },
     { id: "manage", label: "Manage", show: canManage },
     { id: "settings", label: "Settings", show: canAdminister },
@@ -134,10 +164,98 @@ export function TournamentView({
     return computeLeagueStandings(teams, draws, tournament.PointSystem);
   }, [draws, participants, tournament.PointSystem, tournament.TournamentMode]);
 
+  const hydratedDraws = useMemo(
+    () => draws.map((d) => hydrateDrawIcons(d, teamIcons)),
+    [draws, teamIcons],
+  );
+
+  const groupFixtureSections = useMemo(() => {
+    const map = new Map<string, Draw[]>();
+    for (const d of hydratedDraws) {
+      if (!d.Group) continue;
+      const list = map.get(d.Group) ?? [];
+      list.push(d);
+      map.set(d.Group, list);
+    }
+    return [...map.entries()].map(
+      ([name, list]) =>
+        [name, [...list].sort((a, b) => a.Stage - b.Stage)] as const,
+    );
+  }, [hydratedDraws]);
+
+  const knockoutStages = useMemo(() => {
+    const map = new Map<number, Draw[]>();
+    for (const d of hydratedDraws) {
+      if (d.Group?.trim() || d.BRTeams.length > 0) continue;
+      const list = map.get(d.Stage) ?? [];
+      list.push(d);
+      map.set(d.Stage, list);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]);
+  }, [hydratedDraws]);
+
+  const groupStandings = useMemo(() => {
+    if (!isGroups) return [];
+    return groups.map((group) => ({
+      name: group.GroupName,
+      standings: computeLeagueStandings(
+        group.Teams,
+        draws.filter((d) => d.Group === group.GroupName),
+        tournament.PointSystem,
+      ),
+    }));
+  }, [isGroups, groups, draws, tournament.PointSystem]);
+
+  const groupDraws = useMemo(
+    () => draws.filter((d) => Boolean(d.Group?.trim())),
+    [draws],
+  );
+  const knockoutDraws = useMemo(
+    () =>
+      draws.filter((d) => !d.Group?.trim() && d.BRTeams.length === 0),
+    [draws],
+  );
+  const bracketGroupNames = useMemo(() => {
+    const fromDoc = groups
+      .map((g) => g.GroupName)
+      .filter((name): name is string => Boolean(name && name.trim()));
+    if (fromDoc.length > 0) return fromDoc;
+    const seen = new Set<string>();
+    const fromDraws: string[] = [];
+    for (const draw of draws) {
+      const name = draw.Group?.trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        fromDraws.push(name);
+      }
+    }
+    return fromDraws;
+  }, [groups, draws]);
+  const groupStageDrawn = groupDraws.length > 0;
+  const knockoutDrawn = knockoutDraws.length > 0;
+  const allGroupPlayed =
+    groupStageDrawn && groupDraws.every((d) => d.Played);
+  const maxKnockoutStage = knockoutDrawn
+    ? Math.max(...knockoutDraws.map((d) => d.Stage))
+    : 0;
+  const latestKnockoutRound = knockoutDraws.filter(
+    (d) => d.Stage === maxKnockoutStage,
+  );
+  const knockoutRoundComplete =
+    latestKnockoutRound.length > 0 &&
+    latestKnockoutRound.every((d) => d.Played);
+  const knockoutDecided =
+    knockoutRoundComplete && latestKnockoutRound.length === 1;
+
   const refreshDraws = async () => {
     const result = await getDrawsAction(tournament.TournamentId);
     if (result.ok) setDraws(result.data);
   };
+
+  const updateDraw = (updated: Draw) =>
+    setDraws((prev) =>
+      prev.map((x) => (x.DrawId === updated.DrawId ? updated : x)),
+    );
 
   const requestDraw = () => {
     setPending(draws.length === 0 && !started ? "start" : "nextStage");
@@ -185,6 +303,105 @@ export function TournamentView({
     }
   };
 
+  const runDrawAction = async (
+    action: () => Promise<ActionResult<Draw[]>>,
+    successMessage: string,
+    targetTab: Tab,
+  ) => {
+    setBusy(true);
+    const result = await action();
+    setBusy(false);
+    setPending(null);
+    if (result.ok) {
+      setStarted(true);
+      toast.success(successMessage);
+      await refreshDraws();
+      router.refresh();
+      setTab(targetTab);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const handleDrawGroupStage = () =>
+    runDrawAction(
+      () => drawGroupStageAction({ TournamentId: tournament.TournamentId }),
+      "Group fixtures drawn",
+      "fixtures",
+    );
+
+  const handleAdvance = () =>
+    runDrawAction(
+      () =>
+        advanceGroupStageAction(tournament.TournamentId, {
+          AdvancePerGroup: Number(advanceCount) || 2,
+        }),
+      "Knockout stage drawn",
+      "bracket",
+    );
+
+  const handleKnockoutNext = () =>
+    runDrawAction(
+      () => drawKnockoutNextAction({ TournamentId: tournament.TournamentId }),
+      "Next knockout round drawn",
+      "bracket",
+    );
+
+  const requestAdvance = () => {
+    const remaining = groupDraws.filter((d) => !d.Played).length;
+    if (remaining > 0) {
+      toast.error(
+        `Record ${remaining} more group match${
+          remaining === 1 ? "" : "es"
+        } before advancing.`,
+      );
+      return;
+    }
+    setPending("advance");
+  };
+
+  const requestKnockoutNext = () => {
+    const remaining = latestKnockoutRound.filter((d) => !d.Played).length;
+    if (remaining > 0) {
+      toast.error(
+        `${remaining} match${
+          remaining === 1 ? "" : "es"
+        } in this round still need a result.`,
+      );
+      return;
+    }
+    const ties = latestKnockoutRound.filter(
+      (d) =>
+        Boolean(d.Team2?.TeamName) &&
+        d.Winner === "" &&
+        d.Team1Score === d.Team2Score,
+    ).length;
+    if (ties > 0) {
+      toast.error(
+        `${ties} tie${
+          ties === 1 ? "" : "s"
+        } ended level — set a winner before drawing the next round.`,
+      );
+      return;
+    }
+    setPending("knockoutNext");
+  };
+
+  const saveGroups = async (
+    arrangement: GroupArrangement[],
+  ): Promise<boolean> => {
+    const result = await setTournamentGroupsAction(
+      tournament.TournamentId,
+      { Groups: arrangement },
+    );
+    if (result.ok) {
+      setGroups(result.data);
+      return true;
+    }
+    toast.error(result.error);
+    return false;
+  };
+
   const handleDelete = async () => {
     setBusy(true);
     const result = await deleteTournamentAction(tournament.TournamentId);
@@ -222,6 +439,33 @@ export function TournamentView({
       confirmLabel: "Yes, create groups",
       confirmVariant: "default" as const,
       onConfirm: handleGroup,
+    },
+    groupFixtures: {
+      title: "Draw group fixtures?",
+      message:
+        "Every team plays each other in its group. Teams can no longer be moved between groups after this.",
+      confirmLabel: "Yes, draw fixtures",
+      confirmVariant: "default" as const,
+      onConfirm: handleDrawGroupStage,
+    },
+    advance: {
+      title: "Advance to knockout?",
+      message: `The top ${
+        Number(advanceCount) || 2
+      } team${
+        (Number(advanceCount) || 2) === 1 ? "" : "s"
+      } from each group will be seeded into a knockout bracket. Group results are locked in once you advance.`,
+      confirmLabel: "Yes, advance",
+      confirmVariant: "default" as const,
+      onConfirm: handleAdvance,
+    },
+    knockoutNext: {
+      title: "Draw next knockout round?",
+      message:
+        "Winners of the current round will be paired into the next round.",
+      confirmLabel: "Yes, draw",
+      confirmVariant: "default" as const,
+      onConfirm: handleKnockoutNext,
     },
     delete: {
       title: "Delete tournament?",
@@ -312,7 +556,19 @@ export function TournamentView({
 
         {tab === "teams" && (
           groupsCreated ? (
-            <GroupsBoard groups={groups} participants={participants} />
+            groupStageDrawn ? (
+              <GroupStandings
+                sections={groupStandings}
+                advancePerGroup={tournament.AdvancePerGroup || 2}
+              />
+            ) : (
+              <GroupsBoard
+                groups={groups}
+                participants={participants}
+                editable={canManage}
+                onSave={saveGroups}
+              />
+            )
           ) : (
             <div className="flex flex-wrap justify-center gap-5 py-2">
               {participants.length === 0 ? (
@@ -328,55 +584,103 @@ export function TournamentView({
           )
         )}
 
-        {tab === "fixtures" && (
-          <div className="space-y-10">
-            {drawsByStage.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-body">
-                  {started
-                    ? "No draws available, come back later"
-                    : "Fixtures appear after the tournament starts."}
-                </p>
-                {!started && participants.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTab("teams")}
-                    className="mt-4 text-sm font-medium text-primary hover:underline"
-                  >
-                    View {participants.length} registered teams
-                  </button>
-                )}
-              </div>
-            ) : (
-              drawsByStage.map(([stage, stageDraws]) => (
-                <div key={stage}>
-                  <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
-                    {roundLabel(
-                      stageDraws.length,
-                      stage,
-                      tournament.TournamentMode,
-                    )}
+        {tab === "fixtures" &&
+          (isGroups ? (
+            <div className="space-y-12">
+              {groupFixtureSections.length === 0 &&
+              knockoutStages.length === 0 ? (
+                <FixturesEmpty
+                  started={started}
+                  participantCount={participants.length}
+                  onViewTeams={() => setTab("teams")}
+                />
+              ) : (
+                <>
+                  {groupFixtureSections.map(([name, sectionDraws]) => (
+                    <div key={name}>
+                      <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
+                        {name}
+                      </div>
+                      <div className="flex flex-col items-center gap-8">
+                        {sectionDraws.map((d) => (
+                          <Fixture
+                            key={d.DrawId || d._id}
+                            draw={d}
+                            canManage={canManage}
+                            onUpdated={updateDraw}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {knockoutStages.map(([stage, stageDraws]) => (
+                    <div key={`ko-${stage}`}>
+                      <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
+                        {roundLabel(stageDraws.length, stage)}
+                      </div>
+                      <div className="flex flex-col items-center gap-8">
+                        {stageDraws.map((d) => (
+                          <Fixture
+                            key={d.DrawId || d._id}
+                            draw={d}
+                            canManage={canManage}
+                            onUpdated={updateDraw}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-10">
+              {drawsByStage.length === 0 ? (
+                <FixturesEmpty
+                  started={started}
+                  participantCount={participants.length}
+                  onViewTeams={() => setTab("teams")}
+                />
+              ) : (
+                drawsByStage.map(([stage, stageDraws]) => (
+                  <div key={stage}>
+                    <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
+                      {roundLabel(
+                        stageDraws.length,
+                        stage,
+                        tournament.TournamentMode,
+                      )}
+                    </div>
+                    <div className="flex flex-col items-center gap-8">
+                      {stageDraws.map((d) => (
+                        <Fixture
+                          key={d.DrawId || d._id}
+                          draw={d}
+                          canManage={canManage}
+                          onUpdated={updateDraw}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-center gap-8">
-                    {stageDraws.map((d) => (
-                      <Fixture
-                        key={d.DrawId || d._id}
-                        draw={d}
-                        canManage={canManage}
-                        onUpdated={(updated) =>
-                          setDraws((prev) =>
-                            prev.map((x) =>
-                              x.DrawId === updated.DrawId ? updated : x,
-                            ),
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          ))}
+
+        {tab === "bracket" && (
+          <KnockoutBracket
+            rounds={knockoutStages.map(([stage, matches]) => ({
+              stage,
+              matches,
+            }))}
+            groupNames={bracketGroupNames}
+            advancePerGroup={
+              Number(advanceCount) || tournament.AdvancePerGroup || 2
+            }
+            teamCount={isGroups ? 0 : participants.length}
+            isGroupMode={isGroups}
+            knockoutLive={knockoutDraws.length > 0}
+          />
         )}
 
         {tab === "register" &&
@@ -434,16 +738,55 @@ export function TournamentView({
                 </div>
               )
             ) : tournament.TournamentMode === "GROUPS" ? (
-              groupsCreated ? (
+              !groupsCreated ? (
                 <div className="rounded-xl border border-surface-2 bg-surface p-5">
                   <h3 className="mb-1 font-semibold text-white">
-                    Draw next stage
+                    Create groups
                   </h3>
                   <p className="mb-4 text-sm text-body">
-                    Groups are ready. Generate the next round of fixtures.
+                    Split registered teams into groups (min 7 teams). You can
+                    fine-tune group members before drawing fixtures.
                   </p>
-                  <Button loading={busy} onClick={requestDraw}>
-                    Draw next stage
+                  <Button loading={busy} onClick={() => setPending("groups")}>
+                    Create groups
+                  </Button>
+                </div>
+              ) : !groupStageDrawn ? (
+                <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                  <h3 className="mb-1 font-semibold text-white">
+                    Draw group fixtures
+                  </h3>
+                  <p className="mb-4 text-sm text-body">
+                    Generate a round-robin inside every group — each team plays
+                    all others in its group. Teams can no longer be moved
+                    between groups afterwards.
+                  </p>
+                  <Button loading={busy} onClick={() => setPending("groupFixtures")}>
+                    Draw group fixtures
+                  </Button>
+                </div>
+              ) : !knockoutDrawn ? (
+                <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                  <h3 className="mb-1 font-semibold text-white">
+                    Advance to knockout
+                  </h3>
+                  <p className="mb-4 text-sm text-body">
+                    {allGroupPlayed
+                      ? "All group matches are in. Choose how many teams advance from each group, then seed the knockout bracket."
+                      : "Record every group result from the Fixtures tab to unlock the knockout stage."}
+                  </p>
+                  <div className="mb-4 max-w-55">
+                    <Input
+                      label="Teams advancing per group"
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={advanceCount}
+                      onChange={(e) => setAdvanceCount(e.target.value)}
+                    />
+                  </div>
+                  <Button loading={busy} onClick={requestAdvance}>
+                    Advance to knockout
                   </Button>
                   {isAdmin ? (
                     <p className="mt-3 text-xs text-body">
@@ -452,20 +795,28 @@ export function TournamentView({
                     </p>
                   ) : null}
                 </div>
+              ) : knockoutDecided ? (
+                <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                  <h3 className="mb-1 font-semibold text-white">
+                    Knockout complete
+                  </h3>
+                  <p className="text-sm text-body">
+                    The final has been played. Record the final score from the
+                    Fixtures tab if you haven&apos;t already.
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-xl border border-surface-2 bg-surface p-5">
                   <h3 className="mb-1 font-semibold text-white">
-                    Create groups
+                    Knockout stage
                   </h3>
                   <p className="mb-4 text-sm text-body">
-                    Split registered teams into groups (min 7 teams). After
-                    groups are created, you can draw the next stage.
+                    {knockoutRoundComplete
+                      ? "This round is complete. Draw the next round from the winners."
+                      : "Record the current round's results from the Fixtures tab, then draw the next round."}
                   </p>
-                  <Button
-                    loading={busy}
-                    onClick={() => setPending("groups")}
-                  >
-                    Create groups
+                  <Button loading={busy} onClick={requestKnockoutNext}>
+                    Draw next knockout round
                   </Button>
                 </div>
               )
@@ -704,6 +1055,35 @@ function EditTournamentSettings({
         onConfirm={() => void saveVisibility()}
         onCancel={cancelVisibility}
       />
+    </div>
+  );
+}
+
+function FixturesEmpty({
+  started,
+  participantCount,
+  onViewTeams,
+}: {
+  started: boolean;
+  participantCount: number;
+  onViewTeams: () => void;
+}) {
+  return (
+    <div className="py-16 text-center">
+      <p className="text-body">
+        {started
+          ? "No draws available, come back later"
+          : "Fixtures appear after the tournament starts."}
+      </p>
+      {!started && participantCount > 0 && (
+        <button
+          type="button"
+          onClick={onViewTeams}
+          className="mt-4 text-sm font-medium text-primary hover:underline"
+        >
+          View {participantCount} registered teams
+        </button>
+      )}
     </div>
   );
 }

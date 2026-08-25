@@ -28,6 +28,8 @@ import {
   computeLeagueStandings,
   standingToTeam,
 } from "@/lib/leagueStandings";
+import type { AdvanceGroupStageInput } from "@/lib/schemas/tournament";
+import { pairWithinHalves, seedKnockoutPairs } from "@/lib/knockoutSeed";
 
 function emptyTeamFrom(team: Teams): Teams {
   return {
@@ -39,6 +41,53 @@ function emptyTeamFrom(team: Teams): Teams {
     GoalsReceived: 0,
     GoalsDifference: 0,
   };
+}
+
+/** Builds a knockout fixture (Group left empty). A missing team2 is a bye. */
+function knockoutDraw(
+  team1: Teams,
+  team2: Teams | undefined,
+  tournamentId: string,
+  stage: number,
+  now: string,
+): DrawDoc {
+  const _id = new ObjectId();
+  return {
+    _id,
+    Team1: emptyTeamFrom(team1),
+    Team2: team2 ? emptyTeamFrom(team2) : undefined,
+    Created_at: now,
+    Updated_at: now,
+    TournamentId: tournamentId,
+    DrawId: _id.toHexString(),
+    Stage: stage,
+    Winner: team2 ? "" : "Team1",
+    BRWinner: "",
+    Time: "",
+    Date: "",
+    Team1Score: 0,
+    Team2Score: 0,
+    Link: "",
+    Group: "",
+    BRTeams: [],
+    // A bye is settled immediately so the round can complete.
+    Played: !team2,
+  };
+}
+
+/** Resolves the winning team of a played knockout tie, if decided. */
+function knockoutWinner(draw: Draw): Teams | null {
+  const decided =
+    draw.Winner === "Team1"
+      ? draw.Team1
+      : draw.Winner === "Team2"
+        ? draw.Team2
+        : draw.Team1Score > draw.Team2Score
+          ? draw.Team1
+          : draw.Team2Score > draw.Team1Score
+            ? draw.Team2
+            : null;
+  return decided ?? null;
 }
 
 function teamsFromRegistrations(regDocs: RegisterTournamentDoc[]): Teams[] {
@@ -64,6 +113,15 @@ export async function newDraw(tournamentId: string): Promise<Draw[]> {
   );
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+
+  if (tournament.TournamentMode === "GROUPS") {
+    throw new ServiceError(
+      "Group tournaments use the group-stage draw. Draw group fixtures, then advance to the knockout.",
+    );
+  }
+  if (tournament.TournamentMode === "LEAGUE") {
+    throw new ServiceError("Use the league draw for league tournaments");
+  }
 
   const regDocs = await (await registrations())
     .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
@@ -259,6 +317,237 @@ export async function drawLeague(tournamentId: string): Promise<Draw[]> {
         stage: lastStage,
         IsDrawn: true,
         isdrawn: true,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof tCol.updateOne>[1],
+  );
+
+  return drawDocs.map(serializeDraw);
+}
+
+/**
+ * Group-stage fixtures: a single round-robin within each group, every match
+ * tagged with its group name. Matchdays share stage numbers across groups.
+ */
+export async function drawGroupStage(tournamentId: string): Promise<Draw[]> {
+  const tCol = await tournaments();
+  const ids = await relatedTournamentIds(tournamentId);
+  const tournamentDoc = await tCol.findOne(
+    asDocFilter<TournamentDoc>(byAnyTournamentId(ids)),
+  );
+  if (!tournamentDoc) throw new ServiceError("Tournament not found");
+  const tournament = serializeTournament(tournamentDoc);
+
+  if (tournament.TournamentMode !== "GROUPS") {
+    throw new ServiceError("This tournament is not a group tournament");
+  }
+  if (!tournament.Groups || tournament.Groups.length === 0) {
+    throw new ServiceError("Create groups before drawing fixtures");
+  }
+
+  const dCol = await draws();
+  const existing = await dCol.countDocuments(
+    asDocFilter<DrawDoc>(byAnyTournamentId(ids)),
+  );
+  if (existing > 0) {
+    throw new ServiceError("Group fixtures have already been drawn");
+  }
+
+  const now = new Date().toISOString();
+  const drawDocs: DrawDoc[] = [];
+  let maxStage = 0;
+
+  for (const group of tournament.Groups) {
+    const pairings = circleRoundRobin(group.Teams, false);
+    for (const pair of pairings) {
+      maxStage = Math.max(maxStage, pair.stage);
+      const _id = new ObjectId();
+      drawDocs.push({
+        _id,
+        Team1: emptyTeamFrom(pair.team1),
+        Team2: emptyTeamFrom(pair.team2),
+        Created_at: now,
+        Updated_at: now,
+        TournamentId: tournament.TournamentId,
+        DrawId: _id.toHexString(),
+        Stage: pair.stage,
+        Winner: "",
+        BRWinner: "",
+        Time: "",
+        Date: "",
+        Team1Score: 0,
+        Team2Score: 0,
+        Link: "",
+        Group: group.GroupName,
+        BRTeams: [],
+        Played: false,
+      });
+    }
+  }
+
+  if (drawDocs.length === 0) {
+    throw new ServiceError(
+      "Each group needs at least two teams to draw fixtures",
+    );
+  }
+
+  await dCol.insertMany(drawDocs);
+  await tCol.updateOne(
+    { _id: tournamentDoc._id },
+    {
+      $set: {
+        Start: true,
+        start: true,
+        Stage: maxStage,
+        stage: maxStage,
+        IsDrawn: true,
+        isdrawn: true,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof tCol.updateOne>[1],
+  );
+
+  return drawDocs.map(serializeDraw);
+}
+
+/**
+ * Seeds the knockout stage from group standings: the top N of each group
+ * (N = AdvancePerGroup) qualify, then are paired best-vs-worst so group
+ * winners meet runners-up from other groups.
+ */
+export async function advanceGroupStage(
+  tournamentId: string,
+  input: AdvanceGroupStageInput,
+): Promise<Draw[]> {
+  const tCol = await tournaments();
+  const ids = await relatedTournamentIds(tournamentId);
+  const tournamentDoc = await tCol.findOne(
+    asDocFilter<TournamentDoc>(byAnyTournamentId(ids)),
+  );
+  if (!tournamentDoc) throw new ServiceError("Tournament not found");
+  const tournament = serializeTournament(tournamentDoc);
+
+  if (tournament.TournamentMode !== "GROUPS") {
+    throw new ServiceError("This tournament is not a group tournament");
+  }
+  if (!tournament.Groups || tournament.Groups.length === 0) {
+    throw new ServiceError("This tournament has no groups");
+  }
+
+  const dCol = await draws();
+  const allDraws = (
+    await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+  ).map(serializeDraw);
+  const groupDraws = allDraws.filter((d) => d.Group);
+  if (groupDraws.length === 0) {
+    throw new ServiceError("Draw the group fixtures first");
+  }
+  const knockoutDraws = allDraws.filter(
+    (d) => !d.Group && d.BRTeams.length === 0,
+  );
+  if (knockoutDraws.length > 0) {
+    throw new ServiceError("The knockout stage has already been drawn");
+  }
+  if (groupDraws.some((d) => !d.Played)) {
+    throw new ServiceError("Record every group result before advancing");
+  }
+
+  // Collect qualifiers grouped by finishing position so the seed order is
+  // [all winners, all runners-up, ...].
+  const byPosition: Teams[][] = [];
+  for (const group of tournament.Groups) {
+    const gDraws = groupDraws.filter((d) => d.Group === group.GroupName);
+    const standings = computeLeagueStandings(
+      group.Teams,
+      gDraws,
+      tournament.PointSystem,
+    );
+    standings.slice(0, input.AdvancePerGroup).forEach((row, pos) => {
+      (byPosition[pos] ??= []).push(standingToTeam(row));
+    });
+  }
+
+  const pairs = seedKnockoutPairs(byPosition);
+  if (pairs.length === 0) {
+    throw new ServiceError("Not enough qualifiers to make a knockout stage");
+  }
+
+  const now = new Date().toISOString();
+  const nextStage = (tournament.Stage || 0) + 1;
+  const drawDocs: DrawDoc[] = pairs.map(([team1, team2]) =>
+    knockoutDraw(team1, team2, tournament.TournamentId, nextStage, now),
+  );
+
+  await dCol.insertMany(drawDocs);
+  await tCol.updateOne(
+    { _id: tournamentDoc._id },
+    {
+      $set: {
+        Stage: nextStage,
+        stage: nextStage,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof tCol.updateOne>[1],
+  );
+
+  return drawDocs.map(serializeDraw);
+}
+
+/** Advances knockout-round winners into the next round. */
+export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
+  const tCol = await tournaments();
+  const ids = await relatedTournamentIds(tournamentId);
+  const tournamentDoc = await tCol.findOne(
+    asDocFilter<TournamentDoc>(byAnyTournamentId(ids)),
+  );
+  if (!tournamentDoc) throw new ServiceError("Tournament not found");
+  const tournament = serializeTournament(tournamentDoc);
+
+  const dCol = await draws();
+  const allDraws = (
+    await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+  ).map(serializeDraw);
+  const knockoutDraws = allDraws.filter(
+    (d) => !d.Group && d.BRTeams.length === 0,
+  );
+  if (knockoutDraws.length === 0) {
+    throw new ServiceError("Advance the group stage first");
+  }
+
+  const maxStage = Math.max(...knockoutDraws.map((d) => d.Stage));
+  const current = knockoutDraws.filter((d) => d.Stage === maxStage);
+  if (current.some((d) => !d.Played)) {
+    throw new ServiceError("Finish the current knockout round first");
+  }
+
+  const winners = current
+    .map((d) => knockoutWinner(d))
+    .filter((team): team is Teams => Boolean(team));
+  if (winners.length !== current.length) {
+    throw new ServiceError(
+      "Set a winner for every tie before drawing the next round",
+    );
+  }
+  if (winners.length < 2) {
+    throw new ServiceError("The knockout stage is already decided");
+  }
+
+  const now = new Date().toISOString();
+  const nextStage = maxStage + 1;
+  const drawDocs: DrawDoc[] = pairWithinHalves(winners).map(([team1, team2]) =>
+    knockoutDraw(team1, team2, tournament.TournamentId, nextStage, now),
+  );
+
+  await dCol.insertMany(drawDocs);
+  await tCol.updateOne(
+    { _id: tournamentDoc._id },
+    {
+      $set: {
+        Stage: nextStage,
+        stage: nextStage,
         Updated_at: now,
         updated_at: now,
       },

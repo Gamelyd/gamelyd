@@ -85,6 +85,7 @@ export interface TournamentDoc {
   Featured?: boolean;
   FeaturedAt?: string;
   Managers?: string[];
+  AdvancePerGroup?: number;
 }
 
 export interface DrawDoc {

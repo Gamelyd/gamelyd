@@ -42,6 +42,7 @@ import type { Paginated } from "@/lib/result";
 import type {
   EditTournamentInput,
   SaveTournamentInput,
+  SetGroupsInput,
   UpdateTournamentInput,
 } from "@/lib/schemas/tournament";
 import type { RegisterTournamentInput } from "@/lib/schemas/register";
@@ -1041,6 +1042,81 @@ export async function groupTournament(
         start: true,
         IsDrawn: true,
         isdrawn: true,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return groups;
+}
+
+/**
+ * Manually reassign teams to groups (e.g. from an admin drag-and-drop board).
+ * Rebuilds the Groups array from the given arrangement, preserving each team's
+ * existing stats where possible. Every already-grouped team must be present
+ * exactly once so no team is silently dropped or duplicated.
+ */
+export async function setTournamentGroups(
+  uid: string,
+  tournamentId: string,
+  input: SetGroupsInput,
+): Promise<TournamentGroup[]> {
+  const col = await tournaments();
+  const tournament = await findByAnyId(tournamentId);
+  if (!tournament) throw new ServiceError("Tournament not found");
+  if (!(await canManageTournament(uid, tournament))) {
+    throw new ServiceError("You are not allowed to manage this tournament");
+  }
+
+  const current = serializeTournament(tournament);
+  if (!current.Groups || current.Groups.length === 0) {
+    throw new ServiceError("This tournament has no groups yet");
+  }
+
+  // Once fixtures exist, the groups are locked in — moving teams would
+  // desync them from the drawn matches.
+  const ids = relatedIdsFromDoc(tournament);
+  const drawCount = await (await draws()).countDocuments(
+    asDocFilter<DrawDoc>(byAnyTournamentId(ids)),
+  );
+  if (drawCount > 0) {
+    throw new ServiceError(
+      "Teams can't be moved after fixtures have been drawn",
+    );
+  }
+
+  // Preserve existing team objects (with any recorded stats) by name.
+  const existingByName = new Map<string, Teams>();
+  for (const group of current.Groups) {
+    for (const team of group.Teams) existingByName.set(team.TeamName, team);
+  }
+
+  const requested = input.Groups.flatMap((g) => g.TeamNames);
+  const requestedSet = new Set(requested);
+  if (requestedSet.size !== requested.length) {
+    throw new ServiceError("A team can only be in one group");
+  }
+  if (requestedSet.size !== existingByName.size) {
+    throw new ServiceError("Every team must stay assigned to a group");
+  }
+  for (const name of requestedSet) {
+    if (!existingByName.has(name)) {
+      throw new ServiceError(`Unknown team: ${name}`);
+    }
+  }
+
+  const groups: TournamentGroup[] = input.Groups.map((g) => ({
+    GroupName: g.GroupName,
+    Teams: g.TeamNames.map((name) => existingByName.get(name) as Teams),
+  }));
+
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: tournament._id },
+    {
+      $set: {
+        Groups: groups,
+        groups,
         Updated_at: now,
         updated_at: now,
       },

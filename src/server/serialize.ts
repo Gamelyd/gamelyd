@@ -160,6 +160,8 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     ReturnLeg: readBool(raw, ["ReturnLeg", "returnleg"]),
     Featured: readBool(raw, ["Featured", "featured"]),
     Managers: readArray(raw, ["Managers", "managers"]) as string[],
+    AdvancePerGroup:
+      readNumber(raw, ["AdvancePerGroup", "advancepergroup"]) || 2,
     Prizes: serializePrizes(raw.Prizes ?? raw.prizes),
   };
 }

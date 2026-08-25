@@ -32,6 +32,27 @@ export const tournamentGroupSchema = z.object({
 });
 export type TournamentGroup = z.infer<typeof tournamentGroupSchema>;
 
+/** How many teams from each group advance to the knockout stage. */
+export const advanceGroupStageInputSchema = z.object({
+  AdvancePerGroup: z.coerce.number().int().min(1).max(8).default(2),
+});
+export type AdvanceGroupStageInput = z.infer<
+  typeof advanceGroupStageInputSchema
+>;
+
+/** Manual group arrangement: which team names sit in each group, in order. */
+export const setGroupsInputSchema = z.object({
+  Groups: z
+    .array(
+      z.object({
+        GroupName: z.string().min(1),
+        TeamNames: z.array(z.string()).default([]),
+      }),
+    )
+    .min(1),
+});
+export type SetGroupsInput = z.infer<typeof setGroupsInputSchema>;
+
 /** A user allowed to help run a tournament, hydrated with their profile. */
 export const tournamentManagerSchema = z.object({
   user_id: z.string(),
@@ -83,6 +104,7 @@ export const tournamentSchema = z.object({
   ReturnLeg: z.boolean().default(false),
   Featured: z.boolean().default(false),
   Managers: z.array(z.string()).default([]),
+  AdvancePerGroup: z.number().int().positive().default(2),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 

@@ -11,12 +11,16 @@ import {
   updateBrDrawInputSchema,
   type Draw,
 } from "@/lib/schemas/draw";
+import { advanceGroupStageInputSchema } from "@/lib/schemas/tournament";
 import {
   addLink,
   addScore,
   addTime,
   addWinner,
+  advanceGroupStage,
   drawBr,
+  drawGroupStage,
+  drawKnockoutNext,
   drawLeague,
   getDrawsByTournament,
   getDrawTournamentId,
@@ -86,6 +90,67 @@ export async function drawLeagueAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong starting the league");
+  }
+}
+
+export async function drawGroupStageAction(
+  input: unknown,
+): Promise<ActionResult<Draw[]>> {
+  const parsed = parseInput(newDrawInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  const denied = await guardTournament(parsed.data.TournamentId);
+  if (denied) return denied;
+  try {
+    return ok(
+      await drawGroupStage(parsed.data.TournamentId),
+      "Group fixtures drawn",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong drawing group fixtures");
+  }
+}
+
+export async function advanceGroupStageAction(
+  tournamentId: string,
+  input: unknown,
+): Promise<ActionResult<Draw[]>> {
+  const denied = await guardTournament(tournamentId);
+  if (denied) return denied;
+
+  const parsed = parseInput(advanceGroupStageInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    return ok(
+      await advanceGroupStage(tournamentId, parsed.data),
+      "Knockout stage drawn",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong advancing the group stage");
+  }
+}
+
+export async function drawKnockoutNextAction(
+  input: unknown,
+): Promise<ActionResult<Draw[]>> {
+  const parsed = parseInput(newDrawInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  const denied = await guardTournament(parsed.data.TournamentId);
+  if (denied) return denied;
+  try {
+    return ok(
+      await drawKnockoutNext(parsed.data.TournamentId),
+      "Next knockout round drawn",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong drawing the next round");
   }
 }
 

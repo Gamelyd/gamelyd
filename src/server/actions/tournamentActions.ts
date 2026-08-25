@@ -5,6 +5,7 @@ import { ok, fail, type ActionResult, type Paginated } from "@/lib/result";
 import {
   editTournamentInputSchema,
   saveTournamentInputSchema,
+  setGroupsInputSchema,
   updateTournamentInputSchema,
   type Tournament,
   type TournamentGroup,
@@ -35,6 +36,7 @@ import {
   removeTournamentManager,
   removeUserFromTournament,
   saveTournament,
+  setTournamentGroups,
   toggleDeleteTournament,
   toggleSuspendTournament,
   updateTournament,
@@ -272,6 +274,28 @@ export async function groupTournamentAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong grouping the tournament");
+  }
+}
+
+export async function setTournamentGroupsAction(
+  tournamentId: string,
+  input: unknown,
+): Promise<ActionResult<TournamentGroup[]>> {
+  const manager = await requireTournamentManager(tournamentId);
+  if (!manager.ok) return manager;
+
+  const parsed = parseInput(setGroupsInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  try {
+    return ok(
+      await setTournamentGroups(manager.uid, tournamentId, parsed.data),
+      "Groups updated",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong updating groups");
   }
 }
 
