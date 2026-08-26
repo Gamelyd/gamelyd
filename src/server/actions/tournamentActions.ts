@@ -3,19 +3,22 @@
 import { parseInput } from "@/lib/validate";
 import { ok, fail, type ActionResult, type Paginated } from "@/lib/result";
 import {
+  adminAddParticipantsInputSchema,
   editTournamentInputSchema,
   saveTournamentInputSchema,
   setGroupsInputSchema,
+  setGroupQualifiersInputSchema,
   updateTournamentInputSchema,
   type Tournament,
   type TournamentGroup,
   type TournamentManager,
+  type GroupQualifier,
 } from "@/lib/schemas/tournament";
 import {
   registerTournamentInputSchema,
   type RegisterTournament,
 } from "@/lib/schemas/register";
-import type { Player } from "@/lib/schemas/draw";
+import type { Player, Draw } from "@/lib/schemas/draw";
 import {
   acceptInvite,
   addTournamentManager,
@@ -37,6 +40,9 @@ import {
   removeUserFromTournament,
   saveTournament,
   setTournamentGroups,
+  adminAddParticipants,
+  setGroupQualifiers,
+  disqualifyTeam,
   toggleDeleteTournament,
   toggleSuspendTournament,
   updateTournament,
@@ -158,6 +164,28 @@ export async function listParticipantsAction(
   tournamentId: string,
 ): Promise<ActionResult<RegisterTournament[]>> {
   return ok(await listParticipants(tournamentId));
+}
+
+export async function addParticipantsAction(
+  tournamentId: string,
+  input: unknown,
+): Promise<ActionResult<RegisterTournament>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+
+  const parsed = parseInput(adminAddParticipantsInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  try {
+    return ok(
+      await adminAddParticipants(admin.uid, tournamentId, parsed.data),
+      "Player added to the tournament",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong adding the player");
+  }
 }
 
 export async function inviteUserAction(
@@ -296,6 +324,46 @@ export async function setTournamentGroupsAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong updating groups");
+  }
+}
+
+export async function setGroupQualifiersAction(
+  tournamentId: string,
+  input: unknown,
+): Promise<ActionResult<GroupQualifier[]>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+
+  const parsed = parseInput(setGroupQualifiersInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+
+  try {
+    return ok(
+      await setGroupQualifiers(admin.uid, tournamentId, parsed.data),
+      "Qualifiers saved",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong saving qualifiers");
+  }
+}
+
+export async function disqualifyTeamAction(
+  tournamentId: string,
+  teamName: string,
+): Promise<ActionResult<{ tournament: Tournament; forfeited: number; draws: Draw[] }>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(
+      await disqualifyTeam(admin.uid, tournamentId, teamName),
+      "Team disqualified",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong disqualifying that team");
   }
 }
 

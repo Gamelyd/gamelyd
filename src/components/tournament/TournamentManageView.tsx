@@ -1,0 +1,237 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Confirm } from "@/components/ui/Confirm";
+import { useToast } from "@/components/ui/Toast";
+import { AddParticipants } from "@/components/tournament/AddParticipants";
+import {
+  EditTournamentSettings,
+  ManagerSettings,
+} from "@/components/tournament/TournamentSettings";
+import { TournamentStageControls } from "@/components/tournament/TournamentStageControls";
+import { SelectQualifiers } from "@/components/tournament/SelectQualifiers";
+import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
+import { deleteTournamentAction } from "@/server/actions/tournamentActions";
+import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
+import type { RegisterTournament } from "@/lib/schemas/register";
+import type { Draw } from "@/lib/schemas/draw";
+import { computeLeagueStandings } from "@/lib/leagueStandings";
+
+export function TournamentManageView({
+  tournament,
+  initialParticipants,
+  initialDraws,
+  isPlatformAdmin,
+  canAdminister,
+}: {
+  tournament: Tournament;
+  initialParticipants: RegisterTournament[];
+  initialDraws: Draw[];
+  isPlatformAdmin: boolean;
+  canAdminister: boolean;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [participants, setParticipants] =
+    useState<RegisterTournament[]>(initialParticipants);
+  const [qualifiers, setQualifiers] = useState<GroupQualifier[]>(
+    tournament.Qualifiers ?? [],
+  );
+  const [disqualifiedTeams, setDisqualifiedTeams] = useState(
+    tournament.DisqualifiedTeams ?? [],
+  );
+  const [draws, setDraws] = useState(initialDraws);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canAdd =
+    isPlatformAdmin || (canAdminister && tournament.OwnerCanAddParticipants);
+  const groupDraws = draws.filter((d) => Boolean(d.Group?.trim()));
+  const knockoutDrawn = draws.some(
+    (d) => !d.Group?.trim() && d.BRTeams.length === 0,
+  );
+  const allGroupPlayed =
+    groupDraws.length > 0 && groupDraws.every((d) => d.Played);
+  const showQualifierPicker =
+    tournament.TournamentMode === "GROUPS" &&
+    tournament.OwnerCanSelectQualifiers &&
+    (tournament.Groups ?? []).length > 0;
+
+  const handleDelete = async () => {
+    setBusy(true);
+    const result = await deleteTournamentAction(tournament.TournamentId);
+    setBusy(false);
+    setConfirmDelete(false);
+    if (result.ok) {
+      toast.success("Tournament updated");
+      router.push("/");
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl px-5 py-10">
+      <Link
+        href={`/tournament/${tournament.TournamentId}`}
+        className="mb-4 inline-block text-sm text-primary hover:underline"
+      >
+        ← Back to tournament
+      </Link>
+
+      <div className="mb-8 flex flex-wrap items-start gap-4">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
+          {tournament.icon ? (
+            <Image
+              src={tournament.icon}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="64px"
+            />
+          ) : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+            Manage
+          </p>
+          <h1 className="mt-1 font-display text-3xl text-white">
+            {tournament.Name}
+          </h1>
+          <p className="mt-1 text-sm text-body">
+            {tournament.GameName} · {tournament.TournamentMode} ·{" "}
+            {tournament.Date}
+          </p>
+        </div>
+        <Link href={`/tournament/${tournament.TournamentId}`}>
+          <Button variant="outline">View tournament</Button>
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-6">
+        <TournamentStageControls
+          key={disqualifiedTeams.join("|")}
+          tournament={tournament}
+          initialDraws={draws}
+          qualifiers={qualifiers}
+          disqualifiedTeams={disqualifiedTeams}
+        />
+        {showQualifierPicker ? (
+          <SelectQualifiers
+            tournamentId={tournament.TournamentId}
+            groups={tournament.Groups ?? []}
+            sections={(tournament.Groups ?? []).map((group) => ({
+              name: group.GroupName,
+              standings: computeLeagueStandings(
+                group.Teams,
+                draws.filter((d) => d.Group === group.GroupName),
+                tournament.PointSystem,
+              ),
+            }))}
+            advancePerGroup={tournament.AdvancePerGroup || 2}
+            initialQualifiers={qualifiers}
+            disqualifiedTeams={disqualifiedTeams}
+            canEdit={canAdminister}
+            allGroupPlayed={allGroupPlayed}
+            knockoutDrawn={knockoutDrawn}
+            onSaved={setQualifiers}
+          />
+        ) : null}
+        {canAdminister ? (
+          <div className="rounded-2xl border border-surface-2 bg-surface p-5">
+            <h2 className="mb-1 text-lg font-semibold text-white">
+              Disqualify a team
+            </h2>
+            <p className="mb-4 text-sm text-body">
+              They lose every remaining match 3–0. In knockout, their opponent
+              goes through.
+            </p>
+            <DisqualifyTeams
+              tournamentId={tournament.TournamentId}
+              participants={participants}
+              disqualifiedTeams={disqualifiedTeams}
+      onDisqualified={({ tournament: next, draws: nextDraws }) => {
+                setDisqualifiedTeams(next.DisqualifiedTeams ?? []);
+                if (nextDraws) setDraws(nextDraws);
+                router.refresh();
+              }}
+            />
+          </div>
+        ) : null}
+        {canAdminister ? (
+          <EditTournamentSettings
+            tournament={tournament}
+            started={tournament.Start}
+            registeredCount={participants.length}
+            onSaved={() => router.refresh()}
+          />
+        ) : null}
+
+        {canAdminister ? (
+          <ManagerSettings
+            tournamentId={tournament.TournamentId}
+            hasOrg={Boolean(tournament.OrgId)}
+            orgName={tournament.OrgName}
+          />
+        ) : null}
+
+        {canAdminister ? (
+          <div className="rounded-2xl border border-surface-2 bg-surface p-5">
+            <h2 className="mb-1 text-lg font-semibold text-white">
+              Add players
+            </h2>
+            <p className="mb-4 text-sm text-body">
+              Search for an existing Gamelyd user and add them before the
+              tournament starts.
+            </p>
+            {canAdd ? (
+              <AddParticipants
+                tournamentId={tournament.TournamentId}
+                teamSize={tournament.Team}
+                started={tournament.Start}
+                existingUserIds={participants.flatMap((p) =>
+                  (p.Players ?? []).map((pl) => pl.User_id),
+                )}
+                onAdded={(registration) =>
+                  setParticipants((prev) => [...prev, registration])
+                }
+              />
+            ) : (
+              <p className="text-sm text-body">
+                Adding players isn&apos;t enabled for this tournament yet.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        {canAdminister ? (
+          <div className="rounded-xl border border-lose/30 bg-surface p-5">
+            <h3 className="mb-1 font-semibold text-white">Danger zone</h3>
+            <p className="mb-4 text-sm text-body">
+              Delete this tournament. This can be toggled.
+            </p>
+            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+              Delete tournament
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      <Confirm
+        open={confirmDelete}
+        title="Delete tournament?"
+        message="Are you sure you want to delete this tournament?"
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={busy}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => {
+          if (!busy) setConfirmDelete(false);
+        }}
+      />
+    </div>
+  );
+}

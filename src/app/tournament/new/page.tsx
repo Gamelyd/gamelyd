@@ -90,6 +90,7 @@ export default function CreateTournamentPage() {
     Shuffle: "AUTOMATIC",
   });
   const [returnLeg, setReturnLeg] = useState(false);
+  const [advancePerGroup, setAdvancePerGroup] = useState(2);
   const [prizes, setPrizes] = useState<PrizePosition[]>([
     { Position: 1, Amount: 0 },
     { Position: 2, Amount: 0 },
@@ -165,6 +166,8 @@ export default function CreateTournamentPage() {
       PaymentChannel: "",
       OrgId: orgId,
       ReturnLeg: choices.TournamentMode === "LEAGUE" ? returnLeg : false,
+      AdvancePerGroup:
+        choices.TournamentMode === "GROUPS" ? advancePerGroup : 2,
     };
     const result = await saveTournamentAction(payload);
     setLoading(false);
@@ -248,6 +251,29 @@ export default function CreateTournamentPage() {
                           );
                         })}
                       </div>
+                    </div>
+                  )}
+                {group.key === "TournamentMode" &&
+                  choices.TournamentMode === "GROUPS" && (
+                    <div className="mt-6 max-w-xs">
+                      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
+                        Teams advancing per group
+                      </h3>
+                      <p className="mb-3 text-sm text-body">
+                        How many teams from each group go through to knockout.
+                        This can&apos;t be changed later.
+                      </p>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={8}
+                        value={advancePerGroup}
+                        onChange={(e) =>
+                          setAdvancePerGroup(
+                            Math.min(8, Math.max(1, Number(e.target.value) || 1)),
+                          )
+                        }
+                      />
                     </div>
                   )}
               </div>

@@ -8,13 +8,21 @@ import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import type { Tournament } from "@/lib/schemas/tournament";
+import type { RegisterTournament } from "@/lib/schemas/register";
 import {
   adminGetTournamentAction,
   adminResetTournamentAction,
+  adminSetOwnerCanAddParticipantsAction,
+  adminSetOwnerCanReshuffleGroupsAction,
+  adminSetOwnerCanSelectQualifiersAction,
   adminToggleDeleteTournamentAction,
   adminToggleFeaturedTournamentAction,
   adminToggleSuspendTournamentAction,
 } from "@/server/actions/adminActions";
+import {
+  AddParticipants,
+  RegisteredTeamsList,
+} from "@/components/tournament/AddParticipants";
 
 type Pending = "reset" | "suspend" | "delete" | "banner" | null;
 
@@ -24,6 +32,7 @@ export default function AdminTournamentManagePage() {
   const toast = useToast();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [drawCount, setDrawCount] = useState(0);
+  const [participants, setParticipants] = useState<RegisterTournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -36,6 +45,7 @@ export default function AdminTournamentManagePage() {
       if (result.ok) {
         setTournament(result.data.tournament);
         setDrawCount(result.data.drawCount);
+        setParticipants(result.data.participants);
       } else {
         setTournament(null);
         toast.error(result.error);
@@ -136,7 +146,128 @@ export default function AdminTournamentManagePage() {
           {tournament.OrgName ? (
             <Item label="Organization" value={tournament.OrgName} />
           ) : null}
+          <Item label="Registered" value={`${participants.length} teams`} />
         </dl>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="mb-1 text-lg font-semibold text-white">
+          Owner permissions
+        </h2>
+        <p className="mb-4 text-sm text-body">
+          Turn these on if the tournament owner should be able to do them.
+          When they are off, only you can.
+        </p>
+        <div className="flex flex-col gap-3">
+          <label className="flex cursor-pointer items-center gap-3 text-sm text-white">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary"
+              checked={tournament.OwnerCanAddParticipants}
+              disabled={busy}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                void run(async () => {
+                  const result =
+                    await adminSetOwnerCanAddParticipantsAction(id, enabled);
+                  if (result.ok) {
+                    setTournament((t) =>
+                      t
+                        ? { ...t, OwnerCanAddParticipants: result.data }
+                        : t,
+                    );
+                  }
+                  return result;
+                });
+              }}
+            />
+            Allow owners to add players
+          </label>
+          {tournament.TournamentMode === "GROUPS" ? (
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-3 text-sm text-white">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={tournament.OwnerCanReshuffleGroups}
+                  disabled={busy}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    void run(async () => {
+                      const result =
+                        await adminSetOwnerCanReshuffleGroupsAction(
+                          id,
+                          enabled,
+                        );
+                      if (result.ok) {
+                        setTournament((t) =>
+                          t
+                            ? { ...t, OwnerCanReshuffleGroups: result.data }
+                            : t,
+                        );
+                      }
+                      return result;
+                    });
+                  }}
+                />
+                Allow owners to reshuffle groups
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 text-sm text-white">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={Boolean(tournament.OwnerCanSelectQualifiers)}
+                  disabled={busy}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    void run(async () => {
+                      const result =
+                        await adminSetOwnerCanSelectQualifiersAction(
+                          id,
+                          enabled,
+                        );
+                      if (result.ok) {
+                        setTournament((t) =>
+                          t
+                            ? { ...t, OwnerCanSelectQualifiers: result.data }
+                            : t,
+                        );
+                      }
+                      return result;
+                    });
+                  }}
+                />
+                Let the organiser break points ties
+              </label>
+              <p className="-mt-1 ml-7 text-xs text-body">
+                On: if teams finish level on points, the organiser picks who
+                goes through and why. Off: the table order decides.
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="mb-1 text-lg font-semibold text-white">
+          Add players
+        </h2>
+        <p className="mb-4 text-sm text-body">
+          Add existing users to this tournament without them registering
+          themselves. Only possible before the tournament starts.
+        </p>
+        <AddParticipants
+          tournamentId={tournament.TournamentId || id}
+          teamSize={tournament.Team}
+          started={tournament.Start}
+          existingUserIds={participants.flatMap((p) =>
+            (p.Players ?? []).map((pl) => pl.User_id),
+          )}
+          onAdded={(registration) =>
+            setParticipants((prev) => [...prev, registration])
+          }
+        />
+        <RegisteredTeamsList participants={participants} />
       </div>
 
       <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">

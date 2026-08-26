@@ -266,6 +266,302 @@
   color: #66fcf1;
 }
 
+/* Champion celebration — completed tournament overlay */
+@keyframes champion-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes champion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes champion-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes champion-orbit-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes champion-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(11 192 180 / 0.55),
+      0 0 48px 8px rgb(11 192 180 / 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 14px rgb(11 192 180 / 0),
+      0 0 64px 16px rgb(11 192 180 / 0.4);
+  }
+}
+
+@keyframes champion-scan {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes champion-shard {
+  0% {
+    opacity: 0;
+    transform: translateY(-12vh) rotate(var(--tilt)) scale(0.4);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(88vh) rotate(calc(var(--tilt) + 220deg)) scale(1);
+  }
+}
+
+@keyframes champion-ticks {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.champion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #041110;
+  animation: champion-fade 0.45s ease-out both;
+}
+
+.champion-grid {
+  position: absolute;
+  inset: -20%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='84' viewBox='0 0 48 84'%3E%3Cpath fill='none' stroke='%230bc0b4' stroke-opacity='0.16' stroke-width='1' d='M24 2 L46 15 L46 41 L24 54 L2 41 L2 15 Z'/%3E%3C/svg%3E");
+  background-size: 48px 84px;
+  opacity: 0.7;
+}
+
+.champion-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.champion-sweep::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  background: rgb(11 192 180 / 0.08);
+  animation: champion-scan 4.2s ease-in-out infinite;
+}
+
+.champion-shards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.champion-shard {
+  position: absolute;
+  top: -8%;
+  display: block;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  animation-name: champion-shard;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation-iteration-count: infinite;
+}
+
+.champion-shard-0 {
+  background: var(--color-primary);
+}
+
+.champion-shard-1 {
+  background: var(--color-yellow);
+}
+
+.champion-shard-2 {
+  background: var(--color-cyan);
+}
+
+.champion-shard-3 {
+  background: var(--color-win);
+}
+
+.champion-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  max-width: 36rem;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  animation: champion-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+.champion-kicker {
+  margin-bottom: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-cyan-soft);
+}
+
+.champion-core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 17.5rem;
+  height: 17.5rem;
+}
+
+.champion-rings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--color-primary);
+}
+
+.champion-orbit {
+  transform-origin: 140px 140px;
+}
+
+.champion-orbit-a {
+  animation: champion-orbit 18s linear infinite;
+}
+
+.champion-orbit-b {
+  animation: champion-orbit-rev 11s linear infinite;
+  color: var(--color-cyan);
+}
+
+.champion-ticks {
+  animation: champion-ticks 2.4s ease-in-out infinite;
+  color: var(--color-yellow);
+}
+
+.champion-hex {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 8.5rem;
+  width: 7.5rem;
+  place-items: center;
+  overflow: hidden;
+  background: var(--color-primary-panel);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  animation: champion-pulse 2.2s ease-in-out infinite;
+}
+
+.champion-crest {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.champion-label {
+  margin-top: 1.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--color-yellow);
+}
+
+.champion-name {
+  margin-top: 0.35rem;
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 8vw, 4.2rem);
+  line-height: 0.95;
+  color: #fff;
+  word-break: break-word;
+}
+
+.champion-event {
+  margin-top: 0.65rem;
+  max-width: 28rem;
+  font-size: 0.95rem;
+  color: var(--color-body);
+}
+
+.champion-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.champion-roster li {
+  border: 1px solid rgb(11 192 180 / 0.35);
+  background: var(--color-primary-panel);
+  color: var(--color-cyan-soft);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .champion-overlay,
+  .champion-stage,
+  .champion-orbit-a,
+  .champion-orbit-b,
+  .champion-ticks,
+  .champion-hex,
+  .champion-sweep::before,
+  .champion-shard {
+    animation: none !important;
+  }
+
+  .champion-overlay {
+    opacity: 1;
+  }
+
+  .champion-stage {
+    transform: none;
+  }
+
+  .champion-shards {
+    display: none;
+  }
+}
+
 @media (max-width: 570px) {
   .team-card-photo,
   .team-card-back-inner {

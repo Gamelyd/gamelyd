@@ -7,6 +7,7 @@ import type {
   TournamentDoc,
 } from "../documents";
 import {
+  serializeDraw,
   serializeRegistration,
   serializeTournament,
 } from "../serialize";
@@ -32,9 +33,10 @@ import {
 } from "../email/templates";
 import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
-import type { Player } from "@/lib/schemas/draw";
-import type { Teams } from "@/lib/schemas/draw";
+import type { Player, Teams, Draw } from "@/lib/schemas/draw";
 import type {
+  AdminAddParticipantsInput,
+  SetGroupQualifiersInput,
   TournamentGroup,
   TournamentManager,
 } from "@/lib/schemas/tournament";
@@ -47,6 +49,12 @@ import type {
 } from "@/lib/schemas/tournament";
 import type { RegisterTournamentInput } from "@/lib/schemas/register";
 import { rosterSize } from "@/lib/schemas/common";
+import {
+  asDisqualifiedSet,
+  groupQualifiersComplete,
+} from "@/lib/groupQualifiers";
+import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
+import { FALLBACKS, playerIconFor } from "@/lib/icons";
 
 const PER_PAGE = 10;
 
@@ -121,6 +129,13 @@ export async function saveTournament(
     ReturnLeg: input.TournamentMode === "LEAGUE" ? Boolean(input.ReturnLeg) : false,
     Featured: false,
     Managers: [],
+    OwnerCanReshuffleGroups: true,
+    OwnerCanAddParticipants: false,
+    OwnerCanSelectQualifiers: false,
+    Qualifiers: [],
+    DisqualifiedTeams: [],
+    AdvancePerGroup:
+      input.TournamentMode === "GROUPS" ? input.AdvancePerGroup || 2 : 2,
   };
 
   await col.insertOne(doc);
@@ -436,6 +451,10 @@ export async function adminResetTournament(id: string): Promise<{
         active: false,
         Groups: [],
         groups: [],
+        Qualifiers: [],
+        qualifiers: [],
+        DisqualifiedTeams: [],
+        disqualifiedteams: [],
         Updated_at: now,
         updated_at: now,
       },
@@ -600,6 +619,125 @@ export async function registerForTournament(
   return serializeRegistration(doc);
 }
 
+/**
+ * Platform admin: register existing users as a team. Same rules as public
+ * registration — tournament must not have started, roster size must match,
+ * and no player may already be in the event.
+ */
+export async function adminAddParticipants(
+  uid: string,
+  tournamentId: string,
+  input: AdminAddParticipantsInput,
+): Promise<RegisterTournament> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canManuallyAddParticipants(uid, found))) {
+    throw new ServiceError(
+      serializeTournament(found).OwnerCanAddParticipants
+        ? "You are not allowed to add players to this tournament"
+        : "Only an admin can add players for this tournament",
+    );
+  }
+  const uniqueIds = [...new Set(input.userIds)];
+  if (uniqueIds.length !== input.userIds.length) {
+    throw new ServiceError("Each player can only be added once");
+  }
+
+  const foundUsers = await Promise.all(uniqueIds.map((id) => getUserById(id)));
+  const missing = uniqueIds.filter((_, i) => !foundUsers[i]);
+  if (missing.length > 0) {
+    throw new ServiceError("One or more users were not found");
+  }
+  const users = foundUsers.filter((u): u is NonNullable<typeof u> => Boolean(u));
+
+  const teamName =
+    input.teamName?.trim() ||
+    (users.length === 1
+      ? users[0].user_name
+      : users.map((u) => u.user_name).join(" / "));
+
+  return registerForTournament(tournamentId, {
+    TeamName: teamName,
+    Icon: FALLBACKS.team,
+    Players: users.map((u) => ({
+      UserName: u.user_name || u.first_name || "Player",
+      GameUserName: "",
+      User_id: u.user_id,
+      Email: u.email || "",
+      Icon: playerIconFor(u.user_id),
+    })),
+    RefNumber: "",
+    PaymentChannel: "",
+    Amount: 0,
+  });
+}
+
+export async function adminSetOwnerCanReshuffleGroups(
+  id: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        OwnerCanReshuffleGroups: enabled,
+        ownercanreshufflegroups: enabled,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return enabled;
+}
+
+export async function adminSetOwnerCanAddParticipants(
+  id: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        OwnerCanAddParticipants: enabled,
+        ownercanaddparticipants: enabled,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return enabled;
+}
+
+export async function adminSetOwnerCanSelectQualifiers(
+  id: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const col = await tournaments();
+  const found = await findByAnyId(id);
+  if (!found) throw new ServiceError("Tournament not found");
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        OwnerCanSelectQualifiers: enabled,
+        ownercanselectqualifiers: enabled,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return enabled;
+}
+
 export async function listParticipants(
   tournamentId: string,
 ): Promise<RegisterTournament[]> {
@@ -692,6 +830,32 @@ export async function removeUserFromTournament(
   return remaining;
 }
 
+export async function canManuallyAddParticipants(
+  uid: string,
+  doc: TournamentDoc,
+): Promise<boolean> {
+  const user = await getUserById(uid);
+  if (user?.user_type === "ADMIN") return true;
+  const t = serializeTournament(doc);
+  if (t.User_id !== uid) return false;
+  return t.OwnerCanAddParticipants;
+}
+
+/**
+ * True if the user can drag teams between groups before fixtures are drawn.
+ * Platform admins always can. Owners and co-managers can only when the
+ * admin has left OwnerCanReshuffleGroups on.
+ */
+export async function canReshuffleGroups(
+  uid: string,
+  doc: TournamentDoc,
+): Promise<boolean> {
+  const user = await getUserById(uid);
+  if (user?.user_type === "ADMIN") return true;
+  if (!serializeTournament(doc).OwnerCanReshuffleGroups) return false;
+  return canManageTournament(uid, doc);
+}
+
 /**
  * True if the user can run the tournament: the creator, a platform admin, or
  * a co-manager the owner added.
@@ -736,6 +900,262 @@ export async function canAdministerTournamentById(
   const found = await findByAnyId(tournamentId);
   if (!found) return false;
   return canAdministerTournament(uid, found);
+}
+
+/**
+ * Owner or platform admin, and only when the admin has turned this on for
+ * the tournament. Co-managers cannot pick qualifiers.
+ */
+export async function canSelectGroupQualifiers(
+  uid: string,
+  doc: TournamentDoc,
+): Promise<boolean> {
+  if (!serializeTournament(doc).OwnerCanSelectQualifiers) return false;
+  return canAdministerTournament(uid, doc);
+}
+
+export async function setGroupQualifiers(
+  uid: string,
+  tournamentId: string,
+  input: SetGroupQualifiersInput,
+): Promise<SetGroupQualifiersInput["Qualifiers"]> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  const tournament = serializeTournament(found);
+
+  if (tournament.TournamentMode !== "GROUPS") {
+    throw new ServiceError("This tournament is not a group tournament");
+  }
+  if (!tournament.OwnerCanSelectQualifiers) {
+    throw new ServiceError(
+      "Selecting qualifiers is not enabled for this tournament",
+    );
+  }
+  if (!(await canSelectGroupQualifiers(uid, found))) {
+    throw new ServiceError("Only the tournament owner can select who qualifies");
+  }
+  if (!tournament.Groups || tournament.Groups.length === 0) {
+    throw new ServiceError("This tournament has no groups");
+  }
+
+  const ids = relatedIdsFromDoc(found);
+  const dCol = await draws();
+  const allDraws = (
+    await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+  ).map(serializeDraw);
+  const groupDraws = allDraws.filter((d) => d.Group);
+  if (groupDraws.length === 0) {
+    throw new ServiceError("Draw the group fixtures first");
+  }
+  if (groupDraws.some((d) => !d.Played)) {
+    throw new ServiceError("Record every group result before selecting qualifiers");
+  }
+  const knockoutDraws = allDraws.filter(
+    (d) => !d.Group && d.BRTeams.length === 0,
+  );
+  if (knockoutDraws.length > 0) {
+    throw new ServiceError("The knockout stage has already been drawn");
+  }
+
+  const advancePerGroup = tournament.AdvancePerGroup || 2;
+  const disqualified = asDisqualifiedSet(tournament.DisqualifiedTeams);
+  const sections = tournament.Groups.map((group) => ({
+    name: group.GroupName,
+    standings: computeLeagueStandings(
+      group.Teams,
+      groupDraws.filter((d) => d.Group === group.GroupName),
+      tournament.PointSystem,
+    ),
+  }));
+
+  const groupNames = new Set(tournament.Groups.map((g) => g.GroupName));
+  for (const pick of input.Qualifiers) {
+    if (!groupNames.has(pick.GroupName)) {
+      throw new ServiceError(`Unknown group ${pick.GroupName}`);
+    }
+  }
+
+  if (
+    !groupQualifiersComplete(
+      sections,
+      input.Qualifiers,
+      advancePerGroup,
+      disqualified,
+      true,
+    )
+  ) {
+    throw new ServiceError(
+      "Pick who goes through from each points tie, and add a public reason",
+    );
+  }
+
+  const now = new Date().toISOString();
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        Qualifiers: input.Qualifiers,
+        qualifiers: input.Qualifiers,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+  return input.Qualifiers;
+}
+
+export async function disqualifyTeam(
+  uid: string,
+  tournamentId: string,
+  teamName: string,
+): Promise<{ tournament: Tournament; forfeited: number; draws: Draw[] }> {
+  const trimmed = teamName.trim();
+  if (!trimmed) throw new ServiceError("Team is required");
+
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(uid, found))) {
+    throw new ServiceError("Only the tournament owner can disqualify a team");
+  }
+
+  const tournament = serializeTournament(found);
+  const already = asDisqualifiedSet(tournament.DisqualifiedTeams);
+  if (already.has(trimmed)) {
+    throw new ServiceError("This team is already disqualified");
+  }
+
+  const ids = relatedIdsFromDoc(found);
+  const dCol = await draws();
+  const drawDocs = await dCol
+    .find(asDocFilter<DrawDoc>(byAnyTournamentId(ids)))
+    .toArray();
+
+  const now = new Date().toISOString();
+  let forfeited = 0;
+  for (const doc of drawDocs) {
+    const draw = serializeDraw(doc);
+    if (draw.Played) continue;
+    const t1 = draw.Team1?.TeamName;
+    const t2 = draw.Team2?.TeamName;
+    const isBr = (draw.BRTeams?.length ?? 0) > 0;
+
+    if (isBr) {
+      const nextBr = draw.BRTeams.filter((t) => t.TeamName !== trimmed);
+      if (nextBr.length === draw.BRTeams.length) continue;
+      await dCol.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            BRTeams: nextBr,
+            brteams: nextBr,
+            Updated_at: now,
+            updated_at: now,
+          },
+        } as unknown as Parameters<typeof dCol.updateOne>[1],
+      );
+      forfeited += 1;
+      continue;
+    }
+
+    if (t1 === trimmed && t2) {
+      await dCol.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            Team1Score: 0,
+            Team2Score: 3,
+            Winner: "Team2",
+            winner: "Team2",
+            Played: true,
+            played: true,
+            Updated_at: now,
+            updated_at: now,
+          },
+        } as unknown as Parameters<typeof dCol.updateOne>[1],
+      );
+      forfeited += 1;
+    } else if (t2 === trimmed && t1) {
+      await dCol.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            Team1Score: 3,
+            Team2Score: 0,
+            Winner: "Team1",
+            winner: "Team1",
+            Played: true,
+            played: true,
+            Updated_at: now,
+            updated_at: now,
+          },
+        } as unknown as Parameters<typeof dCol.updateOne>[1],
+      );
+      forfeited += 1;
+    }
+  }
+
+  const nextDq = [...tournament.DisqualifiedTeams, trimmed];
+  await col.updateOne(
+    { _id: found._id },
+    {
+      $set: {
+        DisqualifiedTeams: nextDq,
+        disqualifiedteams: nextDq,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.updateOne>[1],
+  );
+
+  if (tournament.TournamentMode === "LEAGUE") {
+    const leagueDraws = (
+      await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+    ).map(serializeDraw);
+    if (
+      leagueDraws.length > 0 &&
+      leagueDraws.every((d) => d.Played) &&
+      leagueDraws.every((d) => d.BRTeams.length === 0)
+    ) {
+      const teams = leagueDraws.flatMap((item) =>
+        [item.Team1, item.Team2].filter((team): team is Teams => Boolean(team)),
+      );
+      const unique = [
+        ...new Map(teams.map((team) => [team.TeamName, team])).values(),
+      ];
+      const table = computeLeagueStandings(
+        unique,
+        leagueDraws,
+        tournament.PointSystem,
+      ).filter((row) => row.TeamName !== trimmed);
+      const leader = table[0];
+      if (leader) {
+        await col.updateOne(
+          { _id: found._id },
+          {
+            $set: {
+              Winner: standingToTeam(leader),
+              winner: standingToTeam(leader),
+              Active: false,
+              active: false,
+            },
+          } as unknown as Parameters<typeof col.updateOne>[1],
+        );
+      }
+    }
+  }
+
+  const updated = await col.findOne({ _id: found._id });
+  if (!updated) throw new ServiceError("Tournament not found");
+  const updatedDraws = (
+    await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+  ).map(serializeDraw);
+  return {
+    tournament: serializeTournament(updated),
+    forfeited,
+    draws: updatedDraws,
+  };
 }
 
 async function hydrateManagers(userIds: string[]): Promise<TournamentManager[]> {
@@ -1017,18 +1437,25 @@ export async function groupTournament(
     throw new ServiceError("You need at least 7 teams to group a tournament");
   }
 
-  const teams: Teams[] = regDocs.map((r) => {
-    const reg = serializeRegistration(r);
-    return {
-      TeamName: reg.TeamName,
-      Players: reg.Players,
-      Icon: reg.Icon,
-      Points: 0,
-      GoalsScored: 0,
-      GoalsReceived: 0,
-      GoalsDifference: 0,
-    };
-  });
+  const dq = asDisqualifiedSet(serializeTournament(tournament).DisqualifiedTeams);
+  const teams: Teams[] = regDocs
+    .map((r) => {
+      const reg = serializeRegistration(r);
+      return {
+        TeamName: reg.TeamName,
+        Players: reg.Players,
+        Icon: reg.Icon,
+        Points: 0,
+        GoalsScored: 0,
+        GoalsReceived: 0,
+        GoalsDifference: 0,
+      };
+    })
+    .filter((t) => !dq.has(t.TeamName));
+
+  if (teams.length < 7) {
+    throw new ServiceError("You need at least 7 teams to group a tournament");
+  }
 
   const groups = buildGroups(teams);
   const now = new Date().toISOString();
@@ -1064,8 +1491,12 @@ export async function setTournamentGroups(
   const col = await tournaments();
   const tournament = await findByAnyId(tournamentId);
   if (!tournament) throw new ServiceError("Tournament not found");
-  if (!(await canManageTournament(uid, tournament))) {
-    throw new ServiceError("You are not allowed to manage this tournament");
+  if (!(await canReshuffleGroups(uid, tournament))) {
+    throw new ServiceError(
+      serializeTournament(tournament).OwnerCanReshuffleGroups
+        ? "You are not allowed to manage this tournament"
+        : "Only an admin can reshuffle groups for this tournament",
+    );
   }
 
   const current = serializeTournament(tournament);

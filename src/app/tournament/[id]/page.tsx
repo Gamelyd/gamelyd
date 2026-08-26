@@ -38,10 +38,13 @@ export async function generateMetadata({
 
 export default async function SingleTournamentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
 
   const tournament = await getTournamentById(id);
   if (!tournament) notFound();
@@ -57,6 +60,7 @@ export default async function SingleTournamentPage({
         tournament={tournament}
         initialParticipants={participants}
         initialDraws={draws}
+        initialTab={tab === "register" ? "register" : undefined}
       />
     </SiteLayout>
   );

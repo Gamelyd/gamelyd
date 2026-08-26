@@ -40,6 +40,21 @@ export type AdvanceGroupStageInput = z.infer<
   typeof advanceGroupStageInputSchema
 >;
 
+export const groupQualifierSchema = z.object({
+  GroupName: z.string().min(1),
+  TeamName: z.string().min(1),
+  Reason: z.string().trim().min(3).max(280),
+  Seed: z.number().int().min(1).max(8),
+});
+export type GroupQualifier = z.infer<typeof groupQualifierSchema>;
+
+export const setGroupQualifiersInputSchema = z.object({
+  Qualifiers: z.array(groupQualifierSchema).default([]),
+});
+export type SetGroupQualifiersInput = z.infer<
+  typeof setGroupQualifiersInputSchema
+>;
+
 /** Manual group arrangement: which team names sit in each group, in order. */
 export const setGroupsInputSchema = z.object({
   Groups: z
@@ -105,6 +120,26 @@ export const tournamentSchema = z.object({
   Featured: z.boolean().default(false),
   Managers: z.array(z.string()).default([]),
   AdvancePerGroup: z.number().int().positive().default(2),
+  /**
+   * When true, the tournament owner (and co-managers) can drag teams between
+   * groups before fixtures are drawn. When false, only a platform admin can.
+   * Missing on older documents — treated as true so existing events keep
+   * the current owner reshuffle behaviour.
+   */
+  OwnerCanReshuffleGroups: z.boolean().default(true),
+  /**
+   * When true, the tournament owner can add existing users before the event
+   * starts. When false, only a platform admin can. Missing on older documents
+   * is treated as false.
+   */
+  OwnerCanAddParticipants: z.boolean().default(false),
+  /**
+   * When true, the owner can pick who goes through if teams finish level on
+   * points (with a public reason). When false, the table order decides.
+   */
+  OwnerCanSelectQualifiers: z.boolean().default(false),
+  Qualifiers: z.array(groupQualifierSchema).default([]),
+  DisqualifiedTeams: z.array(z.string()).default([]),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 
@@ -130,6 +165,7 @@ export const saveTournamentInputSchema = z.object({
   PointSystem: pointSystemSchema.optional(),
   OrgId: z.string().optional().default(""),
   ReturnLeg: z.boolean().optional().default(false),
+  AdvancePerGroup: z.coerce.number().int().min(1).max(8).optional().default(2),
 });
 export type SaveTournamentInput = z.infer<typeof saveTournamentInputSchema>;
 
@@ -159,3 +195,12 @@ export const editTournamentInputSchema = z
     message: "Nothing to update",
   });
 export type EditTournamentInput = z.infer<typeof editTournamentInputSchema>;
+
+/** Platform admin: register existing users onto a tournament that has not started. */
+export const adminAddParticipantsInputSchema = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(4),
+  teamName: z.string().max(100).optional().default(""),
+});
+export type AdminAddParticipantsInput = z.infer<
+  typeof adminAddParticipantsInputSchema
+>;

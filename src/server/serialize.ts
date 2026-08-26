@@ -162,8 +162,49 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     Managers: readArray(raw, ["Managers", "managers"]) as string[],
     AdvancePerGroup:
       readNumber(raw, ["AdvancePerGroup", "advancepergroup"]) || 2,
+    OwnerCanReshuffleGroups: ownerCanReshuffleGroups(raw),
+    OwnerCanAddParticipants: readBool(raw, [
+      "OwnerCanAddParticipants",
+      "ownercanaddparticipants",
+    ]),
+    OwnerCanSelectQualifiers: readBool(raw, [
+      "OwnerCanSelectQualifiers",
+      "ownercanselectqualifiers",
+    ]),
+    Qualifiers: serializeQualifiers(raw.Qualifiers ?? raw.qualifiers),
+    DisqualifiedTeams: (
+      readArray(raw, ["DisqualifiedTeams", "disqualifiedteams"]) as string[]
+    ).filter((name) => typeof name === "string" && name.length > 0),
     Prizes: serializePrizes(raw.Prizes ?? raw.prizes),
   };
+}
+
+function ownerCanReshuffleGroups(raw: Record<string, unknown>): boolean {
+  for (const key of ["OwnerCanReshuffleGroups", "ownercanreshufflegroups"]) {
+    const value = raw[key];
+    if (typeof value === "boolean") return value;
+  }
+  return true;
+}
+
+function serializeQualifiers(raw: unknown): Tournament["Qualifiers"] {
+  if (!Array.isArray(raw)) return [];
+  const out: Tournament["Qualifiers"] = [];
+  for (const item of raw) {
+    const row = asRecord(item);
+    const GroupName = readString(row, ["GroupName", "groupname"]);
+    const TeamName = readString(row, ["TeamName", "teamname"]);
+    const Reason = readString(row, ["Reason", "reason"]).trim();
+    const Seed = readNumber(row, ["Seed", "seed"]);
+    if (!GroupName || !TeamName || Reason.length < 3 || Seed < 1) continue;
+    out.push({
+      GroupName,
+      TeamName,
+      Reason: Reason.slice(0, 280),
+      Seed,
+    });
+  }
+  return out;
 }
 
 function serializePrizes(raw: unknown): Tournament["Prizes"] {

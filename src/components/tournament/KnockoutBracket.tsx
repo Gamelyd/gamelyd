@@ -1,13 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { Draw, Teams } from "@/lib/schemas/draw";
+import type { GroupQualifier } from "@/lib/schemas/tournament";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import {
   groupPlaceholderPairs,
+  isKnockoutBye,
   pairSequential,
   splitHalves,
 } from "@/lib/knockoutSeed";
+import { reasonByTeamName } from "@/lib/groupQualifiers";
 
 type Round = { stage: number; matches: Draw[] };
 
@@ -18,6 +21,8 @@ type Slot = {
   played: boolean;
   won: boolean;
 };
+
+const QualifierReasonContext = createContext<Record<string, string>>({});
 
 type MatchNode = {
   draw: Draw | null;
@@ -40,13 +45,16 @@ function emptySlot(label?: string): Slot {
 
 function slotFromDraw(draw: Draw | null, which: "team1" | "team2"): Slot {
   if (!draw) return emptySlot();
+  if (isKnockoutBye(draw)) {
+    if (which === "team2") return emptySlot();
+    return { team: draw.Team1, score: 0, played: false, won: false };
+  }
   const team = which === "team1" ? draw.Team1 : draw.Team2;
   const score = which === "team1" ? draw.Team1Score : draw.Team2Score;
   const side = winnerSide(draw);
   const won =
     (which === "team1" && side === "Team1") ||
     (which === "team2" && side === "Team2");
-  if (which === "team2" && !team?.TeamName) return emptySlot();
   return { team, score, played: draw.Played, won };
 }
 
@@ -59,7 +67,7 @@ function winnerOf(match: MatchNode): Slot {
     if (side === "Team2") {
       return { ...slotFromDraw(match.draw, "team2"), won: false };
     }
-    if (!match.draw.Team2?.TeamName && match.draw.Team1) {
+    if (isKnockoutBye(match.draw) && match.draw.Team1) {
       return { ...slotFromDraw(match.draw, "team1"), won: false };
     }
   }
@@ -77,7 +85,7 @@ function matchFromDraw(draw: Draw): MatchNode {
     draw,
     team1: slotFromDraw(draw, "team1"),
     team2: slotFromDraw(draw, "team2"),
-    bye: !draw.Team2?.TeamName,
+    bye: isKnockoutBye(draw),
   };
 }
 
@@ -144,6 +152,7 @@ export function KnockoutBracket({
   teamCount = 0,
   isGroupMode = false,
   knockoutLive = false,
+  qualifierReasons = [],
 }: {
   rounds: Round[];
   groupNames?: string[];
@@ -151,11 +160,15 @@ export function KnockoutBracket({
   teamCount?: number;
   isGroupMode?: boolean;
   knockoutLive?: boolean;
+  qualifierReasons?: GroupQualifier[];
 }) {
-  const last = rounds[rounds.length - 1];
+  // Always build from the first knockout round, even if the caller
+  // passes stages newest-first (fixtures do that).
+  const ordered = [...rounds].sort((a, b) => a.stage - b.stage);
+  const last = ordered[ordered.length - 1];
   const hasFinal =
-    Boolean(last) && last.matches.length === 1 && rounds.length > 1;
-  const earlyRounds = hasFinal ? rounds.slice(0, -1) : rounds;
+    Boolean(last) && last.matches.length === 1 && ordered.length > 1;
+  const earlyRounds = hasFinal ? ordered.slice(0, -1) : ordered;
   const firstRound = earlyRounds[0]?.matches ?? [];
   const laterByRound = earlyRounds.slice(1).map((r) => r.matches);
 
@@ -212,36 +225,40 @@ export function KnockoutBracket({
   }
 
   return (
-    <div className="rounded-2xl border border-primary/25 bg-primary-panel px-3 py-6 shadow-[inset_0_1px_0_0_rgba(11,192,180,0.08)] sm:px-6">
-      <div className="mb-6 flex flex-col items-center gap-2">
-        <h3 className="text-center font-display text-lg tracking-[0.22em] text-white sm:text-2xl">
-          KNOCKOUT STAGE
-        </h3>
-        <span className="h-0.5 w-16 rounded-full bg-primary" />
-      </div>
+    <QualifierReasonContext.Provider
+      value={reasonByTeamName(qualifierReasons)}
+    >
+      <div className="rounded-2xl border border-primary/25 bg-primary-panel px-3 py-6 shadow-[inset_0_1px_0_0_rgba(11,192,180,0.08)] sm:px-6">
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <h3 className="text-center font-display text-lg tracking-[0.22em] text-white sm:text-2xl">
+            KNOCKOUT STAGE
+          </h3>
+          <span className="h-0.5 w-16 rounded-full bg-primary" />
+        </div>
 
-      <div className="-mx-3 overflow-x-auto overscroll-x-contain px-3 pb-2">
-        {leaves.length === 1 ? (
-          <div className="flex min-w-max items-center justify-center">
-            <MatchCard>
-              <TeamRow slot={leaves[0].team1} side="left" />
-            </MatchCard>
-            <ForkColumn nodes={leaves} side="left" />
-            <Trophy champion={champion} />
-            <ForkColumn nodes={leaves} side="right" />
-            <MatchCard>
-              <TeamRow slot={leaves[0].team2} side="right" />
-            </MatchCard>
-          </div>
-        ) : (
-          <div className="flex min-w-max items-stretch justify-center">
-            <Wing columns={leftCols} side="left" labels={leftLabels} />
-            <Trophy champion={champion} />
-            <Wing columns={rightCols} side="right" labels={rightLabels} />
-          </div>
-        )}
+        <div className="-mx-3 overflow-x-auto overscroll-x-contain px-3 pb-2">
+          {leaves.length === 1 ? (
+            <div className="flex min-w-max items-center justify-center">
+              <MatchCard>
+                <TeamRow slot={leaves[0].team1} side="left" />
+              </MatchCard>
+              <ForkColumn nodes={leaves} side="left" />
+              <Trophy champion={champion} />
+              <ForkColumn nodes={leaves} side="right" />
+              <MatchCard>
+                <TeamRow slot={leaves[0].team2} side="right" />
+              </MatchCard>
+            </div>
+          ) : (
+            <div className="flex min-w-max items-stretch justify-center">
+              <Wing columns={leftCols} side="left" labels={leftLabels} />
+              <Trophy champion={champion} />
+              <Wing columns={rightCols} side="right" labels={rightLabels} />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </QualifierReasonContext.Provider>
   );
 }
 
@@ -321,6 +338,9 @@ function MatchBox({
       <div className="py-1.5">
         <MatchCard>
           <TeamRow slot={node.team1} side={side} />
+          <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+            Auto qualified
+          </p>
         </MatchCard>
       </div>
     );
@@ -364,9 +384,11 @@ function ForkColumn({
 }
 
 function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
+  const reasons = useContext(QualifierReasonContext);
   const name = slot.team?.TeamName || slot.label || "TBD";
   const filled = Boolean(slot.team?.TeamName);
   const placeholder = Boolean(slot.label) && !filled;
+  const reason = filled ? reasons[slot.team?.TeamName ?? ""] : undefined;
   const circle = (
     <span
       className={`grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-full border sm:h-6 sm:w-6 ${
@@ -414,6 +436,7 @@ function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
 
   return (
     <div
+      title={reason}
       className={`relative flex h-9 items-center gap-2 px-2 transition-colors sm:h-10 ${
         slot.won ? "bg-primary/12" : "hover:bg-white/5"
       } ${side === "right" ? "flex-row-reverse" : ""}`}

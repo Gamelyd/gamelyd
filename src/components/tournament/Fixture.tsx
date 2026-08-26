@@ -12,6 +12,7 @@ import {
 } from "@/server/actions/drawActions";
 import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
 import { leagueMatchdayLabel } from "@/lib/leagueStandings";
+import { isKnockoutBye } from "@/lib/knockoutSeed";
 
 function scoreTone(
   self: number,
@@ -56,24 +57,30 @@ function MpFixture({
 }) {
   const toast = useToast();
   const [mode, setMode] = useState<EditMode>(null);
-  const [team1, setTeam1] = useState(draw.Team1Score);
-  const [team2, setTeam2] = useState(draw.Team2Score);
+  const [team1, setTeam1] = useState("");
+  const [team2, setTeam2] = useState("");
   const [time, setTime] = useState(draw.Time);
   const [date, setDate] = useState(draw.Date);
   const [link, setLink] = useState(draw.Link);
   const [saving, setSaving] = useState(false);
 
-  const autoBye = draw.Team2?.TeamName === "Automatic Qualification";
+  const autoBye = isKnockoutBye(draw);
   const t1 = draw.Team1;
   const t2 = draw.Team2;
   const tone1 = scoreTone(draw.Team1Score, draw.Team2Score);
   const tone2 = scoreTone(draw.Team2Score, draw.Team1Score);
 
+  const beginScoreEdit = () => {
+    setTeam1(draw.Played ? String(draw.Team1Score) : "");
+    setTeam2(draw.Played ? String(draw.Team2Score) : "");
+    setMode("score");
+  };
+
   const saveScore = async () => {
     setSaving(true);
     const result = await addScoreAction(draw.DrawId, {
-      Team1: team1,
-      Team2: team2,
+      Team1: team1.trim() === "" ? 0 : Number(team1),
+      Team2: team2.trim() === "" ? 0 : Number(team2),
       Winner: "",
       TournamentId: draw.TournamentId,
       WinnerTeam: "",
@@ -128,17 +135,28 @@ function MpFixture({
       {canManage && !autoBye && (
         <ManageMenu
           onSelect={(next) => {
-            setMode(next);
+            if (next === "score") beginScoreEdit();
+            else setMode(next);
           }}
         />
       )}
 
+      {autoBye ? (
+        <div className="flex w-full max-w-[720px] flex-col items-center gap-3">
+          <TeamFace team={t1} score={0} tone="win" side="left" showScore={false} />
+          <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+            Auto qualified
+          </span>
+        </div>
+      ) : (
       <div className="flex w-full max-w-[720px] flex-col items-center justify-center gap-3 md:flex-row md:gap-0">
         <TeamFace
           team={t1}
           score={draw.Team1Score}
           tone={tone1}
           side="left"
+          editable={canManage && !autoBye}
+          onScoreClick={beginScoreEdit}
         />
 
         <div
@@ -152,9 +170,13 @@ function MpFixture({
           score={draw.Team2Score}
           tone={tone2}
           side="right"
+          editable={canManage && !autoBye}
+          onScoreClick={beginScoreEdit}
         />
       </div>
+      )}
 
+      {!autoBye && (
       <div className="mt-4 flex min-h-6 flex-wrap items-center justify-center gap-x-4 text-[15.5px] font-bold text-white">
         {mode === "time" ? (
           <div className="flex flex-wrap items-end justify-center gap-2">
@@ -188,21 +210,38 @@ function MpFixture({
             <Button loading={saving} onClick={saveLink}>
               Save
             </Button>
+            {link.trim() ? (
+              <a href={link.trim()} target="_blank" rel="noreferrer">
+                <Button variant="outline" type="button">
+                  Open
+                </Button>
+              </a>
+            ) : null}
           </div>
         ) : mode === "score" ? (
           <div className="flex flex-wrap items-end justify-center gap-3">
             <Input
-              type="number"
+              type="text"
+              inputMode="numeric"
               label={t1?.TeamName || "Team 1"}
               value={team1}
-              onChange={(e) => setTeam1(Number(e.target.value))}
+              placeholder="0"
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) =>
+                setTeam1(e.target.value.replace(/[^\d]/g, ""))
+              }
               className="w-28 py-2"
             />
             <Input
-              type="number"
+              type="text"
+              inputMode="numeric"
               label={t2?.TeamName || "Team 2"}
               value={team2}
-              onChange={(e) => setTeam2(Number(e.target.value))}
+              placeholder="0"
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) =>
+                setTeam2(e.target.value.replace(/[^\d]/g, ""))
+              }
               className="w-28 py-2"
             />
             <Button loading={saving} onClick={saveScore} className="bg-win text-[#04201e] hover:bg-win">
@@ -211,25 +250,67 @@ function MpFixture({
           </div>
         ) : (
           <>
-            <span>{draw.Date || "Date TBD"}</span>
+            {canManage ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDate(draw.Date);
+                  setTime(draw.Time);
+                  setMode("time");
+                }}
+                className="cursor-pointer hover:text-primary"
+              >
+                {draw.Date || "Date TBD"}
+              </button>
+            ) : (
+              <span>{draw.Date || "Date TBD"}</span>
+            )}
             <span className="text-white/40">|</span>
-            <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
-            {draw.Link ? (
+            {canManage ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDate(draw.Date);
+                  setTime(draw.Time);
+                  setMode("time");
+                }}
+                className="cursor-pointer hover:text-primary"
+              >
+                {draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}
+              </button>
+            ) : (
+              <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
+            )}
+            {draw.Link || canManage ? (
               <>
                 <span className="text-white/40">|</span>
-                <a
-                  href={draw.Link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-cyan hover:underline"
-                >
-                  Join match
-                </a>
+                {canManage ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLink(draw.Link);
+                      setMode("link");
+                    }}
+                    className="cursor-pointer text-cyan hover:underline"
+                  >
+                    {draw.Link ? "Join match" : "Add link"}
+                  </button>
+                ) : (
+                  <a
+                    href={draw.Link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cyan hover:underline"
+                  >
+                    Join match
+                  </a>
+                )}
               </>
             ) : null}
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -239,13 +320,35 @@ function TeamFace({
   score,
   tone,
   side,
+  editable = false,
+  showScore = true,
+  onScoreClick,
 }: {
   team?: Teams;
   score: number;
   tone: "win" | "lose" | "draw";
   side: "left" | "right";
+  editable?: boolean;
+  showScore?: boolean;
+  onScoreClick?: () => void;
 }) {
   const name = team?.TeamName || "TBD";
+  const scoreBadge = (
+    <span
+      className={`shrink-0 rounded-[5px] px-2.5 py-1 font-display text-[20px] leading-none text-white ${scoreClass[tone]} ${
+        editable ? "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-white/70" : ""
+      } ${side === "left" ? "ml-2" : "mr-2"}`}
+    >
+      {score}
+    </span>
+  );
+  const scoreControl = editable ? (
+    <button type="button" onClick={onScoreClick} aria-label="Update score">
+      {scoreBadge}
+    </button>
+  ) : (
+    scoreBadge
+  );
   const avatar = (
     <div
       className="relative z-10 flex h-[100px] w-[100px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[7px] border-surface-3 bg-primary"
@@ -256,7 +359,7 @@ function TeamFace({
       <img
         src={resolveIcon(team?.Icon, FALLBACKS.team)}
         alt=""
-        className="h-full w-full object-contain p-2.5"
+        className="h-full w-full rounded-full object-cover"
       />
     </div>
   );
@@ -273,19 +376,11 @@ function TeamFace({
           <span className="min-w-0 truncate font-display text-[20px] leading-none text-surface-3">
             {name}
           </span>
-          <span
-            className={`ml-2 shrink-0 rounded-[5px] px-2.5 py-1 font-display text-[20px] leading-none text-white ${scoreClass[tone]}`}
-          >
-            {score}
-          </span>
+          {showScore ? scoreControl : null}
         </>
       ) : (
         <>
-          <span
-            className={`mr-2 shrink-0 rounded-[5px] px-2.5 py-1 font-display text-[20px] leading-none text-white ${scoreClass[tone]}`}
-          >
-            {score}
-          </span>
+          {showScore ? scoreControl : null}
           <span className="min-w-0 truncate text-right font-display text-[20px] leading-none text-surface-3">
             {name}
           </span>
@@ -441,18 +536,48 @@ function BrFixture({
         ))}
       </ul>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 text-sm font-bold text-white">
-        <span>{draw.Date || "Date TBD"}</span>
-        <span className="text-white/40">|</span>
-        <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
-        {draw.Link ? (
-          <a
-            href={draw.Link}
-            target="_blank"
-            rel="noreferrer"
-            className="text-cyan hover:underline"
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="cursor-pointer hover:text-primary"
           >
-            Join match
-          </a>
+            {draw.Date || "Date TBD"}
+          </button>
+        ) : (
+          <span>{draw.Date || "Date TBD"}</span>
+        )}
+        <span className="text-white/40">|</span>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="cursor-pointer hover:text-primary"
+          >
+            {draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}
+          </button>
+        ) : (
+          <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
+        )}
+        {draw.Link || canManage ? (
+          canManage ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="cursor-pointer text-cyan hover:underline"
+            >
+              {draw.Link ? "Join match" : "Add link"}
+            </button>
+          ) : (
+            <a
+              href={draw.Link}
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan hover:underline"
+            >
+              Join match
+            </a>
+          )
         ) : null}
       </div>
       {canManage && open && (

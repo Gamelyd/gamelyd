@@ -30,14 +30,19 @@ import {
 } from "@/server/services/orgService";
 import {
   adminResetTournament,
+  adminSetOwnerCanAddParticipants,
+  adminSetOwnerCanReshuffleGroups,
+  adminSetOwnerCanSelectQualifiers,
   adminToggleDeleteTournament,
   adminToggleFeaturedTournament,
   adminToggleSuspendTournament,
   getTournamentById,
+  listParticipants,
   listTournamentsAdmin,
 } from "@/server/services/tournamentService";
 import { getDrawsByTournament } from "@/server/services/drawService";
 import type { Tournament } from "@/lib/schemas/tournament";
+import type { RegisterTournament } from "@/lib/schemas/register";
 import { guardAdmin } from "@/server/auth/admin";
 
 export async function adminStatsAction(): Promise<ActionResult<AdminStats>> {
@@ -234,12 +239,25 @@ export async function adminToggleSuspendTournamentAction(
 
 export async function adminGetTournamentAction(
   id: string,
-): Promise<ActionResult<{ tournament: Tournament; drawCount: number }>> {
+): Promise<
+  ActionResult<{
+    tournament: Tournament;
+    drawCount: number;
+    participants: RegisterTournament[];
+  }>
+> {
   if (!(await guardAdmin())) return fail("Admin access required");
   const tournament = await getTournamentById(id);
   if (!tournament) return fail("Tournament not found");
-  const drawDocs = await getDrawsByTournament(id);
-  return ok({ tournament, drawCount: drawDocs.length });
+  const [drawDocs, participants] = await Promise.all([
+    getDrawsByTournament(id),
+    listParticipants(id),
+  ]);
+  return ok({
+    tournament,
+    drawCount: drawDocs.length,
+    participants,
+  });
 }
 
 export async function adminResetTournamentAction(
@@ -253,6 +271,63 @@ export async function adminResetTournamentAction(
         ? "1 draw removed."
         : `${result.deletedDraws} draws removed.`;
     return ok(result, `Tournament reset. ${extra} Teams can join again.`);
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminSetOwnerCanReshuffleGroupsAction(
+  id: string,
+  enabled: boolean,
+): Promise<ActionResult<boolean>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const next = await adminSetOwnerCanReshuffleGroups(id, enabled);
+    return ok(
+      next,
+      next
+        ? "Owners can reshuffle groups"
+        : "Group reshuffle is locked to admins",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminSetOwnerCanAddParticipantsAction(
+  id: string,
+  enabled: boolean,
+): Promise<ActionResult<boolean>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const next = await adminSetOwnerCanAddParticipants(id, enabled);
+    return ok(
+      next,
+      next
+        ? "Owners can add players"
+        : "Adding players is locked to admins",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminSetOwnerCanSelectQualifiersAction(
+  id: string,
+  enabled: boolean,
+): Promise<ActionResult<boolean>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const next = await adminSetOwnerCanSelectQualifiers(id, enabled);
+    return ok(
+      next,
+      next
+        ? "The organiser can choose who qualifies"
+        : "Qualification follows the group table",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");

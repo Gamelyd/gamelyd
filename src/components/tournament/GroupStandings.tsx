@@ -1,6 +1,12 @@
 import Image from "next/image";
+import type { GroupQualifier } from "@/lib/schemas/tournament";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import {
+  asDisqualifiedSet,
+  qualifierForTeam,
+  resolvedQualifyingNames,
+} from "@/lib/groupQualifiers";
 
 export type GroupStandingSection = {
   name: string;
@@ -10,9 +16,15 @@ export type GroupStandingSection = {
 export function GroupStandings({
   sections,
   advancePerGroup,
+  qualifiers = [],
+  manualSelection = false,
+  disqualifiedTeams = [],
 }: {
   sections: GroupStandingSection[];
   advancePerGroup: number;
+  qualifiers?: GroupQualifier[];
+  manualSelection?: boolean;
+  disqualifiedTeams?: string[];
 }) {
   if (sections.length === 0) {
     return (
@@ -20,12 +32,18 @@ export function GroupStandings({
     );
   }
 
+  const hasPicks = qualifiers.length > 0;
+  const caption = manualSelection
+    ? hasPicks
+      ? "Highlighted teams qualify. A public reason is shown where the organiser broke a points tie."
+      : "Top of the table qualifies. If teams are level on points, the organiser picks who goes through."
+    : `Top ${advancePerGroup} of each group qualify for the knockout stage.`;
+
   return (
     <div className="space-y-3 py-2">
       <p className="text-center text-xs text-body">
-        Top {advancePerGroup} of each group{" "}
-        <span className="mx-1 inline-block h-2 w-2 rounded-full bg-primary align-middle" />{" "}
-        qualify for the knockout stage.
+        {caption}{" "}
+        <span className="mx-1 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
       </p>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {sections.map((section) => (
@@ -33,6 +51,9 @@ export function GroupStandings({
             key={section.name}
             section={section}
             advancePerGroup={advancePerGroup}
+            qualifiers={qualifiers}
+            manualSelection={manualSelection}
+            disqualifiedTeams={disqualifiedTeams}
           />
         ))}
       </div>
@@ -43,10 +64,28 @@ export function GroupStandings({
 function GroupTable({
   section,
   advancePerGroup,
+  qualifiers,
+  manualSelection,
+  disqualifiedTeams,
 }: {
   section: GroupStandingSection;
   advancePerGroup: number;
+  qualifiers: GroupQualifier[];
+  manualSelection: boolean;
+  disqualifiedTeams: string[];
 }) {
+  const dq = asDisqualifiedSet(disqualifiedTeams);
+  const through = new Set(
+    resolvedQualifyingNames(
+      section.standings,
+      section.name,
+      advancePerGroup,
+      qualifiers,
+      dq,
+      manualSelection,
+    ),
+  );
+
   return (
     <section className="overflow-hidden rounded-2xl border border-surface-2 bg-surface">
       <header className="border-b border-surface-2 bg-primary-panel px-4 py-3">
@@ -70,7 +109,13 @@ function GroupTable({
           </thead>
           <tbody>
             {section.standings.map((row, index) => {
-              const qualifies = index < advancePerGroup;
+              const out = dq.has(row.TeamName);
+              const pick = qualifierForTeam(
+                qualifiers,
+                section.name,
+                row.TeamName,
+              );
+              const qualifies = !out && through.has(row.TeamName);
               const gd =
                 row.GoalDifference > 0
                   ? `+${row.GoalDifference}`
@@ -79,7 +124,11 @@ function GroupTable({
                 <tr
                   key={row.TeamName}
                   className={`border-b border-surface-2 last:border-0 ${
-                    qualifies ? "bg-primary/5" : ""
+                    out
+                      ? "opacity-50"
+                      : qualifies
+                        ? "bg-primary/5"
+                        : ""
                   }`}
                 >
                   <td className="px-3 py-2.5">
@@ -102,9 +151,21 @@ function GroupTable({
                         height={24}
                         className="h-6 w-6 rounded-full object-cover"
                       />
-                      <span className="truncate font-medium text-white">
-                        {row.TeamName}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="truncate font-medium text-white">
+                          {row.TeamName}
+                          {out ? (
+                            <span className="ml-2 text-xs font-normal text-lose">
+                              Disqualified
+                            </span>
+                          ) : null}
+                        </span>
+                        {pick ? (
+                          <p className="mt-0.5 text-xs text-body">
+                            {pick.Reason}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   </td>
                   <td className="px-2 py-2.5 text-center text-body">

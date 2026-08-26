@@ -1,7 +1,11 @@
 import "server-only";
 import { ObjectId } from "mongodb";
 import { draws, registrations, tournaments } from "../db";
-import type { DrawDoc, RegisterTournamentDoc, TournamentDoc } from "../documents";
+import type {
+  DrawDoc,
+  RegisterTournamentDoc,
+  TournamentDoc,
+} from "../documents";
 import {
   serializeDraw,
   serializeRegistration,
@@ -24,12 +28,20 @@ import type {
   AddTimeInput,
   UpdateBrDrawInput,
 } from "@/lib/schemas/draw";
-import {
-  computeLeagueStandings,
-  standingToTeam,
-} from "@/lib/leagueStandings";
+import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import type { AdvanceGroupStageInput } from "@/lib/schemas/tournament";
-import { pairWithinHalves, seedKnockoutPairs } from "@/lib/knockoutSeed";
+import {
+  isKnockoutBye,
+  isKnockoutMatchSettled,
+  pairWithinHalves,
+  seedKnockoutPairs,
+} from "@/lib/knockoutSeed";
+import {
+  asDisqualifiedSet,
+  groupQualifiersComplete,
+  groupTieBreak,
+  qualifiersForGroup,
+} from "@/lib/groupQualifiers";
 
 function emptyTeamFrom(team: Teams): Teams {
   return {
@@ -77,6 +89,7 @@ function knockoutDraw(
 
 /** Resolves the winning team of a played knockout tie, if decided. */
 function knockoutWinner(draw: Draw): Teams | null {
+  if (isKnockoutBye(draw)) return draw.Team1 ?? null;
   const decided =
     draw.Winner === "Team1"
       ? draw.Team1
@@ -130,7 +143,12 @@ export async function newDraw(tournamentId: string): Promise<Draw[]> {
     throw new ServiceError("You need at least 2 teams to draw a tournament");
   }
 
-  const teams = teamsFromRegistrations(regDocs);
+  const teams = teamsFromRegistrations(regDocs).filter(
+    (t) => !asDisqualifiedSet(tournament.DisqualifiedTeams).has(t.TeamName),
+  );
+  if (teams.length < 2) {
+    throw new ServiceError("You need at least 2 teams to draw a tournament");
+  }
 
   const ordered =
     tournament.Shuffle === "AUTOMATIC"
@@ -142,48 +160,31 @@ export async function newDraw(tournamentId: string): Promise<Draw[]> {
   const drawDocs: DrawDoc[] = [];
 
   for (let i = 0; i < ordered.length; i += 2) {
-    const team1 = ordered[i];
-    const team2 = ordered[i + 1];
-    const _id = new ObjectId();
-    drawDocs.push({
-      _id,
-      Team1: emptyTeamFrom(team1),
-      Team2: team2 ? emptyTeamFrom(team2) : undefined,
-      Created_at: now,
-      Updated_at: now,
-      TournamentId: tournament.TournamentId,
-      DrawId: _id.toHexString(),
-      Stage: stage,
-      Winner: team2 ? "" : "Team1",
-      BRWinner: "",
-      Time: "",
-      Date: "",
-      Team1Score: 0,
-      Team2Score: 0,
-      Link: "",
-      Group: "",
-      BRTeams: [],
-      Played: false,
-    });
+    drawDocs.push(
+      knockoutDraw(
+        ordered[i],
+        ordered[i + 1],
+        tournament.TournamentId,
+        stage,
+        now,
+      ),
+    );
   }
 
   const dCol = await draws();
   await dCol.insertMany(drawDocs);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Start: true,
-        start: true,
-        Stage: stage,
-        stage,
-        IsDrawn: true,
-        isdrawn: true,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Start: true,
+      start: true,
+      Stage: stage,
+      stage,
+      IsDrawn: true,
+      isdrawn: true,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 
   return drawDocs.map(serializeDraw);
 }
@@ -204,6 +205,21 @@ export async function drawBr(tournamentId: string): Promise<Draw> {
     throw new ServiceError("You need at least 2 teams to draw a tournament");
   }
 
+  const brTeams = teamsFromRegistrations(regDocs)
+    .filter(
+      (r) => !asDisqualifiedSet(tournament.DisqualifiedTeams).has(r.TeamName),
+    )
+    .map((r) => ({
+      TeamName: r.TeamName,
+      Players: r.Players,
+      Wins: 0,
+      Kills: 0,
+      FirstBloods: 0,
+    }));
+  if (brTeams.length < 2) {
+    throw new ServiceError("You need at least 2 teams to draw a tournament");
+  }
+
   const now = new Date().toISOString();
   const _id = new ObjectId();
   const doc: DrawDoc = {
@@ -221,33 +237,24 @@ export async function drawBr(tournamentId: string): Promise<Draw> {
     Team2Score: 0,
     Link: "",
     Group: "",
-    BRTeams: teamsFromRegistrations(regDocs).map((r) => ({
-      TeamName: r.TeamName,
-      Players: r.Players,
-      Wins: 0,
-      Kills: 0,
-      FirstBloods: 0,
-    })),
+    BRTeams: brTeams,
     Played: false,
   };
 
   const dCol = await draws();
   await dCol.insertOne(doc);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Start: true,
-        start: true,
-        Stage: 1,
-        stage: 1,
-        IsDrawn: true,
-        isdrawn: true,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Start: true,
+      start: true,
+      Stage: 1,
+      stage: 1,
+      IsDrawn: true,
+      isdrawn: true,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
   return serializeDraw(doc);
 }
 
@@ -274,7 +281,12 @@ export async function drawLeague(tournamentId: string): Promise<Draw[]> {
     throw new ServiceError("You need at least 2 teams to start a league");
   }
 
-  const teams = teamsFromRegistrations(regDocs);
+  const teams = teamsFromRegistrations(regDocs).filter(
+    (t) => !asDisqualifiedSet(tournament.DisqualifiedTeams).has(t.TeamName),
+  );
+  if (teams.length < 2) {
+    throw new ServiceError("You need at least 2 teams to start a league");
+  }
   const ordered =
     tournament.Shuffle === "AUTOMATIC" ? shuffleTeams(teams) : teams;
   const now = new Date().toISOString();
@@ -307,21 +319,18 @@ export async function drawLeague(tournamentId: string): Promise<Draw[]> {
 
   const dCol = await draws();
   await dCol.insertMany(drawDocs);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Start: true,
-        start: true,
-        Stage: lastStage,
-        stage: lastStage,
-        IsDrawn: true,
-        isdrawn: true,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Start: true,
+      start: true,
+      Stage: lastStage,
+      stage: lastStage,
+      IsDrawn: true,
+      isdrawn: true,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 
   return drawDocs.map(serializeDraw);
 }
@@ -393,29 +402,26 @@ export async function drawGroupStage(tournamentId: string): Promise<Draw[]> {
   }
 
   await dCol.insertMany(drawDocs);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Start: true,
-        start: true,
-        Stage: maxStage,
-        stage: maxStage,
-        IsDrawn: true,
-        isdrawn: true,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Start: true,
+      start: true,
+      Stage: maxStage,
+      stage: maxStage,
+      IsDrawn: true,
+      isdrawn: true,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 
   return drawDocs.map(serializeDraw);
 }
 
 /**
- * Seeds the knockout stage from group standings: the top N of each group
- * (N = AdvancePerGroup) qualify, then are paired best-vs-worst so group
- * winners meet runners-up from other groups.
+ * Seeds the knockout stage from group qualifiers. When the organiser is
+ * allowed to pick, those selections (and their public reasons) are used.
+ * Otherwise the top N of each group (N = AdvancePerGroup) qualify.
  */
 export async function advanceGroupStage(
   tournamentId: string,
@@ -454,20 +460,15 @@ export async function advanceGroupStage(
     throw new ServiceError("Record every group result before advancing");
   }
 
-  // Collect qualifiers grouped by finishing position so the seed order is
-  // [all winners, all runners-up, ...].
-  const byPosition: Teams[][] = [];
-  for (const group of tournament.Groups) {
-    const gDraws = groupDraws.filter((d) => d.Group === group.GroupName);
-    const standings = computeLeagueStandings(
-      group.Teams,
-      gDraws,
-      tournament.PointSystem,
-    );
-    standings.slice(0, input.AdvancePerGroup).forEach((row, pos) => {
-      (byPosition[pos] ??= []).push(standingToTeam(row));
-    });
-  }
+  const advancePerGroup =
+    tournament.AdvancePerGroup || input.AdvancePerGroup || 2;
+  const disqualified = asDisqualifiedSet(tournament.DisqualifiedTeams);
+  const byPosition = qualifiersFromGroups(
+    tournament,
+    groupDraws,
+    advancePerGroup,
+    disqualified,
+  );
 
   const pairs = seedKnockoutPairs(byPosition);
   if (pairs.length === 0) {
@@ -481,19 +482,79 @@ export async function advanceGroupStage(
   );
 
   await dCol.insertMany(drawDocs);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Stage: nextStage,
-        stage: nextStage,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Stage: nextStage,
+      stage: nextStage,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 
   return drawDocs.map(serializeDraw);
+}
+
+function qualifiersFromGroups(
+  tournament: ReturnType<typeof serializeTournament>,
+  groupDraws: Draw[],
+  advancePerGroup: number,
+  disqualified: Set<string>,
+): Teams[][] {
+  const manual = tournament.OwnerCanSelectQualifiers;
+  const sections = tournament.Groups.map((group) => {
+    const standings = computeLeagueStandings(
+      group.Teams,
+      groupDraws.filter((d) => d.Group === group.GroupName),
+      tournament.PointSystem,
+    );
+    return { group, standings };
+  });
+
+  if (manual) {
+    const complete = groupQualifiersComplete(
+      sections.map((s) => ({
+        name: s.group.GroupName,
+        standings: s.standings,
+      })),
+      tournament.Qualifiers,
+      advancePerGroup,
+      disqualified,
+      true,
+    );
+    if (!complete) {
+      throw new ServiceError(
+        "Teams are level on points — pick who qualifies (with a public reason) before advancing",
+      );
+    }
+  }
+
+  const byPosition: Teams[][] = [];
+  for (const { group, standings } of sections) {
+    const eligible = standings.filter((row) => !disqualified.has(row.TeamName));
+    const tie = manual
+      ? groupTieBreak(standings, advancePerGroup, group.GroupName, disqualified)
+      : null;
+
+    let names: string[];
+    if (tie) {
+      const chosen = qualifiersForGroup(
+        tournament.Qualifiers,
+        group.GroupName,
+      ).map((q) => q.TeamName);
+      names = [...tie.autoQualified, ...chosen];
+    } else {
+      names = eligible.slice(0, advancePerGroup).map((row) => row.TeamName);
+    }
+
+    names.forEach((name, pos) => {
+      const row = standings.find((s) => s.TeamName === name);
+      if (!row) {
+        throw new ServiceError(`${name} is not in ${group.GroupName}`);
+      }
+      (byPosition[pos] ??= []).push(standingToTeam(row));
+    });
+  }
+  return byPosition;
 }
 
 /** Advances knockout-round winners into the next round. */
@@ -519,17 +580,34 @@ export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
 
   const maxStage = Math.max(...knockoutDraws.map((d) => d.Stage));
   const current = knockoutDraws.filter((d) => d.Stage === maxStage);
-  if (current.some((d) => !d.Played)) {
+  if (current.some((d) => !isKnockoutMatchSettled(d))) {
     throw new ServiceError("Finish the current knockout round first");
   }
 
-  const winners = current
-    .map((d) => knockoutWinner(d))
-    .filter((team): team is Teams => Boolean(team));
-  if (winners.length !== current.length) {
+  const dq = asDisqualifiedSet(tournament.DisqualifiedTeams);
+  const decided = current.map((d) => knockoutWinner(d));
+  if (decided.some((team) => !team)) {
     throw new ServiceError(
       "Set a winner for every tie before drawing the next round",
     );
+  }
+  const winners = decided.filter((team): team is Teams => {
+    if (!team) return false;
+    return !dq.has(team.TeamName);
+  });
+  if (winners.length === 1) {
+    const now = new Date().toISOString();
+    await tCol.updateOne({ _id: tournamentDoc._id }, {
+      $set: {
+        Winner: winners[0],
+        winner: winners[0],
+        Active: false,
+        active: false,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof tCol.updateOne>[1]);
+    return allDraws;
   }
   if (winners.length < 2) {
     throw new ServiceError("The knockout stage is already decided");
@@ -542,17 +620,14 @@ export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
   );
 
   await dCol.insertMany(drawDocs);
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Stage: nextStage,
-        stage: nextStage,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Stage: nextStage,
+      stage: nextStage,
+      Updated_at: now,
+      updated_at: now,
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 
   return drawDocs.map(serializeDraw);
 }
@@ -567,7 +642,9 @@ export async function getDrawsByTournament(
     .limit(1000)
     .toArray();
   const mapped = docs.map(serializeDraw);
-  const regDocs = await (await registrations())
+  const regDocs = await (
+    await registrations()
+  )
     .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
     .limit(1000)
     .toArray();
@@ -583,10 +660,7 @@ export async function getDrawTournamentId(
   return found ? serializeDraw(found).TournamentId : null;
 }
 
-export async function addWinner(
-  drawId: string,
-  winner: string,
-): Promise<Draw> {
+export async function addWinner(drawId: string, winner: string): Promise<Draw> {
   const col = await draws();
   const updated = await col.findOneAndUpdate(
     asDocFilter<DrawDoc>(byDrawId(drawId)),
@@ -604,14 +678,26 @@ export async function addTime(
   const col = await draws();
   const updated = await col.findOneAndUpdate(
     asDocFilter<DrawDoc>(byDrawId(drawId)),
-    { $set: { Time: input.Time, Date: input.Date, Updated_at: new Date().toISOString() } },
+    {
+      $set: {
+        Time: input.Time,
+        Date: input.Date,
+        Updated_at: new Date().toISOString(),
+      },
+    },
     { returnDocument: "after" },
   );
   if (!updated) throw new ServiceError("Draw not found");
 
   const mapped = serializeDraw(updated);
   notifyPlayers(updated, (name, tournamentName) =>
-    addTimeEmail(name, tournamentName, mapped.TournamentId, input.Time, input.Date),
+    addTimeEmail(
+      name,
+      tournamentName,
+      mapped.TournamentId,
+      input.Time,
+      input.Date,
+    ),
   );
   return mapped;
 }
@@ -770,7 +856,9 @@ async function maybeFinishLeague(draw: Draw): Promise<void> {
   const teams = leagueDraws.flatMap((item) =>
     [item.Team1, item.Team2].filter((team): team is Teams => Boolean(team)),
   );
-  const unique = [...new Map(teams.map((team) => [team.TeamName, team])).values()];
+  const unique = [
+    ...new Map(teams.map((team) => [team.TeamName, team])).values(),
+  ];
   const table = computeLeagueStandings(
     unique,
     leagueDraws,
@@ -779,28 +867,28 @@ async function maybeFinishLeague(draw: Draw): Promise<void> {
   const leader = table[0];
   if (!leader) return;
 
-  await tCol.updateOne(
-    { _id: tournamentDoc._id },
-    {
-      $set: {
-        Winner: standingToTeam(leader),
-        winner: standingToTeam(leader),
-        Active: false,
-        active: false,
-        Updated_at: new Date().toISOString(),
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1],
-  );
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: {
+      Winner: standingToTeam(leader),
+      winner: standingToTeam(leader),
+      Active: false,
+      active: false,
+      Updated_at: new Date().toISOString(),
+    },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
 }
 
 async function notifyPlayers(
   draw: DrawDoc,
-  build: (name: string, tournamentName: string) => { subject: string; html: string },
+  build: (
+    name: string,
+    tournamentName: string,
+  ) => { subject: string; html: string },
 ): Promise<void> {
   const mapped = serializeDraw(draw);
-  const tournamentDoc = await (await tournaments()).findOne(
-    asDocFilter<TournamentDoc>(byTournamentId(mapped.TournamentId)),
-  );
+  const tournamentDoc = await (
+    await tournaments()
+  ).findOne(asDocFilter<TournamentDoc>(byTournamentId(mapped.TournamentId)));
   const tournamentName = tournamentDoc
     ? serializeTournament(tournamentDoc).Name
     : "your tournament";

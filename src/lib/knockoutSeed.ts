@@ -21,9 +21,7 @@ export function placeName(position: number): string {
  * each group advance, neighbouring groups are crossed: group 1 winner vs
  * group 2 runner-up, and vice versa.
  */
-export function seedKnockoutPairs<T>(
-  byPosition: T[][],
-): [T, T | undefined][] {
+export function seedKnockoutPairs<T>(byPosition: T[][]): [T, T | undefined][] {
   const winners = byPosition[0] ?? [];
   const runners = byPosition[1] ?? [];
   const extra = byPosition.slice(2).flat();
@@ -57,9 +55,7 @@ export function groupPlaceholderPairs(
 ): [string, string | undefined][] {
   const byPosition: string[][] = [];
   for (let p = 0; p < Math.max(1, advancePerGroup); p++) {
-    byPosition.push(
-      groupNames.map((name) => `${name} ${placeName(p + 1)}`),
-    );
+    byPosition.push(groupNames.map((name) => `${name} ${placeName(p + 1)}`));
   }
   return seedKnockoutPairs(byPosition);
 }
@@ -70,6 +66,22 @@ export function pairSequential<T>(items: T[]): [T, T | undefined][] {
     pairs.push([items[i], items[i + 1]]);
   }
   return pairs;
+}
+
+/** Odd-team knockout slot: no opponent, or the old "Automatic Qualification" label. */
+export function isKnockoutBye(draw: {
+  Team2?: { TeamName?: string } | null;
+}): boolean {
+  const opponent = draw.Team2?.TeamName?.trim() ?? "";
+  return opponent.length === 0 || opponent === "Automatic Qualification";
+}
+
+/** Byes count as finished even if an older draw stored them as unplayed. */
+export function isKnockoutMatchSettled(draw: {
+  Played?: boolean;
+  Team2?: { TeamName?: string } | null;
+}): boolean {
+  return Boolean(draw.Played) || isKnockoutBye(draw);
 }
 
 /**

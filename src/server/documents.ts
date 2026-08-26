@@ -86,6 +86,16 @@ export interface TournamentDoc {
   FeaturedAt?: string;
   Managers?: string[];
   AdvancePerGroup?: number;
+  OwnerCanReshuffleGroups?: boolean;
+  OwnerCanAddParticipants?: boolean;
+  OwnerCanSelectQualifiers?: boolean;
+  Qualifiers?: {
+    GroupName: string;
+    TeamName: string;
+    Reason: string;
+    Seed: number;
+  }[];
+  DisqualifiedTeams?: string[];
 }
 
 export interface DrawDoc {
