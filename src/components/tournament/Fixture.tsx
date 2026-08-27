@@ -513,7 +513,7 @@ function ManageMenu({
         aria-label="Fixture actions"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow text-[#242e39] shadow-lg ring-2 ring-black/30 hover:bg-yellow-soft"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow text-on-primary shadow-lg ring-2 ring-black/30 hover:bg-yellow-soft"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
           <circle cx="12" cy="5" r="2.25" />

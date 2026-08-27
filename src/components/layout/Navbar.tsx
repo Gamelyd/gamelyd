@@ -116,6 +116,7 @@ export function Navbar() {
               >
                 <CatalogAvatar
                   userId={user.user_id}
+                  icon={user.icon}
                   className="h-8 w-8 rounded-full object-cover"
                 />
                 <span className="flex flex-col leading-tight">
@@ -165,8 +166,13 @@ export function Navbar() {
                 <Link
                   href={`/profile/${user.user_id}`}
                   onClick={closeMenu}
-                  className="text-sm text-primary"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
+                  <CatalogAvatar
+                    userId={user.user_id}
+                    icon={user.icon}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
                   Profile
                 </Link>
                 <Button variant="pink" fullWidth onClick={handleLogout}>

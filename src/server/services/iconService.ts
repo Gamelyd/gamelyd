@@ -1,12 +1,14 @@
 import "server-only";
 import { ObjectId } from "mongodb";
-import { icons } from "../db";
+import { icons, users } from "../db";
 import type { IconDoc, IconKind } from "../documents";
 import { serializeIcon } from "../serialize";
 import { ServiceError } from "./userService";
+import { asRecord, readString } from "../legacy";
 import {
   FALLBACKS,
   catalogToAppIcon,
+  catalogUrl,
   pickStableIcon,
   type AppIcon,
 } from "@/lib/icons";
@@ -83,6 +85,12 @@ export async function listAppIcons(
 }
 
 export async function playerIconForUser(userId: string): Promise<string> {
+  const col = await users();
+  const found = await col.findOne({ user_id: userId });
+  const saved = found
+    ? catalogUrl(readString(asRecord(found), ["icon", "Icon"]))
+    : "";
+  if (saved) return saved;
   const iconsList = await listAppIcons("player");
   return pickStableIcon(iconsList, userId, FALLBACKS.player);
 }

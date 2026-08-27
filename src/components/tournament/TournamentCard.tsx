@@ -4,9 +4,14 @@ import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import {
+  BROWSE_STATUS_LABEL,
+  tournamentBrowsePhase,
+} from "@/lib/tournamentStatus";
 
 export function TournamentCard({ tournament }: { tournament: Tournament }) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
+  const phase = tournamentBrowsePhase(tournament);
 
   return (
     <Link
@@ -23,8 +28,11 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
       />
       <div className="absolute inset-0 z-1 bg-linear-to-t from-black via-black/45 to-black/10" />
 
-      <div className="absolute left-3 top-3 z-2">
+      <div className="absolute left-3 top-3 z-2 flex flex-wrap gap-1.5">
         <Tag payment={tournament.Payment} className="rounded-md" />
+        <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+          {BROWSE_STATUS_LABEL[phase]}
+        </span>
       </div>
 
       {tournament.OrgId && tournament.OrgName && (

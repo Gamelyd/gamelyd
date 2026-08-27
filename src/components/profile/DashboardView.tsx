@@ -27,6 +27,7 @@ export function DashboardView({
           <div className="flex items-center gap-4">
             <CatalogAvatar
               userId={profile.user_id}
+              icon={profile.icon}
               className="h-16 w-16 rounded-full object-cover ring-2 ring-primary/40"
             />
             <div>

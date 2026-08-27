@@ -172,6 +172,7 @@ export function AddParticipants({
             >
               <CatalogAvatar
                 userId={u.user_id}
+                icon={u.icon}
                 className="h-8 w-8 rounded-full object-cover"
               />
               <span>

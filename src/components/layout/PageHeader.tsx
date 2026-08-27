@@ -31,7 +31,7 @@ export function PageHeader({
               {title}
             </h1>
             {description ? (
-              <div className="mt-3 max-w-2xl text-cyan-soft/80">{description}</div>
+              <div className="mt-3 max-w-2xl text-body">{description}</div>
             ) : null}
           </div>
           {actions ? <div className="shrink-0">{actions}</div> : null}

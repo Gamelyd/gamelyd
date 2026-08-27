@@ -41,6 +41,7 @@ export interface UserDoc {
   facebook: string;
   country: string;
   location: string;
+  icon: string;
 }
 
 export interface TournamentDoc {

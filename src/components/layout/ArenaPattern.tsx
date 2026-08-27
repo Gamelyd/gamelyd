@@ -2,7 +2,7 @@ import { useId } from "react";
 
 /** Change these to restyle the hex field everywhere `ArenaPattern` is used. */
 export const ARENA_PATTERN = {
-  color: "#0bc0b4",
+  color: "var(--ds-primary)",
   opacity: 0.08,
   /** Hex cell width in px. Height scales with the hex (84 / 48). */
   size: 48,

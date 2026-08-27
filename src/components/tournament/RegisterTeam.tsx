@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { IconPicker } from "@/components/ui/IconPicker";
+import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { searchUsersAction } from "@/server/actions/userActions";
@@ -22,6 +23,7 @@ function playerFromUser(
     first_name?: string;
     user_id: string;
     email?: string;
+    icon?: string;
   },
   playerIcons: AppIcon[],
 ): Player {
@@ -31,7 +33,7 @@ function playerFromUser(
     GameUserName: "",
     User_id: u.user_id,
     Email: u.email || "",
-    Icon: playerIconFor(u.user_id, playerIcons),
+    Icon: u.icon || playerIconFor(u.user_id, playerIcons),
   };
 }
 
@@ -72,7 +74,7 @@ export function RegisterTeam({
     if (playerIcons.length === 0) return;
     setPlayers((prev) =>
       prev.map((player) => {
-        if (playerIcons.some((item) => item.url === player.Icon)) return player;
+        if (player.Icon) return player;
         return {
           ...player,
           Icon: playerIconFor(player.User_id, playerIcons),
@@ -209,8 +211,15 @@ export function RegisterTeam({
                   onClick={() => addPlayer(u)}
                   className="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-body hover:bg-surface-2 hover:text-white"
                 >
-                  <span>
-                    {u.first_name} {u.last_name} (@{u.user_name})
+                  <span className="flex items-center gap-2">
+                    <CatalogAvatar
+                      userId={u.user_id}
+                      icon={u.icon}
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                    <span>
+                      {u.first_name} {u.last_name} (@{u.user_name})
+                    </span>
                   </span>
                   <span className="text-primary">+ Add</span>
                 </button>
@@ -269,9 +278,9 @@ export function RegisterTeam({
       </div>
 
       {activePlayer ? (
-        <IconPicker
-          label={`Player icon for @${activePlayer.UserName}`}
-          icons={playerIcons}
+          <IconPicker
+            label={`Player icon for @${activePlayer.UserName} (defaults to their profile icon)`}
+            icons={playerIcons}
           value={
             activePlayer.Icon ||
             playerIconFor(activePlayer.User_id, playerIcons)

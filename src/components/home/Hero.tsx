@@ -46,7 +46,7 @@ export function Hero({ banner }: { banner: Tournament[] }) {
             <h1 className="mt-2 font-display text-4xl leading-none text-white sm:text-5xl lg:text-6xl">
               Host matches. Play for the crown.
             </h1>
-            <p className="mt-4 max-w-xl text-base text-cyan-soft/80 sm:text-lg">
+            <p className="mt-4 max-w-xl text-base text-body sm:text-lg">
               Create a tournament, register teams, draw fixtures, and keep
               scores in one place: leagues, groups, knockouts, and battle
               royale lobbies.

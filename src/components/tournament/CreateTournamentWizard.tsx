@@ -312,7 +312,7 @@ export function CreateTournamentWizard() {
           <h1 className="mt-1 font-display text-4xl leading-none text-white md:text-5xl">
             Create tournament
           </h1>
-          <p className="mt-3 max-w-xl text-sm text-cyan-soft/80">
+          <p className="mt-3 max-w-xl text-sm text-body">
             Lock in the game, format, and rules, then launch the lobby.
           </p>
 

@@ -97,8 +97,9 @@ export async function getTournamentsByModeAction(
   payment: string,
   type: string,
   page: number,
+  status = "ALL",
 ): Promise<ActionResult<Paginated<Tournament>>> {
-  return ok(await getTournamentsByMode(payment, type, page));
+  return ok(await getTournamentsByMode(payment, type, page, status));
 }
 
 export async function getBannerTournamentsAction(): Promise<

@@ -4,6 +4,7 @@ import {
   tournamentCoverUrl,
   tournamentShareDescription,
 } from "@/lib/tournamentShare";
+import { ds } from "@/lib/designSystem";
 
 export const runtime = "nodejs";
 export const alt = "Tournament";
@@ -25,8 +26,8 @@ export default async function Image({
             display: "flex",
             width: "100%",
             height: "100%",
-            background: "#1f2731",
-            color: "#0bc0b4",
+            background: ds.bgPrimary,
+            color: ds.primary,
             alignItems: "center",
             justifyContent: "center",
             fontSize: 64,
@@ -56,7 +57,7 @@ export default async function Image({
           display: "flex",
           width: "100%",
           height: "100%",
-          background: "#1f2731",
+          background: ds.bgPrimary,
           color: "white",
         }}
       >
@@ -65,7 +66,7 @@ export default async function Image({
             display: "flex",
             width: 520,
             height: 630,
-            background: "#121315",
+            background: ds.bgPrimary,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -90,7 +91,7 @@ export default async function Image({
           <div
             style={{
               display: "flex",
-              color: "#0bc0b4",
+              color: ds.primary,
               fontSize: 28,
               letterSpacing: 4,
               textTransform: "uppercase",
@@ -112,7 +113,7 @@ export default async function Image({
           <div
             style={{
               display: "flex",
-              color: "#b8bcbf",
+              color: ds.textMuted,
               fontSize: 26,
               marginTop: 24,
             }}
@@ -124,7 +125,7 @@ export default async function Image({
           <div
             style={{
               display: "flex",
-              color: "#0bc0b4",
+              color: ds.primary,
               fontSize: 22,
               marginTop: 36,
             }}

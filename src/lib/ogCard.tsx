@@ -1,3 +1,5 @@
+import { ds } from "@/lib/designSystem";
+
 /** Markup for Next.js ImageResponse cards. Every node must use display:flex. */
 
 export function DefaultOgMarkup({
@@ -15,7 +17,7 @@ export function DefaultOgMarkup({
         display: "flex",
         width: "100%",
         height: "100%",
-        background: "#1f2731",
+        background: ds.bgPrimary,
         color: "white",
         flexDirection: "column",
         justifyContent: "center",
@@ -25,7 +27,7 @@ export function DefaultOgMarkup({
       <div
         style={{
           display: "flex",
-          color: "#0bc0b4",
+          color: ds.primary,
           fontSize: 28,
           letterSpacing: 8,
           textTransform: "uppercase",
@@ -47,7 +49,7 @@ export function DefaultOgMarkup({
       <div
         style={{
           display: "flex",
-          color: "#b8bcbf",
+          color: ds.textMuted,
           fontSize: 28,
           marginTop: 24,
         }}
@@ -75,7 +77,7 @@ export function EntityOgMarkup({
         display: "flex",
         width: "100%",
         height: "100%",
-        background: "#1f2731",
+        background: ds.bgPrimary,
         color: "white",
       }}
     >
@@ -84,7 +86,7 @@ export function EntityOgMarkup({
           display: "flex",
           width: 520,
           height: 630,
-          background: "#121315",
+          background: ds.bgPrimary,
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -110,7 +112,7 @@ export function EntityOgMarkup({
         <div
           style={{
             display: "flex",
-            color: "#0bc0b4",
+            color: ds.primary,
             fontSize: 24,
             letterSpacing: 4,
             textTransform: "uppercase",
@@ -133,7 +135,7 @@ export function EntityOgMarkup({
           <div
             style={{
               display: "flex",
-              color: "#b8bcbf",
+              color: ds.textMuted,
               fontSize: 24,
               marginTop: 24,
             }}

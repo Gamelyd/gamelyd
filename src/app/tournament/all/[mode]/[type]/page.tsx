@@ -9,6 +9,10 @@ import {
 } from "@/components/tournament/TournamentCard";
 import { TournamentFilters } from "@/components/tournament/TournamentFilters";
 import { Button } from "@/components/ui/Button";
+import {
+  browseTournamentsHref,
+  parseBrowseStatus,
+} from "@/lib/tournamentStatus";
 import { getTournamentsByModeAction } from "@/server/actions/tournamentActions";
 
 export async function generateMetadata({
@@ -30,13 +34,14 @@ export default async function TournamentsPage({
   searchParams,
 }: {
   params: Promise<{ mode: string; type: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; status?: string }>;
 }) {
   const { mode, type } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, status: statusParam } = await searchParams;
   const page = Math.max(Number(pageParam ?? "1") || 1, 1);
+  const status = parseBrowseStatus(statusParam);
 
-  const result = await getTournamentsByModeAction(mode, type, page);
+  const result = await getTournamentsByModeAction(mode, type, page, status);
   const data = result.ok
     ? result.data
     : { items: [], total: 0, page, last_page: 1 };
@@ -59,7 +64,7 @@ export default async function TournamentsPage({
       />
 
       <section className="mx-auto max-w-7xl px-5 py-10">
-        <TournamentFilters mode={mode} type={type} />
+        <TournamentFilters mode={mode} type={type} status={status} />
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {data.items.length === 0 ? (
@@ -81,7 +86,7 @@ export default async function TournamentsPage({
             {Array.from({ length: data.last_page }, (_, i) => i + 1).map((p) => (
               <Link
                 key={p}
-                href={`/tournament/all/${mode}/${type}?page=${p}`}
+                href={browseTournamentsHref(mode, type, status, p)}
                 className={`rounded-lg px-4 py-2 text-sm ${
                   p === data.page
                     ? "bg-primary text-[#04201e]"

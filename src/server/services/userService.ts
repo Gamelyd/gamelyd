@@ -99,6 +99,7 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
     facebook: "",
     country: "",
     location: "",
+    icon: "",
   };
 
   await col.insertOne(doc);
@@ -295,9 +296,18 @@ export async function updateUser(
     if (taken > 0) throw new ServiceError("Username already exists");
   }
 
+  const $set: Record<string, unknown> = {
+    ...input,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.icon !== undefined) {
+    $set.icon = input.icon;
+    $set.Icon = input.icon;
+  }
+
   const updated = await col.findOneAndUpdate(
     { user_id: uid },
-    { $set: { ...input, updated_at: new Date().toISOString() } },
+    { $set },
     { returnDocument: "after" },
   );
   if (!updated) throw new ServiceError("User not found");

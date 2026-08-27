@@ -32,6 +32,7 @@ import {
   tournamentInviteEmail,
 } from "../email/templates";
 import type { Tournament } from "@/lib/schemas/tournament";
+import { browseStatusClause } from "@/lib/tournamentStatus";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player, Teams, Draw } from "@/lib/schemas/draw";
 import type {
@@ -244,6 +245,7 @@ export async function getTournamentsByMode(
   payment: string,
   type: string,
   page: number,
+  status = "ALL",
 ): Promise<Paginated<Tournament>> {
   const col = await tournaments();
   const perPage = 15;
@@ -257,6 +259,8 @@ export async function getTournamentsByMode(
       $or: [{ TournamentMode: type }, { tournamentmode: type }],
     });
   }
+  const statusClause = browseStatusClause(status);
+  if (statusClause) clauses.push(statusClause);
 
   const filter = asDocFilter<TournamentDoc>({ $and: clauses });
 

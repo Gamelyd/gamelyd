@@ -13,14 +13,14 @@ type Variant =
 
 const variants: Record<Variant, string> = {
   default:
-    "bg-primary text-[#04201e] hover:bg-primary-dark disabled:opacity-60",
+    "bg-primary text-on-primary hover:bg-primary-dark disabled:opacity-60",
   dark: "bg-surface-3 text-white hover:bg-surface-2 disabled:opacity-60",
   pink: "bg-pink text-white hover:bg-pink-deep disabled:opacity-60",
   green: "bg-win-deep text-white hover:bg-win disabled:opacity-60",
   active: "bg-primary-deep text-white hover:bg-primary-dark disabled:opacity-60",
   danger: "bg-lose text-white hover:bg-lose-deep disabled:opacity-60",
   outline:
-    "border border-primary text-primary hover:bg-primary hover:text-[#04201e] disabled:opacity-60",
+    "border border-primary text-primary hover:bg-primary hover:text-on-primary disabled:opacity-60",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

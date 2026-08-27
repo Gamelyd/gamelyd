@@ -1,41 +1,40 @@
 @import "tailwindcss";
+@import "../styles/design-system.css";
 
 @theme {
-  /* Brand */
-  --color-primary: #0bc0b4;
-  --color-primary-dark: #0da099;
-  --color-primary-deep: #065c57;
-  --color-primary-panel: #062c2a;
+  --color-primary: var(--ds-primary);
+  --color-primary-dark: var(--ds-primary-dark);
+  --color-primary-deep: var(--ds-primary-deep);
+  --color-on-primary: var(--ds-on-primary);
+  --color-primary-panel: var(--ds-bg-panel);
 
-  /* Backgrounds */
-  --color-bg: #1f2731;
-  --color-nav: #1f262f;
-  --color-surface: #1f2833;
-  --color-surface-2: #252f39;
-  --color-surface-3: #242e39;
-  --color-surface-4: #212733;
-  --color-input: #0e3533;
+  --color-secondary: var(--ds-secondary);
 
-  /* Text */
-  --color-body: #b8bcbf;
-  --color-label: #c5c6c7;
+  --color-bg: var(--ds-bg-primary);
+  --color-nav: var(--ds-bg-primary);
+  --color-surface: var(--ds-bg-secondary);
+  --color-surface-2: var(--ds-bg-tertiary);
+  --color-surface-3: var(--ds-bg-tertiary);
+  --color-surface-4: var(--ds-bg-secondary);
+  --color-input: var(--ds-bg-input);
 
-  /* Accents */
-  --color-pink: #d72f76;
-  --color-pink-deep: #bd185a;
-  --color-magenta: #d01966;
-  --color-purple: #7f56d9;
-  --color-purple-soft: #d6bbfb;
-  --color-yellow: #fdc115;
-  --color-yellow-soft: #fbf67e;
-  --color-win: #46e96f;
-  --color-win-deep: #137c56;
-  --color-lose: #e94654;
-  --color-lose-deep: #d5424f;
-  --color-cyan: #00ccff;
-  --color-cyan-soft: #66fcf1;
+  --color-body: var(--ds-text-muted);
+  --color-label: var(--ds-text-label);
 
-  /* Fonts (wired via next/font in layout) */
+  --color-pink: var(--ds-pink);
+  --color-pink-deep: var(--ds-pink-deep);
+  --color-magenta: var(--ds-magenta);
+  --color-purple: var(--ds-purple);
+  --color-purple-soft: var(--ds-purple-soft);
+  --color-yellow: var(--ds-secondary);
+  --color-yellow-soft: var(--ds-secondary-soft);
+  --color-win: var(--ds-win);
+  --color-win-deep: var(--ds-win-deep);
+  --color-lose: var(--ds-lose);
+  --color-lose-deep: var(--ds-lose-deep);
+  --color-cyan: var(--ds-primary);
+  --color-cyan-soft: var(--ds-text-muted);
+
   --font-sans: var(--font-roboto), Arial, Helvetica, sans-serif;
   --font-display: var(--font-lalezar), cursive;
   --font-body: var(--font-lato), sans-serif;
@@ -86,17 +85,25 @@
 }
 
 @utility gradient-brand {
-  background-image: linear-gradient(96deg, #0bc0b4 -29.36%, #242e39 102.77%);
+  background-image: linear-gradient(
+    96deg,
+    var(--ds-primary) -29.36%,
+    var(--ds-bg-tertiary) 102.77%
+  );
 }
 
 @utility gradient-brand-page {
-  background-image: linear-gradient(95.81deg, #0bc0b4 -29.36%, #242e39 102.77%);
+  background-image: linear-gradient(
+    95.81deg,
+    var(--ds-primary) -29.36%,
+    var(--ds-bg-tertiary) 102.77%
+  );
 }
 
 @utility stripes-home {
   background-image: repeating-linear-gradient(
     to bottom,
-    #177373 0 30px,
+    var(--ds-bg-tertiary) 0 30px,
     transparent 30px 45px
   );
 }
@@ -156,7 +163,7 @@
   flex-direction: column;
   justify-content: flex-end;
   overflow: hidden;
-  background-color: #0bc0b4;
+  background-color: var(--ds-primary);
 }
 
 .team-card-shade {
@@ -199,7 +206,7 @@
   height: 296px;
   flex-direction: column;
   overflow: hidden;
-  background: #06252c;
+  background: var(--ds-bg-secondary);
 }
 
 .team-card-back-inner ul {
@@ -221,7 +228,7 @@
 .team-card-back-inner li.empty {
   justify-content: center;
   font-size: 12px;
-  color: #b8bcbf;
+  color: var(--ds-text-muted);
 }
 
 .team-card-back-inner .initial,
@@ -233,7 +240,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #0bc0b4;
+  background: var(--ds-primary);
   font-family: var(--font-display);
   font-size: 13px;
   color: #fff;
@@ -263,7 +270,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-  color: #66fcf1;
+  color: var(--ds-text-muted);
 }
 
 /* Champion celebration — completed tournament overlay */
@@ -354,7 +361,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #041110;
+  background: var(--ds-bg-primary);
   animation: champion-fade 0.45s ease-out both;
 }
 

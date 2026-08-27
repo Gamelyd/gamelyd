@@ -42,6 +42,7 @@ export const userSchema = z.object({
   facebook: z.string().default(""),
   country: z.string().default(""),
   location: z.string().default(""),
+  icon: z.string().default(""),
 });
 export type User = z.infer<typeof userSchema>;
 
@@ -90,5 +91,6 @@ export const updateUserInputSchema = z.object({
   facebook: z.string().optional(),
   country: z.string().optional(),
   location: z.string().optional(),
+  icon: z.string().optional(),
 });
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>;

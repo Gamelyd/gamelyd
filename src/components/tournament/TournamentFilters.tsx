@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/ui/Select";
+import {
+  BROWSE_STATUSES,
+  browseTournamentsHref,
+} from "@/lib/tournamentStatus";
 
 const payments: { label: string; value: string }[] = [
   { label: "All", value: "ALL" },
@@ -21,9 +25,11 @@ const modes: { label: string; value: string }[] = [
 export function TournamentFilters({
   mode,
   type,
+  status,
 }: {
   mode: string;
   type: string;
+  status: string;
 }) {
   const router = useRouter();
 
@@ -31,11 +37,21 @@ export function TournamentFilters({
     <div className="flex flex-wrap gap-4">
       <div className="w-48">
         <Select
+          label="Status"
+          options={[...BROWSE_STATUSES]}
+          value={status}
+          onChange={(e) =>
+            router.push(browseTournamentsHref(mode, type, e.target.value))
+          }
+        />
+      </div>
+      <div className="w-48">
+        <Select
           label="Payment"
           options={payments}
           value={mode}
           onChange={(e) =>
-            router.push(`/tournament/all/${e.target.value}/${type}`)
+            router.push(browseTournamentsHref(e.target.value, type, status))
           }
         />
       </div>
@@ -45,7 +61,7 @@ export function TournamentFilters({
           options={modes}
           value={type}
           onChange={(e) =>
-            router.push(`/tournament/all/${mode}/${e.target.value}`)
+            router.push(browseTournamentsHref(mode, e.target.value, status))
           }
         />
       </div>

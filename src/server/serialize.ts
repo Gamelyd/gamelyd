@@ -79,6 +79,7 @@ export function serializeUser(doc: UserDoc): User {
     facebook: readString(raw, ["facebook", "Facebook"]),
     country: readString(raw, ["country", "Country"]),
     location: readString(raw, ["location", "Location"]),
+    icon: catalogUrl(readString(raw, ["icon", "Icon"])),
   };
 }
 

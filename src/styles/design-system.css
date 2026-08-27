@@ -1,0 +1,46 @@
+/*
+  Gamelyd design system
+  Change colors here. The rest of the app reads these tokens.
+
+  Backgrounds (cool dark-blue):
+    --ds-bg-primary     page + nav
+    --ds-bg-secondary   cards, heroes, footer
+    --ds-bg-tertiary    raised rows, chips, table heads
+    --ds-bg-input       form fields
+    --ds-bg-panel       heroes, cards, footer (same family as secondary)
+
+  Brand:
+    --ds-primary        teal (buttons, links, focus)
+    --ds-secondary      gold (highlights, prizes)
+*/
+
+:root {
+  --ds-primary: #0bc0b4;
+  --ds-primary-dark: #0da099;
+  --ds-primary-deep: #065c57;
+  --ds-on-primary: #04201e;
+
+  --ds-secondary: #fdc115;
+  --ds-secondary-soft: #fbf67e;
+
+  --ds-bg-primary: #1f2731;
+  --ds-bg-secondary: #242e39;
+  --ds-bg-tertiary: #252f39;
+  --ds-bg-input: #1f2833;
+  --ds-bg-panel: var(--ds-bg-secondary);
+
+  --ds-text: #f4f7f6;
+  --ds-text-muted: #b8c0c8;
+  --ds-text-label: #c5ccd3;
+
+  --ds-win: #46e96f;
+  --ds-win-deep: #137c56;
+  --ds-lose: #e94654;
+  --ds-lose-deep: #d5424f;
+
+  --ds-pink: #d72f76;
+  --ds-pink-deep: #bd185a;
+  --ds-magenta: #d01966;
+  --ds-purple: #7f56d9;
+  --ds-purple-soft: #d6bbfb;
+}

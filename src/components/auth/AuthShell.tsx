@@ -20,7 +20,7 @@ export function AuthShell({
         <h2 className="mt-3 max-w-lg font-display text-5xl leading-none text-white">
           Host matches. Play for the crown.
         </h2>
-        <p className="mt-4 max-w-md text-sm text-cyan-soft/80">
+        <p className="mt-4 max-w-md text-sm text-body">
           Create a tournament, register teams, draw fixtures, and keep scores in
           one place.
         </p>

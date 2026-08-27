@@ -18,6 +18,9 @@ import {
   updateProfileAction,
 } from "@/server/actions/userActions";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { IconPicker } from "@/components/ui/IconPicker";
+import { useIcons } from "@/hooks/useIcons";
+import { FALLBACKS, playerIconFor } from "@/lib/icons";
 
 export function ProfileView({
   profile,
@@ -31,25 +34,63 @@ export function ProfileView({
   const { user, orgs, setUser } = useAuth();
   const toast = useToast();
   const isOwn = user?.user_id === profile.user_id;
+  const { icons: playerIcons, loading: playerIconsLoading } = useIcons("player");
+  const [display, setDisplay] = useState(profile);
+  const [savingIcon, setSavingIcon] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [passOpen, setPassOpen] = useState(false);
+  const [iconOpen, setIconOpen] = useState(false);
+
+  const defaultIcon =
+    display.icon || playerIconFor(display.user_id, playerIcons) || FALLBACKS.player;
+
+  const saveDefaultIcon = async (url: string) => {
+    if (url === display.icon) {
+      setIconOpen(false);
+      return;
+    }
+    setSavingIcon(true);
+    const result = await updateProfileAction({ icon: url });
+    setSavingIcon(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setUser(result.data);
+    setDisplay(result.data);
+    setIconOpen(false);
+    toast.success("Default icon saved");
+  };
 
   return (
     <div>
       <section className="border-b border-primary/20 bg-primary-panel">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-12 text-center">
-          <div className="relative h-24 w-24 overflow-hidden rounded-full bg-surface-2 ring-2 ring-primary/40">
-            <CatalogAvatar
-              userId={profile.user_id}
-              className="h-full w-full object-cover"
-            />
+          <div className="relative">
+            <div className="h-24 w-24 overflow-hidden rounded-full bg-surface-2 ring-2 ring-primary/40">
+              <CatalogAvatar
+                userId={display.user_id}
+                icon={display.icon}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            {isOwn && (
+              <button
+                type="button"
+                onClick={() => setIconOpen(true)}
+                className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border border-primary/40 bg-surface text-primary shadow-lg transition-colors hover:bg-primary hover:text-on-primary"
+                aria-label="Change icon"
+              >
+                <PencilIcon />
+              </button>
+            )}
           </div>
           <div>
             <h1 className="font-display text-4xl text-white">
-              {profile.first_name} {profile.last_name}
+              {display.first_name} {display.last_name}
             </h1>
-            <p className="text-body">@{profile.user_name}</p>
+            <p className="text-body">@{display.user_name}</p>
           </div>
           {isOwn && (
             <div className="flex gap-3">
@@ -67,7 +108,7 @@ export function ProfileView({
       <section className="mx-auto grid max-w-5xl gap-4 px-5 py-10 sm:grid-cols-3">
         <Stat label="Tournaments created" value={created.length} />
         <Stat label="Tournaments joined" value={registered.length} />
-        <Stat label="Country" value={profile.country || "-"} />
+        <Stat label="Country" value={display.country || "-"} />
       </section>
 
       <section className="mx-auto max-w-5xl px-5 pb-16">
@@ -131,10 +172,11 @@ export function ProfileView({
         <>
           <EditProfileModal
             open={editOpen}
-            profile={profile}
+            profile={display}
             onClose={() => setEditOpen(false)}
             onSaved={(u) => {
               setUser(u);
+              setDisplay(u);
               setEditOpen(false);
               toast.success("Profile updated");
             }}
@@ -147,9 +189,46 @@ export function ProfileView({
               toast.success("Password changed");
             }}
           />
+          <Modal
+            open={iconOpen}
+            onClose={() => setIconOpen(false)}
+            title="Choose your icon"
+            width="max-w-xl"
+          >
+            <p className="mb-4 text-sm text-body">
+              This shows on your profile and in the nav. You can still pick a
+              different player icon when you register for a tournament.
+            </p>
+            <IconPicker
+              label="Player icons"
+              icons={playerIcons}
+              value={defaultIcon}
+              onChange={(url) => void saveDefaultIcon(url)}
+              loading={playerIconsLoading || savingIcon}
+            />
+          </Modal>
         </>
       )}
     </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
   );
 }
 
