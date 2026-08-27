@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminStats } from "@/server/services/adminService";
 import { pageMeta } from "@/lib/seo";
-import { UploadCatalogButton } from "@/components/admin/UploadCatalogButton";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +48,7 @@ export default async function AdminDashboardPage() {
         })}
       </div>
 
-      <div className="mt-10 flex flex-wrap items-start gap-3">
-        <UploadCatalogButton />
+      <div className="mt-10 flex flex-wrap gap-3">
         <Link
           href="/admin/images"
           className="rounded-lg bg-surface-3 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-surface-2"

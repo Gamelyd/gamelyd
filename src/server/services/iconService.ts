@@ -1,7 +1,6 @@
 import "server-only";
 import { ObjectId } from "mongodb";
-import { icons, getDb } from "../db";
-import { ingestCatalogFromDisk } from "../iconIngest";
+import { icons } from "../db";
 import type { IconDoc, IconKind } from "../documents";
 import { serializeIcon } from "../serialize";
 import { ServiceError } from "./userService";
@@ -162,20 +161,5 @@ export async function deleteIcon(iconId: string): Promise<void> {
   const col = await icons();
   const res = await col.deleteOne({ icon_id: iconId });
   if (res.deletedCount === 0) throw new ServiceError("Image not found");
-}
-
-export async function ingestIconFilesFromDisk(limit = 8): Promise<{
-  uploaded: number;
-  skipped: number;
-  missing: number;
-  remaining: number;
-  total: number;
-}> {
-  try {
-    return await ingestCatalogFromDisk(await getDb(), { limit });
-  } catch (error) {
-    if (error instanceof Error) throw new ServiceError(error.message);
-    throw error;
-  }
 }
 

@@ -12,7 +12,6 @@ import {
   archiveIcon,
   createIcon,
   deleteIcon,
-  ingestIconFilesFromDisk,
   listIcons,
   updateIcon,
 } from "@/server/services/iconService";
@@ -102,41 +101,5 @@ export async function deleteIconAction(
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");
-  }
-}
-
-export async function ingestIconFilesAction(): Promise<
-  ActionResult<{
-    uploaded: number;
-    skipped: number;
-    missing: number;
-    remaining: number;
-    total: number;
-  }>
-> {
-  if (!(await guardAdmin())) return fail("Admin access required");
-  try {
-    const result = await ingestIconFilesFromDisk(8);
-    if (result.total === 0) {
-      return ok(result, "No catalog files to upload for this database");
-    }
-    if (result.remaining > 0) {
-      const done = result.total - result.remaining;
-      return ok(
-        result,
-        `Saved ${done} of ${result.total} catalog images. Keep the page open…`,
-      );
-    }
-    if (result.missing > 0) {
-      return ok(
-        result,
-        `Catalog upload finished. ${result.missing} row${result.missing === 1 ? "" : "s"} had no PNG on this server.`,
-      );
-    }
-    return ok(result, "Catalog images are in the database");
-  } catch (error) {
-    if (error instanceof ServiceError) return fail(error.message);
-    console.error(error);
-    return fail("Something went wrong uploading catalog images");
   }
 }

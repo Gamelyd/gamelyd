@@ -9,7 +9,6 @@ import { Confirm } from "@/components/ui/Confirm";
 import { Select } from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
-import { UploadCatalogButton } from "@/components/admin/UploadCatalogButton";
 import type { Game } from "@/lib/schemas/game";
 import type { IconAsset, IconKind } from "@/lib/schemas/icon";
 import { adminListGamesAction } from "@/server/actions/gameActions";
@@ -150,12 +149,10 @@ export default function AdminImagesPage() {
         <div>
           <h1 className="font-display text-3xl text-white">Images</h1>
           <p className="mt-1 text-sm text-body">
-            Add, archive, or delete catalog entries. After deploy, upload the
-            covers and crests on this server into the database.
+            Add, archive, or delete catalog entries.
           </p>
         </div>
-        <div className="flex flex-wrap items-start gap-2">
-          <UploadCatalogButton />
+        <div className="flex flex-wrap gap-2">
           <Button onClick={openCreate}>Add image</Button>
         </div>
       </div>
