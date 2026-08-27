@@ -335,9 +335,9 @@ export const UI_ICONS = {
 } as const;
 
 export const FALLBACKS = {
-  tournament: "/images/tournaments/eafc/eafc-01-center-spot.png",
-  team: "/images/crests/team/crest-team-01-wolf.png",
-  player: "/images/crests/player/crest-player-01-headset.png",
+  tournament: "/api/icons/eafc-01-center-spot",
+  team: "/api/icons/crest-team-01-wolf",
+  player: "/api/icons/crest-player-01-headset",
 } as const;
 
 const GAME_ICON_MATCHERS: { test: RegExp; url: string }[] = [
@@ -412,9 +412,15 @@ export function iconForGame(
   if (!name) return FALLBACKS.tournament;
   const match = GAME_ICON_MATCHERS.find((entry) => entry.test.test(name));
   if (match) {
-    const fromList = icons.find((icon) => icon.url === match.url);
+    const wanted = catalogFileSlug(match.url);
+    const fromList =
+      icons.find((icon) => icon.url === match.url) ||
+      icons.find(
+        (icon) =>
+          icon.id === wanted || catalogFileSlug(icon.url) === wanted,
+      );
     if (fromList) return fromList.url;
-    return match.url;
+    return rewriteCatalogPath(match.url);
   }
   const labeled = icons.find(
     (icon) => icon.label.toLowerCase() === name.toLowerCase(),
@@ -430,6 +436,23 @@ export function playerIconFor(
   return pickStableIcon(icons, userId, FALLBACKS.player);
 }
 
+function catalogFileSlug(url: string): string {
+  return url.split("/").pop()?.split("?")[0]?.replace(/\.png$/i, "") ?? "";
+}
+
+/** Turn stored local catalog paths into the database-backed API URL. */
+export function rewriteCatalogPath(url: string, slug?: string): string {
+  if (!url) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/api/icons/")) return url;
+  const fromPath =
+    url.startsWith("/images/tournaments/") ||
+    url.startsWith("/images/crests/");
+  if (!fromPath) return url;
+  const nextSlug = slug || catalogFileSlug(url);
+  return nextSlug ? `/api/icons/${nextSlug}` : url;
+}
+
 function isUsableIconSrc(value: string): boolean {
   return (
     value.startsWith("http://") ||
@@ -442,7 +465,8 @@ export function resolveIcon(
   value: string | undefined,
   fallback: string = FALLBACKS.team,
 ): string {
-  return value && isUsableIconSrc(value) ? value : fallback;
+  const src = value && isUsableIconSrc(value) ? value : fallback;
+  return rewriteCatalogPath(src);
 }
 
 export function resolvePlayerIcon(

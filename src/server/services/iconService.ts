@@ -1,30 +1,14 @@
 import "server-only";
 import { ObjectId } from "mongodb";
-import { draws, games, icons, registrations, tournaments } from "../db";
-import type {
-  DrawDoc,
-  IconDoc,
-  IconKind,
-  RegisterTournamentDoc,
-  TournamentDoc,
-} from "../documents";
-import { serializeIcon, serializeDraw, serializeRegistration } from "../serialize";
-import {
-  asDocFilter,
-  asRecord,
-  byAnyTournamentId,
-  readArray,
-  readString,
-} from "../legacy";
+import { icons, getDb } from "../db";
+import { ingestCatalogFromDisk } from "../iconIngest";
+import type { IconDoc, IconKind } from "../documents";
+import { serializeIcon } from "../serialize";
 import { ServiceError } from "./userService";
 import {
   FALLBACKS,
-  PLAYER_ICONS,
-  TEAM_ICONS,
-  TOURNAMENT_ICONS,
   catalogToAppIcon,
   pickStableIcon,
-  seedGameTests,
   type AppIcon,
 } from "@/lib/icons";
 import type {
@@ -32,7 +16,6 @@ import type {
   IconAsset,
   UpdateIconInput,
 } from "@/lib/schemas/icon";
-import type { Player, Teams } from "@/lib/schemas/draw";
 
 function slugify(name: string): string {
   const slug = name
@@ -57,115 +40,6 @@ async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   }
 }
 
-function seedRows(): {
-  slug: string;
-  kind: IconKind;
-  name: string;
-  url: string;
-}[] {
-  return [
-    ...TOURNAMENT_ICONS.map((icon) => ({
-      slug: icon.id,
-      kind: "tournament" as const,
-      name: icon.label,
-      url: icon.url,
-    })),
-    ...TEAM_ICONS.map((icon) => ({
-      slug: icon.id,
-      kind: "team" as const,
-      name: icon.label,
-      url: icon.url,
-    })),
-    ...PLAYER_ICONS.map((icon) => ({
-      slug: icon.id,
-      kind: "player" as const,
-      name: icon.label,
-      url: icon.url,
-    })),
-  ];
-}
-
-function seedAsAssets(kind?: IconKind): IconAsset[] {
-  return seedRows()
-    .filter((row) => !kind || row.kind === kind)
-    .map((row) => ({
-      _id: row.slug,
-      icon_id: row.slug,
-      slug: row.slug,
-      kind: row.kind,
-      name: row.name,
-      url: row.url,
-      gameIds: [],
-      archived: false,
-      created_at: "",
-      updated_at: "",
-    }));
-}
-
-export async function seedIconsFromApp(): Promise<{
-  inserted: number;
-  updated: number;
-  total: number;
-}> {
-  const col = await icons();
-  const gameCol = await games();
-  const gameDocs = await gameCol
-    .find({ active: { $ne: false } })
-    .project({ game_id: 1, name: 1 })
-    .toArray();
-
-  const now = new Date().toISOString();
-  let inserted = 0;
-  let updated = 0;
-
-  for (const row of seedRows()) {
-    const tests =
-      row.kind === "tournament"
-        ? seedGameTests({ id: row.slug, label: row.name, url: row.url })
-        : [];
-    const gameIds = gameDocs
-      .filter((game) => tests.some((test) => test.test(game.name)))
-      .map((game) => game.game_id);
-
-    const existing = await col.findOne({ slug: row.slug });
-    if (!existing) {
-      const _id = new ObjectId();
-      const doc: IconDoc = {
-        _id,
-        icon_id: _id.toHexString(),
-        slug: row.slug,
-        kind: row.kind,
-        name: row.name,
-        url: row.url,
-        gameIds,
-        archived: false,
-        created_at: now,
-        updated_at: now,
-      };
-      await col.insertOne(doc);
-      inserted += 1;
-      continue;
-    }
-
-    const nextGameIds =
-      existing.gameIds?.length > 0 ? existing.gameIds : gameIds;
-    await col.updateOne(
-      { _id: existing._id },
-      {
-        $set: {
-          url: row.url,
-          kind: row.kind,
-          gameIds: nextGameIds,
-          updated_at: now,
-        },
-      },
-    );
-    updated += 1;
-  }
-
-  return { inserted, updated, total: inserted + updated };
-}
-
 type IconQuery = {
   kind?: IconKind;
   gameId?: string;
@@ -180,16 +54,7 @@ export async function listIcons(input: IconQuery = {}): Promise<IconAsset[]> {
   if (!input.includeArchived) filter.archived = { $ne: true };
 
   const docs = await col.find(filter).sort({ name: 1 }).limit(500).toArray();
-  if (docs.length === 0) {
-    if (input.includeArchived) return [];
-    return filterSeed(seedAsAssets(input.kind), input);
-  }
-
   return filterCatalog(docs.map(serializeIcon), input);
-}
-
-function filterSeed(items: IconAsset[], input: IconQuery): IconAsset[] {
-  return filterCatalog(items, { ...input, gameId: undefined });
 }
 
 function filterCatalog(items: IconAsset[], input: IconQuery): IconAsset[] {
@@ -299,176 +164,18 @@ export async function deleteIcon(iconId: string): Promise<void> {
   if (res.deletedCount === 0) throw new ServiceError("Image not found");
 }
 
-export async function refreshTournamentCatalogIcons(tournamentId: string): Promise<{
-  teams: number;
-  players: number;
+export async function ingestIconFilesFromDisk(limit = 8): Promise<{
+  uploaded: number;
+  skipped: number;
+  missing: number;
+  remaining: number;
+  total: number;
 }> {
-  const teamIcons = await listAppIcons("team");
-  const playerIcons = await listAppIcons("player");
-  if (teamIcons.length === 0 || playerIcons.length === 0) {
-    throw new ServiceError(
-      "Download images into the catalog first, then refresh this tournament",
-    );
+  try {
+    return await ingestCatalogFromDisk(await getDb(), { limit });
+  } catch (error) {
+    if (error instanceof Error) throw new ServiceError(error.message);
+    throw error;
   }
-
-  const found = await findTournament(tournamentId);
-  if (!found) throw new ServiceError("Tournament not found");
-  const ids = relatedIds(found);
-  const now = new Date().toISOString();
-
-  const rCol = await registrations();
-  const regs = await rCol
-    .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
-    .toArray();
-
-  const teamIconByName = new Map<string, string>();
-  const playerIconByUser = new Map<string, string>();
-  let teams = 0;
-  let players = 0;
-
-  for (const reg of regs) {
-    const row = serializeRegistration(reg);
-    const teamUrl = pickStableIcon(teamIcons, row.TeamName, FALLBACKS.team);
-    teamIconByName.set(row.TeamName, teamUrl);
-    const nextPlayers = row.Players.map((player) => {
-      const url = pickStableIcon(playerIcons, player.User_id, FALLBACKS.player);
-      if (player.User_id) playerIconByUser.set(player.User_id, url);
-      players += 1;
-      return { ...player, Icon: url };
-    });
-    await rCol.updateOne(
-      { _id: reg._id },
-      {
-        $set: {
-          Icon: teamUrl,
-          Players: nextPlayers,
-          Updated_at: now,
-        },
-      },
-    );
-    teams += 1;
-  }
-
-  const dCol = await draws();
-  const drawDocs = await dCol
-    .find(asDocFilter<DrawDoc>(byAnyTournamentId(ids)))
-    .toArray();
-  for (const draw of drawDocs) {
-    const row = serializeDraw(draw);
-    const $set: Record<string, unknown> = { Updated_at: now };
-    if (row.Team1) {
-      $set.Team1 = patchTeam(row.Team1, teamIconByName, playerIconByUser);
-    }
-    if (row.Team2) {
-      $set.Team2 = patchTeam(row.Team2, teamIconByName, playerIconByUser);
-    }
-    if (row.BRTeams.length > 0) {
-      $set.BRTeams = row.BRTeams.map((team) => ({
-        ...team,
-        Players: patchPlayers(team.Players, playerIconByUser),
-      }));
-    }
-    await dCol.updateOne({ _id: draw._id }, { $set });
-  }
-
-  const rawGroups = readArray(asRecord(found), ["Groups", "groups"]);
-  const groups = rawGroups.map((group) => {
-    const row = asRecord(group);
-    return {
-      GroupName: readString(row, ["GroupName", "groupname"]),
-      Teams: readArray(row, ["Teams", "teams"]).map((team) =>
-        patchTeam(teamFromUnknown(team), teamIconByName, playerIconByUser),
-      ),
-    };
-  });
-  const rawWinner = asRecord(found).Winner ?? asRecord(found).winner;
-  const winner = rawWinner
-    ? patchTeam(teamFromUnknown(rawWinner), teamIconByName, playerIconByUser)
-    : undefined;
-
-  const tCol = await tournaments();
-  await tCol.updateOne(
-    { _id: found._id },
-    {
-      $set: {
-        ...(groups.length > 0 ? { Groups: groups, groups } : {}),
-        ...(winner ? { Winner: winner } : {}),
-        Updated_at: now,
-        updated_at: now,
-      },
-    },
-  );
-
-  return { teams, players };
 }
 
-function teamFromUnknown(raw: unknown): Teams {
-  const t = asRecord(raw);
-  return {
-    TeamName: readString(t, ["TeamName", "teamname"]),
-    Players: readArray(t, ["Players", "players"]).map((player) => {
-      const p = asRecord(player);
-      return {
-        UserName: readString(p, ["UserName", "username"]),
-        GameUserName: readString(p, ["GameUserName", "gameusername"]),
-        User_id: readString(p, ["User_id", "user_id"]),
-        Email: readString(p, ["Email", "email"]),
-        Icon: readString(p, ["Icon", "icon"]),
-      };
-    }),
-    Icon: readString(t, ["Icon", "icon"]),
-    Points: Number(t.Points ?? t.points ?? 0) || 0,
-    GoalsScored: Number(t.GoalsScored ?? t.goalsscored ?? 0) || 0,
-    GoalsReceived: Number(t.GoalsReceived ?? t.goalsreceived ?? 0) || 0,
-    GoalsDifference: Number(t.GoalsDifference ?? t.goalsdifference ?? 0) || 0,
-  };
-}
-
-function patchTeam(
-  team: Teams,
-  teamIcons: Map<string, string>,
-  playerIcons: Map<string, string>,
-): Teams {
-  const name = team.TeamName ?? "";
-  return {
-    ...team,
-    Icon: teamIcons.get(name) ?? team.Icon,
-    Players: patchPlayers(team.Players ?? [], playerIcons),
-  };
-}
-
-function patchPlayers(
-  players: Player[],
-  playerIcons: Map<string, string>,
-): Player[] {
-  return players.map((player) => {
-    const uid = player.User_id || "";
-    const icon = playerIcons.get(uid);
-    return icon ? { ...player, Icon: icon } : player;
-  });
-}
-
-async function findTournament(id: string): Promise<TournamentDoc | null> {
-  const col = await tournaments();
-  if (ObjectId.isValid(id) && id.length === 24) {
-    const byObjectId = await col.findOne({ _id: new ObjectId(id) });
-    if (byObjectId) return byObjectId;
-  }
-  return col.findOne(
-    asDocFilter<TournamentDoc>({
-      $or: [{ TournamentId: id }, { tournamentid: id }],
-    }),
-  );
-}
-
-function relatedIds(doc: TournamentDoc): string[] {
-  const raw = asRecord(doc);
-  return [
-    ...new Set(
-      [
-        doc._id.toHexString(),
-        readString(raw, ["TournamentId", "tournamentid"]),
-      ].filter((id) => id.length > 0),
-    ),
-  ];
-}

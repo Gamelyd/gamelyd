@@ -28,6 +28,7 @@ import type {
 import type { Org, OrgInvite, OrgMember } from "@/lib/schemas/org";
 import type { Game } from "@/lib/schemas/game";
 import type { IconAsset } from "@/lib/schemas/icon";
+import { rewriteCatalogPath } from "@/lib/icons";
 import type { Platform } from "@/lib/schemas/platform";
 import type {
   Payment,
@@ -399,7 +400,7 @@ export function serializeIcon(doc: IconDoc): IconAsset {
     slug: doc.slug,
     kind: doc.kind,
     name: doc.name,
-    url: doc.url,
+    url: rewriteCatalogPath(doc.url, doc.slug),
     gameIds: Array.isArray(doc.gameIds) ? doc.gameIds : [],
     archived: Boolean(doc.archived),
     created_at: doc.created_at,

@@ -14,7 +14,7 @@ import { getGamesAction } from "@/server/actions/gameActions";
 import { getPlatformsAction } from "@/server/actions/platformActions";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import { FALLBACKS, iconForGame } from "@/lib/icons";
+import { FALLBACKS, iconForGame, rewriteCatalogPath } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import { joinPlatforms } from "@/lib/platforms";
 import type { Game } from "@/lib/schemas/game";
@@ -197,7 +197,7 @@ export function CreateTournamentWizard() {
     setDetails((prev) => ({
       ...prev,
       GameName: game.name,
-      icon: game.image || iconForGame(game.name) || prev.icon,
+      icon: game.image || iconForGame(game.name, covers) || prev.icon,
     }));
     if (fromGame.length > 0) setSelectedPlatforms(fromGame);
   };
@@ -377,6 +377,7 @@ export function CreateTournamentWizard() {
               loaded={gamesLoaded}
               selected={details.GameName}
               isAdmin={user?.user_type === "ADMIN"}
+              covers={covers}
               onPick={(game) => {
                 if (details.GameName === game.name) {
                   goNext();
@@ -1195,12 +1196,14 @@ function GameStep({
   loaded,
   selected,
   isAdmin,
+  covers,
   onPick,
 }: {
   games: Game[];
   loaded: boolean;
   selected: string;
   isAdmin: boolean;
+  covers: { id: string; label: string; url: string }[];
   onPick: (game: Game) => void;
 }) {
   return (
@@ -1226,7 +1229,7 @@ function GameStep({
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {games.map((game, i) => {
             const on = selected === game.name;
-            const art = game.image || iconForGame(game.name);
+            const art = game.image || iconForGame(game.name, covers);
             return (
               <button
                 key={game.game_id || game._id}
@@ -1242,7 +1245,7 @@ function GameStep({
                 <span className="create-loadout-art relative block aspect-4/3 bg-black">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={art}
+                    src={rewriteCatalogPath(art)}
                     alt=""
                     className="h-full w-full object-cover"
                   />

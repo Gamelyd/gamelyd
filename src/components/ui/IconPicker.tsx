@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AppIcon } from "@/lib/icons";
-import { iconLabel } from "@/lib/icons";
+import { iconLabel, rewriteCatalogPath } from "@/lib/icons";
 import { Input } from "@/components/ui/Input";
 
 export function IconPicker({
@@ -79,7 +79,7 @@ export function IconPicker({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={icon.url}
+                  src={rewriteCatalogPath(icon.url)}
                   alt={icon.label}
                   className={`aspect-square w-full object-cover ${thumb}`}
                 />

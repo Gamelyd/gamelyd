@@ -9,6 +9,7 @@ import { Confirm } from "@/components/ui/Confirm";
 import { Select } from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
+import { UploadCatalogButton } from "@/components/admin/UploadCatalogButton";
 import type { Game } from "@/lib/schemas/game";
 import type { IconAsset, IconKind } from "@/lib/schemas/icon";
 import { adminListGamesAction } from "@/server/actions/gameActions";
@@ -17,7 +18,6 @@ import {
   archiveIconAction,
   createIconAction,
   deleteIconAction,
-  seedIconsAction,
   updateIconAction,
 } from "@/server/actions/iconActions";
 
@@ -50,7 +50,6 @@ export default function AdminImagesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
-  const [seeding, setSeeding] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<IconAsset | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -81,18 +80,6 @@ export default function AdminImagesPage() {
   }, [kind, search, reload, toast]);
 
   const refresh = () => setReload((r) => r + 1);
-
-  const downloadImages = async () => {
-    setSeeding(true);
-    const result = await seedIconsAction();
-    setSeeding(false);
-    if (result.ok) {
-      toast.success(result.message ?? "Catalog updated");
-      refresh();
-    } else {
-      toast.error(result.error);
-    }
-  };
 
   const openCreate = () => {
     setEditing(null);
@@ -163,14 +150,12 @@ export default function AdminImagesPage() {
         <div>
           <h1 className="font-display text-3xl text-white">Images</h1>
           <p className="mt-1 text-sm text-body">
-            Download current covers and crests into the database, then add,
-            archive, or delete catalog entries. Local files stay on disk.
+            Add, archive, or delete catalog entries. After deploy, upload the
+            covers and crests on this server into the database.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" loading={seeding} onClick={downloadImages}>
-            Download images
-          </Button>
+        <div className="flex flex-wrap items-start gap-2">
+          <UploadCatalogButton />
           <Button onClick={openCreate}>Add image</Button>
         </div>
       </div>
@@ -204,8 +189,7 @@ export default function AdminImagesPage() {
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-surface-2 bg-surface p-10 text-center">
           <p className="text-body">
-            No catalog images yet. Download images to seed covers, team crests,
-            and player tokens from the app.
+            No catalog images yet. Add one to get started.
           </p>
         </div>
       ) : (
@@ -324,7 +308,7 @@ export default function AdminImagesPage() {
       <Confirm
         open={deleteTarget !== null}
         title="Delete this catalog entry?"
-        message={`Remove "${deleteTarget?.name ?? ""}" from the database? The file on disk is not deleted.`}
+        message={`Remove "${deleteTarget?.name ?? ""}" from the catalog? This does not delete the image file.`}
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={() => void remove()}

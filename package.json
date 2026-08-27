@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:indexes": "tsx scripts/create-indexes.ts",
+    "db:ingest-icons": "tsx scripts/ingest-icon-files.ts",
     "set-admin": "tsx scripts/set-admin.ts"
   },
   "dependencies": {

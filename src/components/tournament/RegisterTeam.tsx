@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { searchUsersAction } from "@/server/actions/userActions";
 import { registerForTournamentAction } from "@/server/actions/tournamentActions";
-import { FALLBACKS, playerIconFor, type AppIcon } from "@/lib/icons";
+import { FALLBACKS, playerIconFor, resolveIcon, type AppIcon } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import type { Player } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
@@ -238,7 +238,9 @@ export function RegisterTeam({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={p.Icon || playerIconFor(p.User_id, playerIcons)}
+              src={resolveIcon(
+                p.Icon || playerIconFor(p.User_id, playerIcons),
+              )}
               alt=""
               className="h-6 w-6 rounded-full object-cover"
             />

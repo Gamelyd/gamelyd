@@ -16,7 +16,6 @@ import { TournamentStageControls } from "@/components/tournament/TournamentStage
 import { SelectQualifiers } from "@/components/tournament/SelectQualifiers";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
 import { deleteTournamentAction } from "@/server/actions/tournamentActions";
-import { refreshTournamentIconsAction } from "@/server/actions/tournamentIconActions";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw } from "@/lib/schemas/draw";
@@ -199,10 +198,6 @@ export function TournamentManageView({
           />
         ) : null}
 
-        {isPlatformAdmin ? (
-          <RefreshTournamentIconsCard tournamentId={tournament.TournamentId} />
-        ) : null}
-
         {canAdminister ? (
           <div className="rounded-2xl border border-surface-2 bg-surface p-5">
             <h2 className="mb-1 text-lg font-semibold text-white">
@@ -258,57 +253,6 @@ export function TournamentManageView({
         onConfirm={() => void handleDelete()}
         onCancel={() => {
           if (!busy) setConfirmDelete(false);
-        }}
-      />
-    </div>
-  );
-}
-
-function RefreshTournamentIconsCard({
-  tournamentId,
-}: {
-  tournamentId: string;
-}) {
-  const router = useRouter();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState(false);
-
-  const run = async () => {
-    setBusy(true);
-    const result = await refreshTournamentIconsAction(tournamentId);
-    setBusy(false);
-    setConfirm(false);
-    if (result.ok) {
-      toast.success(result.message ?? "Icons updated");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border border-surface-2 bg-surface p-5">
-      <h2 className="mb-1 text-lg font-semibold text-white">
-        Refresh team and player icons
-      </h2>
-      <p className="mb-4 text-sm text-body">
-        Replace every team crest and player token in this tournament with
-        images from the catalog. Download images in Admin first.
-      </p>
-      <Button variant="outline" onClick={() => setConfirm(true)}>
-        Update icons from catalog
-      </Button>
-      <Confirm
-        open={confirm}
-        title="Update icons from the catalog?"
-        message="Every team and player in this tournament will get a catalog crest or token. This does not delete the old image files."
-        confirmLabel="Update icons"
-        confirmVariant="default"
-        loading={busy}
-        onConfirm={() => void run()}
-        onCancel={() => {
-          if (!busy) setConfirm(false);
         }}
       />
     </div>

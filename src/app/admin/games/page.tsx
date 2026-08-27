@@ -11,7 +11,7 @@ import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import { iconForGame } from "@/lib/icons";
+import { FALLBACKS, iconForGame, resolveIcon } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import {
   adminListGamesAction,
@@ -158,7 +158,7 @@ export default function AdminGamesPage() {
               <div className="relative h-36 w-full bg-surface-2">
                 {game.image ? (
                   <Image
-                    src={game.image}
+                    src={resolveIcon(game.image, FALLBACKS.tournament)}
                     alt={game.name}
                     fill
                     sizes="(max-width: 768px) 100vw, 33vw"
@@ -207,6 +207,7 @@ export default function AdminGamesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editing ? "Edit game" : "Add game"}
+        width="max-w-xl"
       >
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           <Input
@@ -217,7 +218,7 @@ export default function AdminGamesPage() {
               setForm({
                 ...form,
                 name,
-                image: form.image || iconForGame(name),
+                image: form.image || iconForGame(name, covers),
               });
             }}
             required
@@ -252,7 +253,7 @@ export default function AdminGamesPage() {
             />
             Active (selectable when creating tournaments)
           </label>
-          <div className="flex justify-end gap-3">
+          <div className="sticky bottom-0 z-1 flex justify-end gap-3 bg-surface pt-3">
             <Button
               type="button"
               variant="dark"
