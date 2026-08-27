@@ -52,8 +52,7 @@ async function replaceFile(
   await Promise.all(existing.map((file) => bucket.delete(file._id)));
   await new Promise<void>((resolve, reject) => {
     const upload = bucket.openUploadStream(slug, {
-      contentType: "image/png",
-      metadata: { slug },
+      metadata: { slug, contentType: "image/png" },
     });
     upload.on("error", reject);
     upload.on("finish", () => resolve());

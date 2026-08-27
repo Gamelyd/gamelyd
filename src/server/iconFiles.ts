@@ -16,8 +16,9 @@ export async function getIconFile(slug: string): Promise<{
   const files = await filesBucket.find({ filename: slug }).limit(1).toArray();
   const file = files[0];
   if (!file) return null;
+  const meta = file.metadata as { contentType?: string } | undefined;
   return {
-    contentType: file.contentType || "image/png",
+    contentType: meta?.contentType || "image/png",
     stream: filesBucket.openDownloadStream(file._id),
   };
 }
