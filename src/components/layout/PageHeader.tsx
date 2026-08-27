@@ -16,12 +16,12 @@ export function PageHeader({
   width?: string;
 }) {
   return (
-    <section className="border-b border-surface-2 bg-bg">
+    <section className="border-b border-primary/20 bg-primary-panel">
       <div className={`mx-auto px-5 py-10 lg:py-12 ${width}`}>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             {kicker ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
                 {kicker}
               </p>
             ) : null}
@@ -31,7 +31,7 @@ export function PageHeader({
               {title}
             </h1>
             {description ? (
-              <div className="mt-3 max-w-2xl text-body">{description}</div>
+              <div className="mt-3 max-w-2xl text-cyan-soft/80">{description}</div>
             ) : null}
           </div>
           {actions ? <div className="shrink-0">{actions}</div> : null}

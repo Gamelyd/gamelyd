@@ -23,7 +23,7 @@ import {
   updateOrgAction,
 } from "@/server/actions/orgActions";
 import { IconPicker } from "@/components/ui/IconPicker";
-import { ORG_ICONS } from "@/lib/icons";
+import { useIcons } from "@/hooks/useIcons";
 import type { OrgRole } from "@/lib/schemas/common";
 
 export function OrgView({
@@ -72,9 +72,9 @@ export function OrgView({
 
   return (
     <div>
-      <section className="border-b border-surface-2 bg-bg">
+      <section className="border-b border-primary/20 bg-primary-panel">
         <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-10 lg:py-12 sm:flex-row sm:items-center">
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-surface-2">
+          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-primary/25 bg-black/30">
             {current.image ? (
               <Image
                 src={current.image}
@@ -114,7 +114,7 @@ export function OrgView({
       <section className="mx-auto grid max-w-6xl gap-10 px-5 py-10 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="font-display text-2xl text-white">
               Tournaments hosted
             </h2>
             {members.some((m) => m.user_id === user?.user_id) && (
@@ -135,14 +135,14 @@ export function OrgView({
         </div>
 
         <div>
-          <h2 className="mb-4 text-xl font-semibold text-white">
+          <h2 className="mb-4 font-display text-2xl text-white">
             Members ({members.length})
           </h2>
           <div className="flex flex-col gap-3">
             {members.map((m) => (
               <div
                 key={m.user_id}
-                className="flex items-center justify-between rounded-xl border border-surface-2 bg-surface p-3"
+                className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary-panel p-3"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-white">
@@ -221,6 +221,7 @@ function EditOrgModal({
     website: org.website,
   });
   const [loading, setLoading] = useState(false);
+  const { icons: orgIcons, loading: orgIconsLoading } = useIcons("team");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,9 +242,10 @@ function EditOrgModal({
         />
         <IconPicker
           label="Logo"
-          icons={ORG_ICONS}
+          icons={orgIcons}
           value={form.image}
           onChange={(url) => setForm({ ...form, image: url })}
+          loading={orgIconsLoading}
         />
         <Input
           label="Website"

@@ -1,17 +1,40 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { Game } from "@/lib/schemas/game";
 import { Button } from "@/components/ui/Button";
+import { Reveal } from "@/components/ui/Reveal";
 
-const card =
-  "rounded-xl border border-white/20 bg-surface p-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] sm:p-6";
+export function SectionHead({
+  kicker,
+  title,
+  description,
+}: {
+  kicker: string;
+  title: string;
+  description?: ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+        {kicker}
+      </p>
+      <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
+        {title}
+      </h2>
+      {description ? (
+        <div className="mt-3 max-w-2xl text-body">{description}</div>
+      ) : null}
+    </div>
+  );
+}
 
 export function HowItWorks() {
   const steps = [
     {
       n: "01",
       title: "Create the event",
-      body: "Pick a game, platform, team size, and format. Set the date, prize or entry fee, and how many teams can join. Publishing closes nothing — registration stays open until you start.",
+      body: "Pick a game, platform, team size, and format. Set the date, prize, and how many teams can join. Publishing closes nothing — registration stays open until you start.",
     },
     {
       n: "02",
@@ -31,86 +54,96 @@ export function HowItWorks() {
   ];
 
   return (
-    <section className="border-t border-surface-2 bg-bg">
+    <section className="border-t border-primary/20">
       <div className="mx-auto max-w-7xl px-5 py-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          How it works
-        </p>
-        <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
-          From lobby to final
-        </h2>
-        <p className="mt-3 max-w-2xl text-body">
-          Gamelyd is the operations layer for a tournament: signup, draws,
-          scores, and a public page players can follow. You do not need a
-          spreadsheet or a second chat for fixtures.
-        </p>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((step) => (
-            <article key={step.n} className={card}>
-              <p className="font-display text-3xl text-primary">{step.n}</p>
-              <h3 className="mt-3 font-display text-xl text-white">
-                {step.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-body">
-                {step.body}
-              </p>
-            </article>
-          ))}
-        </div>
+        <Reveal>
+          <SectionHead
+            kicker="How it works"
+            title="From lobby to final"
+            description="Gamelyd is the operations layer for a tournament: signup, draws, scores, and a public page players can follow. You do not need a spreadsheet or a second chat for fixtures."
+          />
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((step) => (
+              <article
+                key={step.n}
+                className="arena-panel arena-hud-corners p-5 sm:p-6"
+              >
+                <p className="grid h-10 w-10 place-items-center rounded-lg bg-primary font-display text-lg text-[#04201e]">
+                  {step.n}
+                </p>
+                <h3 className="mt-4 font-display text-xl text-white">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-body">
+                  {step.body}
+                </p>
+              </article>
+            ))}
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
 export function Formats() {
-  const formats = [
+  const formats: {
+    title: string;
+    body: string;
+    glyph: "knockout" | "groups" | "league" | "br";
+  }[] = [
     {
       title: "Knockout",
+      glyph: "knockout",
       body: "Single-elimination tree. Winners move toward the final. Byes are handled when the field is odd. The bracket fills as rounds are drawn.",
     },
     {
       title: "Groups",
+      glyph: "groups",
       body: "Round-robin inside each group, then a knockout. Top teams advance (you choose how many). Tables show points, and the bracket uses group-winner placeholders until qualification.",
     },
     {
       title: "League",
+      glyph: "league",
       body: "Everyone plays everyone. Matchdays are generated up front, including a return leg if you want home and away. First place is decided by the points system you set.",
     },
     {
       title: "Battle royale",
+      glyph: "br",
       body: "One lobby, many teams. Record placements, kills, and wins on a single draw instead of a pairwise tree. Built for titles that do not play as 1v1 fixtures.",
     },
   ];
 
   return (
-    <section className="border-t border-surface-2 bg-bg">
+    <section className="border-t border-primary/20">
       <div className="mx-auto max-w-7xl px-5 py-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Formats
-        </p>
-        <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
-          Run the structure the game needs
-        </h2>
-        <p className="mt-3 max-w-2xl text-body">
-          FIFA cups, Warzone lobbies, and club leagues do not share a bracket.
-          Choose the mode when you create the event — the draw engine and the
-          public page follow that choice.
-        </p>
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
-          {formats.map((item) => (
-            <article key={item.title} className={card}>
-              <h3 className="font-display text-2xl text-white">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-body">
-                {item.body}
-              </p>
-            </article>
-          ))}
-        </div>
-        <p className="mt-6 text-sm text-body">
-          Rosters can be solo, duo, or squad. Events can be free, sponsored, or
-          listed with an entry fee. Draws can be automatic or kept in
-          registration order.
-        </p>
+        <Reveal>
+          <SectionHead
+            kicker="Formats"
+            title="Run the structure the game needs"
+            description="FIFA cups, Warzone lobbies, and club leagues do not share a bracket. Choose the mode when you create the event — the draw engine and the public page follow that choice."
+          />
+          <div className="mt-10 grid gap-4 md:grid-cols-2">
+            {formats.map((item) => (
+              <article
+                key={item.title}
+                className="arena-panel arena-hud-corners p-5 sm:p-6"
+              >
+                <span className="mb-4 grid h-10 w-10 place-items-center rounded-lg bg-primary text-[#04201e]">
+                  <FormatGlyph kind={item.glyph} />
+                </span>
+                <h3 className="font-display text-2xl text-white">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-body">
+                  {item.body}
+                </p>
+              </article>
+            ))}
+          </div>
+          <p className="mt-6 text-sm text-body">
+            Rosters can be solo, duo, or squad. Events can be free or sponsored.
+            Draws can be automatic or kept in registration order.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
@@ -120,41 +153,38 @@ export function GamesStrip({ games }: { games: Game[] }) {
   if (games.length === 0) return null;
 
   return (
-    <section className="border-t border-surface-2 bg-surface">
+    <section className="border-t border-primary/20">
       <div className="mx-auto max-w-7xl px-5 py-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Titles
-        </p>
-        <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
-          Games you can host
-        </h2>
-        <p className="mt-3 max-w-2xl text-body">
-          Pick a title when you create a tournament, then choose the platforms
-          it supports — Crossplay, PlayStation, Xbox, or PC.
-        </p>
-        <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {games.map((game) => (
-            <li
-              key={game.game_id}
-              className="overflow-hidden rounded-xl border border-white/20 bg-bg shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]"
-            >
-              <div className="relative aspect-4/3 bg-surface-4">
-                {game.image ? (
-                  <Image
-                    src={game.image}
-                    alt=""
-                    fill
-                    sizes="200px"
-                    className="object-cover"
-                  />
-                ) : null}
-              </div>
-              <p className="truncate px-3 py-2 text-sm font-medium text-white">
-                {game.name}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <Reveal>
+          <SectionHead
+            kicker="Titles"
+            title="Games you can host"
+            description="Pick a title when you create a tournament, then choose the platforms it supports — Crossplay, PlayStation, Xbox, or PC."
+          />
+          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {games.map((game) => (
+              <li
+                key={game.game_id}
+                className="create-game-card overflow-hidden rounded-2xl border border-primary/25 bg-primary-panel"
+              >
+                <div className="create-loadout-art relative aspect-4/3 bg-black">
+                  {game.image ? (
+                    <Image
+                      src={game.image}
+                      alt=""
+                      fill
+                      sizes="200px"
+                      className="object-cover"
+                    />
+                  ) : null}
+                </div>
+                <p className="truncate px-3 py-3 font-display text-lg leading-none text-white">
+                  {game.name}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </div>
     </section>
   );
@@ -162,52 +192,57 @@ export function GamesStrip({ games }: { games: Game[] }) {
 
 export function Audience() {
   return (
-    <section className="border-t border-surface-2 bg-bg">
-      <div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 lg:grid-cols-2">
-        <article className={card}>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-            Players
-          </p>
-          <h2 className="mt-2 font-display text-3xl text-white">
-            Find a lobby and show up
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Browse public tournaments by mode and type. Open an event to see
-            the roster, group tables, fixtures, and the knockout tree. Register
-            with the team size the host set. After it starts, follow results on
-            the same page — you do not need a separate results thread.
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Private events stay off the public list. If you were invited, use
-            the link the host sent. Create an account so your registrations and
-            hosted events sit on your dashboard.
-          </p>
-          <Link href="/tournament/all/ALL/ALL" className="mt-6 inline-block">
-            <Button>Browse tournaments</Button>
-          </Link>
-        </article>
-        <article className={card}>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-            Hosts
-          </p>
-          <h2 className="mt-2 font-display text-3xl text-white">
-            Run the event without a side spreadsheet
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Create the tournament, share the page, and close registration when
-            you start. Group hosts can rearrange teams before the first draw.
-            Co-managers from your organization can record scores if you add
-            them in settings.
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Visibility can stay public or private. Tournament size can grow
-            before the event starts. Once you draw, fixtures stay on the
-            tournament page until the last match is played.
-          </p>
-          <Link href="/tournament/new" className="mt-6 inline-block">
-            <Button variant="outline">Create tournament</Button>
-          </Link>
-        </article>
+    <section className="border-t border-primary/20">
+      <div className="mx-auto max-w-7xl px-5 py-16">
+        <Reveal>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <article className="arena-panel arena-hud-corners p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+                Players
+              </p>
+              <h2 className="mt-2 font-display text-3xl text-white">
+                Find a lobby and show up
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                Browse public tournaments by mode and type. Open an event to see
+                the roster, group tables, fixtures, and the knockout tree.
+                Register with the team size the host set. After it starts,
+                follow results on the same page — you do not need a separate
+                results thread.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                Private events stay off the public list. If you were invited,
+                use the link the host sent. Create an account so your
+                registrations and hosted events sit on your dashboard.
+              </p>
+              <Link href="/tournament/all/ALL/ALL" className="mt-6 inline-block">
+                <Button>Browse tournaments</Button>
+              </Link>
+            </article>
+            <article className="arena-panel arena-hud-corners p-5 sm:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+                Hosts
+              </p>
+              <h2 className="mt-2 font-display text-3xl text-white">
+                Run the event without a side spreadsheet
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                Create the tournament, share the page, and close registration
+                when you start. Group hosts can rearrange teams before the first
+                draw. Co-managers from your organization can record scores if
+                you add them in settings.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                Visibility can stay public or private. Tournament size can grow
+                before the event starts. Once you draw, fixtures stay on the
+                tournament page until the last match is played.
+              </p>
+              <Link href="/tournament/new" className="mt-6 inline-block">
+                <Button variant="outline">Create tournament</Button>
+              </Link>
+            </article>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -234,25 +269,94 @@ export function HomeFaq() {
   ];
 
   return (
-    <section className="border-t border-surface-2 bg-bg">
+    <section className="border-t border-primary/20">
       <div className="mx-auto max-w-7xl px-5 py-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Questions
-        </p>
-        <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
-          Before you create or join
-        </h2>
-        <dl className="mt-10 grid gap-4 md:grid-cols-2">
-          {items.map((item) => (
-            <div key={item.q} className={card}>
-              <dt className="font-display text-xl text-white">{item.q}</dt>
-              <dd className="mt-2 text-sm leading-relaxed text-body">
-                {item.a}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <Reveal>
+          <SectionHead kicker="Questions" title="Before you create or join" />
+          <dl className="mt-10 grid gap-4 md:grid-cols-2">
+            {items.map((item) => (
+              <div
+                key={item.q}
+                className="arena-panel arena-hud-corners p-5 sm:p-6"
+              >
+                <dt className="font-display text-xl text-white">{item.q}</dt>
+                <dd className="mt-2 text-sm leading-relaxed text-body">
+                  {item.a}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Reveal>
       </div>
     </section>
+  );
+}
+
+function FormatGlyph({
+  kind,
+}: {
+  kind: "knockout" | "groups" | "league" | "br";
+}) {
+  const cls = "h-6 w-6";
+  if (kind === "knockout") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={cls}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path d="M4 5h6v4H4zM14 5h6v4h-6zM9 15h6v4H9z" />
+        <path d="M7 9v2h10V9M12 11v4" />
+      </svg>
+    );
+  }
+  if (kind === "groups") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={cls}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="8" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+        <rect x="13" y="13" width="8" height="8" rx="1.5" />
+      </svg>
+    );
+  }
+  if (kind === "league") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={cls}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path d="M5 6h14M5 12h14M5 18h10" />
+        <circle cx="5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="5" cy="18" r="1.2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cls}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="9" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="16" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
   );
 }

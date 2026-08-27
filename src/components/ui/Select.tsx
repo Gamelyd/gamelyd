@@ -27,7 +27,7 @@ export function Select({
       )}
       <select
         {...rest}
-        className={`w-full rounded-lg border border-transparent bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary ${error ? "border-lose" : ""} ${className}`}
+        className={`w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary ${error ? "border-lose" : ""} ${className}`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-input">

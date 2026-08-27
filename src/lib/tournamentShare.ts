@@ -9,7 +9,9 @@ export function publicAppUrl(): string {
 }
 
 export function tournamentCoverUrl(tournament: Tournament): string {
-  return resolveIcon(tournament.icon, FALLBACKS.tournament);
+  const src = resolveIcon(tournament.icon, FALLBACKS.tournament);
+  if (src.startsWith("/")) return `${publicAppUrl()}${src}`;
+  return src;
 }
 
 export function tournamentShareDescription(tournament: Tournament): string {

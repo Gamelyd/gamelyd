@@ -16,6 +16,8 @@ export const registerTournamentSchema = z.object({
   PaymentChannel: z.string().default(""),
   Amount: z.number().default(0),
   Icon: z.string(),
+  CheckedIn: z.boolean().default(false),
+  CheckedInAt: z.string().default(""),
 });
 export type RegisterTournament = z.infer<typeof registerTournamentSchema>;
 

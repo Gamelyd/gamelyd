@@ -7,6 +7,7 @@ import type {
   ContactUsDoc,
   DrawDoc,
   GameDoc,
+  IconDoc,
   InviteTournamentDoc,
   NotificationDoc,
   OrgDoc,
@@ -104,4 +105,7 @@ export async function games(): Promise<Collection<GameDoc>> {
 }
 export async function platforms(): Promise<Collection<PlatformDoc>> {
   return (await getDb()).collection<PlatformDoc>(Collections.platform);
+}
+export async function icons(): Promise<Collection<IconDoc>> {
+  return (await getDb()).collection<IconDoc>(Collections.icon);
 }

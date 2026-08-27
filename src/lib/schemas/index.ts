@@ -6,3 +6,4 @@ export * from "./register";
 export * from "./misc";
 export * from "./org";
 export * from "./game";
+export * from "./icon";

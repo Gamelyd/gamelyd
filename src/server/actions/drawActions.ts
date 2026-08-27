@@ -61,7 +61,7 @@ export async function newDrawAction(
 
 export async function drawBrAction(
   input: unknown,
-): Promise<ActionResult<Draw>> {
+): Promise<ActionResult<Draw[]>> {
   const parsed = parseInput(newDrawInputSchema, input);
   if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
 

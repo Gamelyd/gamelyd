@@ -22,6 +22,7 @@ import {
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
 import { LeagueTable } from "./LeagueTable";
+import { BrTable } from "./BrTable";
 import { ShareTournamentButton } from "./ShareTournamentButton";
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
@@ -35,7 +36,19 @@ import {
   asDisqualifiedSet,
   groupQualifiersComplete,
 } from "@/lib/groupQualifiers";
-import { isKnockoutBye } from "@/lib/knockoutSeed";
+import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
+import {
+  groupKnockoutTies,
+  knockoutRoundsForBracket,
+  knockoutTieWinner,
+  seriesKey,
+} from "@/lib/knockoutSeries";
+import { computeBrStandings } from "@/lib/brStandings";
+import {
+  checkInWindowOpen,
+  registrationOpen,
+} from "@/lib/tournamentWindow";
+import { checkInForTournamentAction } from "@/server/actions/tournamentActions";
 import {
   nextStageAfterScore,
   type NextStagePrompt,
@@ -79,7 +92,13 @@ export function TournamentView({
   const disqualifiedTeams = tournament.DisqualifiedTeams ?? [];
   const [started, setStarted] = useState(tournament.Start);
   const isKnockout = tournament.TournamentMode === "MULTIPLAYER";
-  const [teamsPanel, setTeamsPanel] = useState<TeamsPanel>("bracket");
+  const [teamsPanel, setTeamsPanel] = useState<TeamsPanel>(() => {
+    if (tournament.TournamentMode !== "GROUPS") return "teams";
+    const groupDraws = initialDraws.filter(isGroupDraw);
+    const groupStageComplete =
+      groupDraws.length > 0 && groupDraws.every((d) => d.Played);
+    return groupStageComplete ? "bracket" : "teams";
+  });
   const [stagePrompt, setStagePrompt] = useState<NextStagePrompt | null>(null);
   const champion = useMemo(
     () => resolveChampion(tournament, draws, participants),
@@ -107,7 +126,16 @@ export function TournamentView({
         (p.Players ?? []).some((pl) => pl.User_id === user.user_id),
       ),
   );
-  const canRegister = !started && !isRegistered;
+  const myTeam = participants.find((p) =>
+    (p.Players ?? []).some((pl) => pl.User_id === user?.user_id),
+  );
+  const canCheckIn =
+    Boolean(myTeam) &&
+    tournament.CheckInRequired &&
+    !myTeam?.CheckedIn &&
+    checkInWindowOpen(tournament);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const canRegister = registrationOpen(tournament) && !isRegistered;
   const groupsCreated = groups.length > 0;
 
   const isGroups = tournament.TournamentMode === "GROUPS";
@@ -128,7 +156,9 @@ export function TournamentView({
     {
       id: "table",
       label: "Table",
-      show: tournament.TournamentMode === "LEAGUE",
+      show:
+        tournament.TournamentMode === "LEAGUE" ||
+        tournament.TournamentMode === "BATTLEROYALE",
     },
     { id: "fixtures", label: "Fixtures", show: true },
     { id: "register", label: "Register", show: canRegister },
@@ -179,7 +209,12 @@ export function TournamentView({
       GoalsReceived: 0,
       GoalsDifference: 0,
     }));
-    return computeLeagueStandings(teams, draws, tournament.PointSystem);
+    return computeLeagueStandings(
+      teams,
+      draws,
+      tournament.PointSystem,
+      tournament.TieBreaker,
+    );
   }, [draws, participants, tournament.PointSystem, tournament.TournamentMode]);
 
   const hydratedDraws = useMemo(
@@ -190,7 +225,7 @@ export function TournamentView({
   const groupFixtureSections = useMemo(() => {
     const map = new Map<string, Draw[]>();
     for (const d of hydratedDraws) {
-      if (!d.Group) continue;
+      if (!isGroupDraw(d)) continue;
       const list = map.get(d.Group) ?? [];
       list.push(d);
       map.set(d.Group, list);
@@ -204,13 +239,29 @@ export function TournamentView({
   const knockoutStages = useMemo(() => {
     const map = new Map<number, Draw[]>();
     for (const d of hydratedDraws) {
-      if (d.Group?.trim() || d.BRTeams.length > 0) continue;
+      if (isGroupDraw(d) || d.BRTeams.length > 0) continue;
       const list = map.get(d.Stage) ?? [];
       list.push(d);
       map.set(d.Stage, list);
     }
     return [...map.entries()].sort((a, b) => b[0] - a[0]);
   }, [hydratedDraws]);
+
+  const seriesGamesById = useMemo(() => {
+    const map = new Map<string, Draw[]>();
+    for (const d of hydratedDraws) {
+      const id = seriesKey(d);
+      const list = map.get(id) ?? [];
+      list.push(d);
+      map.set(id, list);
+    }
+    return map;
+  }, [hydratedDraws]);
+
+  const bracketRounds = useMemo(
+    () => knockoutRoundsForBracket(hydratedDraws, tournament.KnockoutFormat),
+    [hydratedDraws, tournament.KnockoutFormat],
+  );
 
   const [openFixtureGroups, setOpenFixtureGroups] = useState<
     string[] | "default"
@@ -245,17 +296,17 @@ export function TournamentView({
         group.Teams,
         draws.filter((d) => d.Group === group.GroupName),
         tournament.PointSystem,
+        tournament.TieBreaker,
       ),
     }));
-  }, [isGroups, groups, draws, tournament.PointSystem]);
+  }, [isGroups, groups, draws, tournament.PointSystem, tournament.TieBreaker]);
 
   const groupDraws = useMemo(
-    () => draws.filter((d) => Boolean(d.Group?.trim())),
+    () => draws.filter(isGroupDraw),
     [draws],
   );
   const knockoutDraws = useMemo(
-    () =>
-      draws.filter((d) => !d.Group?.trim() && d.BRTeams.length === 0),
+    () => draws.filter(isKnockoutDraw),
     [draws],
   );
   const bracketGroupNames = useMemo(() => {
@@ -295,6 +346,7 @@ export function TournamentView({
         group.Teams,
         next.filter((d) => d.Group === group.GroupName),
         tournament.PointSystem,
+        tournament.TieBreaker,
       ),
     }));
     const picksComplete = groupQualifiersComplete(
@@ -311,6 +363,7 @@ export function TournamentView({
       wasAlreadyPlayed: Boolean(previous?.Played),
       canSelectQualifiers: Boolean(canSelectQualifiers),
       picksComplete,
+      knockoutFormat: tournament.KnockoutFormat,
     });
     if (prompt) setStagePrompt(prompt);
   };
@@ -340,23 +393,23 @@ export function TournamentView({
           onClose={() => setCelebrate(false)}
         />
       ) : null}
-      <section className="border-b border-surface-2 bg-bg">
+      <section className="border-b border-primary/20 bg-primary-panel">
         <div className="mx-auto max-w-6xl px-5 py-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <div className="relative h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-surface-4 sm:h-40 sm:w-32">
+            <div className="relative h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-primary/25 bg-black/40 sm:h-40 sm:w-32">
               <Image
                 src={resolveIcon(tournament.icon, FALLBACKS.tournament)}
                 alt=""
                 fill
                 sizes="128px"
                 quality={90}
-                className="object-contain p-1"
+                className="object-cover"
               />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
                 <Tag payment={tournament.Payment} className="rounded-md" />
-                <span className="rounded-full border border-white/15 bg-surface-2 px-3 py-1 text-xs text-white">
+                <span className="rounded-full border border-primary/25 bg-black/25 px-3 py-1 text-xs text-white">
                   {tournament.TournamentMode}
                 </span>
                 {champion?.TeamName?.trim() ? (
@@ -381,8 +434,37 @@ export function TournamentView({
                 ) : null}
                 {isRegistered ? (
                   <span className="inline-flex h-9 items-center rounded-full border border-primary/40 bg-primary/15 px-3 text-sm text-primary">
-                    You&apos;re registered
+                    {myTeam?.CheckedIn
+                      ? "Checked in"
+                      : "You're registered"}
                   </span>
+                ) : null}
+                {canCheckIn ? (
+                  <Button
+                    loading={checkingIn}
+                    onClick={async () => {
+                      setCheckingIn(true);
+                      const result = await checkInForTournamentAction(
+                        tournament.TournamentId,
+                      );
+                      setCheckingIn(false);
+                      if (result.ok) {
+                        setParticipants((prev) =>
+                          prev.map((p) =>
+                            p.RegisterTournamentId ===
+                            result.data.RegisterTournamentId
+                              ? result.data
+                              : p,
+                          ),
+                        );
+                        toast.success("You're checked in");
+                      } else {
+                        toast.error(result.error);
+                      }
+                    }}
+                  >
+                    Check in
+                  </Button>
                 ) : null}
                 <ShareTournamentButton
                   name={tournament.Name}
@@ -453,6 +535,15 @@ export function TournamentView({
         {tab === "table" && tournament.TournamentMode === "LEAGUE" && (
           <LeagueTable standings={standings} />
         )}
+        {tab === "table" && tournament.TournamentMode === "BATTLEROYALE" && (
+          <BrTable
+            standings={computeBrStandings(draws, {
+              PlacementPoints: tournament.BrPlacementPoints,
+              KillPoints: tournament.BrKillPoints,
+              FirstBloodPoints: tournament.BrFirstBloodPoints,
+            })}
+          />
+        )}
 
         {tab === "teams" &&
           (() => {
@@ -516,10 +607,7 @@ export function TournamentView({
                   <QualifierList groups={groups} qualifiers={qualifiers} />
                 ) : null}
                 <KnockoutBracket
-                  rounds={knockoutStages.map(([stage, matches]) => ({
-                    stage,
-                    matches,
-                  }))}
+                  rounds={bracketRounds}
                   groupNames={bracketGroupNames}
                   advancePerGroup={tournament.AdvancePerGroup || 2}
                   teamCount={isGroups ? 0 : participants.length}
@@ -562,23 +650,67 @@ export function TournamentView({
                 />
               ) : (
                 <>
-                  {knockoutStages.map(([stage, stageDraws]) => (
+                  {knockoutStages.map(([stage, stageDraws]) => {
+                    const cupDraws = stageDraws.filter(
+                      (d) => !isThirdPlaceDraw(d),
+                    );
+                    const thirdDraws = stageDraws.filter(isThirdPlaceDraw);
+                    return (
                     <div key={`ko-${stage}`}>
+                      {cupDraws.length > 0 ? (
+                        <>
                       <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
-                        {roundLabel(stageDraws.length, stage)}
+                        {roundLabel(
+                          groupKnockoutTies(cupDraws).length ||
+                            cupDraws.length,
+                          stage,
+                        )}
                       </div>
                       <div className="flex flex-col items-center gap-8">
-                        {stageDraws.map((d) => (
+                        {cupDraws.map((d) => (
                           <Fixture
                             key={d.DrawId || d._id}
                             draw={d}
                             canManage={canManage}
                             onUpdated={handleDrawUpdated}
+                            knockoutFormat={tournament.KnockoutFormat}
+                            seriesGames={
+                              seriesGamesById.get(seriesKey(d)) ?? [d]
+                            }
+                            hostPicksLevel={knockoutHostPicks(
+                              tournament.TournamentMode,
+                              d,
+                            )}
                           />
                         ))}
                       </div>
+                        </>
+                      ) : null}
+                      {thirdDraws.length > 0 ? (
+                        <>
+                          <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
+                            THIRD PLACE
+                          </div>
+                          <div className="flex flex-col items-center gap-8">
+                            {thirdDraws.map((d) => (
+                              <Fixture
+                                key={d.DrawId || d._id}
+                                draw={d}
+                                canManage={canManage}
+                                onUpdated={handleDrawUpdated}
+                                knockoutFormat={tournament.KnockoutFormat}
+                                seriesGames={
+                                  seriesGamesById.get(seriesKey(d)) ?? [d]
+                                }
+                                hostPicksLevel
+                              />
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
-                  ))}
+                    );
+                  })}
                   {groupFixtureSections.map(([name, sectionDraws], index) => (
                     <FixtureGroupPanel
                       key={name}
@@ -612,20 +744,37 @@ export function TournamentView({
                   <div key={stage}>
                     <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
                       {roundLabel(
-                        stageDraws.length,
+                        tournament.TournamentMode === "MULTIPLAYER"
+                          ? groupKnockoutTies(stageDraws).length ||
+                            stageDraws.length
+                          : stageDraws.length,
                         stage,
                         tournament.TournamentMode,
                       )}
                     </div>
                     <div className="flex flex-col items-center gap-8">
-                      {stageDraws.map((d) => (
-                        <Fixture
-                          key={d.DrawId || d._id}
-                          draw={d}
-                          canManage={canManage}
-                          onUpdated={handleDrawUpdated}
-                        />
-                      ))}
+                        {stageDraws.map((d) => (
+                          <Fixture
+                            key={d.DrawId || d._id}
+                            draw={d}
+                            canManage={canManage}
+                            onUpdated={handleDrawUpdated}
+                            knockoutFormat={
+                              tournament.TournamentMode === "MULTIPLAYER"
+                                ? tournament.KnockoutFormat
+                                : undefined
+                            }
+                            seriesGames={
+                              tournament.TournamentMode === "MULTIPLAYER"
+                                ? seriesGamesById.get(seriesKey(d)) ?? [d]
+                                : undefined
+                            }
+                            hostPicksLevel={knockoutHostPicks(
+                              tournament.TournamentMode,
+                              d,
+                            )}
+                          />
+                        ))}
                     </div>
                   </div>
                 ))
@@ -634,13 +783,15 @@ export function TournamentView({
           ))}
 
         {tab === "register" &&
-          (started ? (
+          (!registrationOpen(tournament) ? (
             <div className="mx-auto max-w-lg rounded-xl border border-surface-2 bg-surface p-8 text-center">
               <h3 className="text-xl font-semibold text-white">
                 Registration closed
               </h3>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                This tournament has already started, so new teams cannot join.
+                {started
+                  ? "This tournament has already started, so new teams cannot join."
+                  : "The registration deadline has passed."}
               </p>
             </div>
           ) : user ? (
@@ -857,7 +1008,7 @@ function resolveChampion(
   const named = tournament.Winner;
   const raw = named?.TeamName?.trim()
     ? named
-    : championFromDraws(tournament.TournamentMode, draws);
+    : championFromDraws(tournament, draws);
   if (!raw?.TeamName?.trim()) return undefined;
   if (raw.Icon) return raw;
   const match = participants.find((p) => p.TeamName === raw.TeamName);
@@ -865,40 +1016,46 @@ function resolveChampion(
 }
 
 function championFromDraws(
-  mode: Tournament["TournamentMode"],
+  tournament: Tournament,
   draws: Draw[],
 ): Teams | undefined {
-  if (mode === "BATTLEROYALE") {
-    const br = [...draws]
-      .filter((d) => d.BRTeams.length > 0 && d.Played && d.BRWinner)
-      .sort((a, b) => b.Stage - a.Stage)[0];
-    const team = br?.BRTeams.find((t) => t.TeamName === br.BRWinner);
-    if (!team) return undefined;
+  if (tournament.TournamentMode === "LEAGUE") return undefined;
+  if (tournament.TournamentMode === "BATTLEROYALE") {
+    const table = computeBrStandings(draws, {
+      PlacementPoints: tournament.BrPlacementPoints,
+      KillPoints: tournament.BrKillPoints,
+      FirstBloodPoints: tournament.BrFirstBloodPoints,
+    });
+    const champ = table[0];
+    if (!champ || (champ.Points <= 0 && champ.BestPlace === 0)) return undefined;
     return {
-      TeamName: team.TeamName,
-      Players: team.Players,
+      TeamName: champ.TeamName,
+      Players: champ.Players,
       Icon: "",
-      Points: 0,
+      Points: champ.Points,
       GoalsScored: 0,
       GoalsReceived: 0,
       GoalsDifference: 0,
     };
   }
 
-  const knockout = draws.filter(
-    (d) => !d.Group?.trim() && d.BRTeams.length === 0,
-  );
-  if (knockout.length === 0) return undefined;
-  const maxStage = Math.max(...knockout.map((d) => d.Stage));
-  const last = knockout.filter((d) => d.Stage === maxStage);
+  const ties = groupKnockoutTies(draws, false);
+  if (ties.length === 0) return undefined;
+  const maxStage = Math.max(...ties.map((tie) => tie.stage));
+  const last = ties.filter((tie) => tie.stage === maxStage);
   if (last.length !== 1) return undefined;
-  const final = last[0];
-  if (!final.Played && !isKnockoutBye(final)) return undefined;
-  if (final.Winner === "Team2") return final.Team2;
-  if (final.Winner === "Team1" || isKnockoutBye(final)) return final.Team1;
-  if (final.Team1Score > final.Team2Score) return final.Team1;
-  if (final.Team2Score > final.Team1Score) return final.Team2;
-  return undefined;
+  return knockoutTieWinner(last[0].games, tournament.KnockoutFormat) ?? undefined;
+}
+
+function knockoutHostPicks(
+  mode: Tournament["TournamentMode"],
+  draw: Draw,
+): boolean {
+  if (mode === "MULTIPLAYER") return true;
+  if (mode === "GROUPS") {
+    return isKnockoutDraw(draw) || isThirdPlaceDraw(draw);
+  }
+  return false;
 }
 
 function Details({
@@ -914,16 +1071,37 @@ function Details({
       ? [{ label: "Champion", value: champion.TeamName }]
       : []),
     { label: "Mode", value: tournament.TournamentMode },
-    ...(tournament.TournamentMode === "LEAGUE"
+    ...(tournament.TournamentMode === "LEAGUE" ||
+    tournament.TournamentMode === "GROUPS"
       ? [
           {
             label: "Return leg",
-            value: tournament.ReturnLeg ? "Yes" : "No",
+            value: tournament.ReturnLeg ? "Home and away" : "Single round",
+          },
+          {
+            label: "Points",
+            value: `${tournament.PointSystem?.Win ?? 3} for a win, ${
+              tournament.PointSystem?.Draw ?? 1
+            } for a draw`,
+          },
+          {
+            label: "Tie-break",
+            value:
+              tournament.TieBreaker === "HEAD_TO_HEAD"
+                ? "Head to head"
+                : "Goal difference",
           },
         ]
       : []),
     ...(tournament.TournamentMode === "GROUPS"
       ? [
+          {
+            label: "Groups",
+            value:
+              tournament.GroupCount > 0
+                ? String(tournament.GroupCount)
+                : "Auto",
+          },
           {
             label: "Advance per group",
             value: `${tournament.AdvancePerGroup || 2}`,
@@ -931,10 +1109,50 @@ function Details({
           {
             label: "Qualification",
             value: tournament.OwnerCanSelectQualifiers
-              ? "Table, with organiser pick if level on points"
+              ? "Table, with host pick if level on points"
               : "Top of each group table",
           },
         ]
+      : []),
+    ...(tournament.TournamentMode === "MULTIPLAYER" ||
+    tournament.TournamentMode === "GROUPS"
+      ? [
+          {
+            label: "Knockout",
+            value: `${
+              tournament.KnockoutFormat === "TWO_LEG"
+                ? "Two legs"
+                : tournament.KnockoutFormat === "BO3"
+                  ? "Best of 3"
+                  : tournament.KnockoutFormat === "BO5"
+                    ? "Best of 5"
+                    : "Single match"
+            }${tournament.ThirdPlace ? " · 3rd place" : ""}`,
+          },
+        ]
+      : []),
+    ...(tournament.TournamentMode === "BATTLEROYALE"
+      ? [
+          {
+            label: "Lobbies",
+            value: String(tournament.BrLobbyCount || 1),
+          },
+          {
+            label: "Kill points",
+            value: String(tournament.BrKillPoints ?? 1),
+          },
+        ]
+      : []),
+    ...(tournament.RegistrationDeadline
+      ? [
+          {
+            label: "Registration closes",
+            value: tournament.RegistrationDeadline,
+          },
+        ]
+      : []),
+    ...(tournament.CheckInRequired
+      ? [{ label: "Check-in", value: "Required" }]
       : []),
     { label: "Team size", value: tournament.Team },
     { label: "Visibility", value: tournament.TournamentType },

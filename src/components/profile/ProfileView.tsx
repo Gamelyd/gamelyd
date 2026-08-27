@@ -17,7 +17,7 @@ import {
   changePasswordAction,
   updateProfileAction,
 } from "@/server/actions/userActions";
-import { playerIconFor } from "@/lib/icons";
+import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 
 export function ProfileView({
   profile,
@@ -37,13 +37,11 @@ export function ProfileView({
 
   return (
     <div>
-      <section className="border-b border-surface-2 bg-bg">
+      <section className="border-b border-primary/20 bg-primary-panel">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-5 py-12 text-center">
-          <div className="relative h-24 w-24 overflow-hidden rounded-full bg-surface-2 ring-2 ring-white/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={playerIconFor(profile.user_id)}
-              alt=""
+          <div className="relative h-24 w-24 overflow-hidden rounded-full bg-surface-2 ring-2 ring-primary/40">
+            <CatalogAvatar
+              userId={profile.user_id}
               className="h-full w-full object-cover"
             />
           </div>
@@ -73,7 +71,7 @@ export function ProfileView({
       </section>
 
       <section className="mx-auto max-w-5xl px-5 pb-16">
-        <h2 className="mb-4 text-xl font-semibold text-white">
+        <h2 className="mb-4 font-display text-2xl text-white">
           Recently created
         </h2>
         {created.length === 0 ? (
@@ -157,8 +155,8 @@ export function ProfileView({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-white/20 bg-surface p-5 text-center shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
-      <p className="text-2xl font-bold text-primary">{value}</p>
+    <div className="arena-panel arena-hud-corners p-5 text-center">
+      <p className="font-display text-3xl text-primary">{value}</p>
       <p className="mt-1 text-sm text-body">{label}</p>
     </div>
   );

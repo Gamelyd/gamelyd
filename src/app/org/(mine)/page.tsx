@@ -69,14 +69,14 @@ export default function OrgsIndexPage() {
       <section className="mx-auto max-w-6xl px-5 py-10">
         {invites.length > 0 && (
           <div className="mb-10">
-            <h2 className="mb-4 text-xl font-semibold text-white">
+            <h2 className="mb-4 font-display text-2xl text-white">
               Pending invites
             </h2>
             <div className="flex flex-col gap-3">
               {invites.map((invite) => (
                 <div
                   key={invite.invite_id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-2 bg-surface p-4"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary-panel p-4"
                 >
                   <p className="text-sm text-white">
                     You&apos;ve been invited to join{" "}
@@ -106,11 +106,11 @@ export default function OrgsIndexPage() {
           </div>
         )}
 
-        <h2 className="mb-4 text-xl font-semibold text-white">
+        <h2 className="mb-4 font-display text-2xl text-white">
           Your organizations
         </h2>
         {orgs.length === 0 ? (
-          <div className="rounded-xl border border-white/15 bg-surface py-16 text-center text-body">
+          <div className="arena-panel py-16 text-center text-body">
             You don&apos;t belong to any organizations yet.{" "}
             <Link href="/org/new" className="text-primary hover:underline">
               Create one
@@ -123,7 +123,7 @@ export default function OrgsIndexPage() {
               <Link
                 key={org.org_id}
                 href={`/org/${org.org_id}`}
-                className="flex items-center gap-4 rounded-xl border border-white/20 bg-surface p-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] hover:border-primary"
+                className="arena-panel arena-hud-corners flex items-center gap-4 p-5 hover:border-primary"
               >
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-4">
                   {org.image ? (

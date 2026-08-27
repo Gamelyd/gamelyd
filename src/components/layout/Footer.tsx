@@ -16,7 +16,7 @@ const socials: { icon: string; label: string }[] = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-surface-2 bg-surface">
+    <footer className="relative z-1 border-t border-primary/20 bg-primary-panel">
       <div className="mx-auto max-w-7xl px-5 py-10">
         <Image
           src="/images/logoWhite.png"
@@ -41,7 +41,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-surface-2 pt-6">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-primary/20 pt-6">
           <p className="text-sm text-body">
             © {new Date().getFullYear()} Gamelyd Inc. All rights reserved.
           </p>

@@ -10,25 +10,24 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
   return (
     <Link
       href={`/tournament/${tournament.TournamentId}`}
-      className={`group relative flex flex-col overflow-hidden rounded-xl bg-surface-4 ${paymentFrame(tournament.Payment)}`}
+      className={`group relative flex h-full min-h-55 flex-col overflow-hidden rounded-xl bg-surface-4 ${paymentFrame(tournament.Payment)}`}
     >
-      <div className="relative h-40 w-full bg-black">
-        <Image
-          src={image}
-          alt={tournament.Name}
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 280px"
-          quality={90}
-          className="object-contain"
-        />
-      </div>
+      <Image
+        src={image}
+        alt={tournament.Name}
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 280px"
+        quality={90}
+        className="z-0 object-cover"
+      />
+      <div className="absolute inset-0 z-1 bg-linear-to-t from-black via-black/45 to-black/10" />
 
-      <div className="absolute left-3 top-3">
+      <div className="absolute left-3 top-3 z-2">
         <Tag payment={tournament.Payment} className="rounded-md" />
       </div>
 
       {tournament.OrgId && tournament.OrgName && (
-        <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-primary">
+        <div className="absolute right-3 top-3 z-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] font-medium text-primary">
           {tournament.OrgIcon && (
             <Image
               src={tournament.OrgIcon}
@@ -42,7 +41,7 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
         </div>
       )}
 
-      <div className="relative flex min-h-[71px] w-full flex-col justify-center bg-black px-3 py-2">
+      <div className="relative z-2 mt-auto w-full px-3 py-3">
         <span className="line-clamp-1 font-display text-[20px] leading-tight text-white">
           {tournament.Name}
         </span>
@@ -60,7 +59,7 @@ export function EmptyTournaments({
   message?: string;
 }) {
   return (
-    <div className="col-span-full rounded-xl border border-white/15 bg-surface py-16 text-center text-body shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
+    <div className="col-span-full rounded-2xl border border-primary/25 bg-primary-panel py-16 text-center text-body">
       {message}
     </div>
   );

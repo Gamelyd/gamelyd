@@ -24,7 +24,7 @@ export function CreateOrgBanner() {
   };
 
   return (
-    <div className="border-b border-surface-2 bg-primary-panel">
+    <div className="border-b border-primary/20 bg-primary-panel">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3">
         <p className="text-sm text-white">
           You don&apos;t belong to an organization yet. Create one to host

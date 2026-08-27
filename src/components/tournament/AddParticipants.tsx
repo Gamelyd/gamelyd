@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { searchUsersAction } from "@/server/actions/userActions";
@@ -9,18 +10,23 @@ import { addParticipantsAction } from "@/server/actions/tournamentActions";
 import { rosterSize, type TeamSize } from "@/lib/schemas/common";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { User } from "@/lib/schemas/user";
-import { playerIconFor } from "@/lib/icons";
+import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
+
+const NEW_TEAM = "";
 
 export function AddParticipants({
   tournamentId,
   teamSize,
   started,
+  participants,
   existingUserIds,
   onAdded,
 }: {
   tournamentId: string;
   teamSize: TeamSize;
   started: boolean;
+  participants: RegisterTournament[];
   existingUserIds: string[];
   onAdded: (registration: RegisterTournament) => void;
 }) {
@@ -30,13 +36,28 @@ export function AddParticipants({
   const [results, setResults] = useState<User[]>([]);
   const [picked, setPicked] = useState<User[]>([]);
   const [teamName, setTeamName] = useState("");
+  const [target, setTarget] = useState(NEW_TEAM);
   const [loading, setLoading] = useState(false);
+
+  const openTeams = useMemo(
+    () =>
+      participants.filter(
+        (team) => (team.Players ?? []).length < needed,
+      ),
+    [participants, needed],
+  );
+
+  const selectedTeam = openTeams.find((team) => team.TeamName === target);
+  const filled = selectedTeam ? (selectedTeam.Players ?? []).length : 0;
+  const spotsLeft = Math.max(
+    needed - filled - picked.length,
+    0,
+  );
 
   const taken = new Set([
     ...existingUserIds,
     ...picked.map((u) => u.user_id),
   ]);
-  const spotsLeft = Math.max(needed - picked.length, 0);
 
   const runSearch = async (value: string) => {
     setSearch(value);
@@ -51,8 +72,8 @@ export function AddParticipants({
   };
 
   const pick = (u: User) => {
-    if (taken.has(u.user_id) || picked.length >= needed) return;
-    if (needed === 1) {
+    if (taken.has(u.user_id) || spotsLeft <= 0) return;
+    if (needed === 1 && target === NEW_TEAM) {
       void submitWith([u]);
       return;
     }
@@ -61,10 +82,23 @@ export function AddParticipants({
     setResults([]);
   };
 
+  const changeTarget = (value: string) => {
+    setTarget(value);
+    setPicked([]);
+    setSearch("");
+    setResults([]);
+  };
+
   const submitWith = async (users: User[]) => {
-    if (users.length !== needed) {
+    if (users.length < 1) {
+      toast.error("Pick at least one player");
+      return;
+    }
+    if (users.length > needed - filled) {
       toast.error(
-        `This ${teamSize.toLowerCase()} tournament needs ${needed} player${needed === 1 ? "" : "s"}.`,
+        `This ${teamSize.toLowerCase()} team only has ${needed - filled} spot${
+          needed - filled === 1 ? "" : "s"
+        } left.`,
       );
       return;
     }
@@ -72,6 +106,7 @@ export function AddParticipants({
     const result = await addParticipantsAction(tournamentId, {
       userIds: users.map((u) => u.user_id),
       teamName,
+      existingTeamName: target,
     });
     setLoading(false);
     if (result.ok) {
@@ -81,12 +116,13 @@ export function AddParticipants({
       setTeamName("");
       setSearch("");
       setResults([]);
+      if (target && (result.data.Players?.length ?? 0) >= needed) {
+        setTarget(NEW_TEAM);
+      }
     } else {
       toast.error(result.error);
     }
   };
-
-  const submit = () => submitWith(picked);
 
   if (started) {
     return (
@@ -96,8 +132,28 @@ export function AddParticipants({
     );
   }
 
+  const sizeWord =
+    teamSize === "SQUAD" ? "squad" : teamSize === "DUO" ? "duo" : "solo";
+  const addingToExisting = Boolean(target);
+  const canSubmit = picked.length > 0 && spotsLeft >= 0;
+
   return (
     <div className="flex flex-col gap-4">
+      {needed > 1 ? (
+        <Select
+          label="Add to"
+          value={target}
+          onChange={(e) => changeTarget(e.target.value)}
+          options={[
+            { value: NEW_TEAM, label: "New team" },
+            ...openTeams.map((team) => ({
+              value: team.TeamName,
+              label: `${team.TeamName} (${(team.Players ?? []).length}/${needed})`,
+            })),
+          ]}
+        />
+      ) : null}
+
       <Input
         label="Search users"
         placeholder="Type a username or name"
@@ -106,7 +162,7 @@ export function AddParticipants({
         disabled={spotsLeft === 0 || loading}
       />
       {results.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-surface-2 bg-bg">
+        <div className="max-h-56 overflow-y-auto rounded-lg border border-surface-2 bg-bg">
           {results.map((u) => (
             <button
               key={u.user_id}
@@ -114,10 +170,8 @@ export function AddParticipants({
               onClick={() => pick(u)}
               className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-body hover:bg-surface-2 hover:text-white"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={playerIconFor(u.user_id)}
-                alt=""
+              <CatalogAvatar
+                userId={u.user_id}
                 className="h-8 w-8 rounded-full object-cover"
               />
               <span>
@@ -154,9 +208,9 @@ export function AddParticipants({
         </div>
       ) : null}
 
-      {needed > 1 ? (
+      {needed > 1 && !addingToExisting ? (
         <Input
-          label="Team name (optional)"
+          label="Team name"
           placeholder="Defaults to the players’ usernames"
           value={teamName}
           onChange={(e) => setTeamName(e.target.value)}
@@ -165,19 +219,21 @@ export function AddParticipants({
 
       <p className="text-xs text-body">
         {needed === 1
-          ? "Solo event — pick a user to add them immediately."
-          : `Pick ${needed} players, then add them as one team (${picked.length}/${needed}).`}
+          ? "Solo event — pick a user to add them as their own team."
+          : addingToExisting
+            ? `Adding to ${target}. ${spotsLeft} of ${needed} ${sizeWord} spots left after this pick (${picked.length} selected).`
+            : `New ${sizeWord}: add 1–${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected).`}
       </p>
 
-      {needed > 1 ? (
+      {needed > 1 || picked.length > 0 ? (
         <div>
           <Button
             type="button"
             loading={loading}
-            disabled={picked.length !== needed}
-            onClick={() => void submit()}
+            disabled={!canSubmit || loading}
+            onClick={() => void submitWith(picked)}
           >
-            Add to tournament
+            {addingToExisting ? "Add to team" : "Create team"}
           </Button>
         </div>
       ) : null}
@@ -195,21 +251,41 @@ export function RegisteredTeamsList({
   }
 
   return (
-    <ul className="mt-6 divide-y divide-surface-2 border-t border-surface-2">
-      {participants.map((p) => (
-        <li
-          key={p.RegisterTournamentId || p._id}
-          className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
-        >
-          <span className="font-medium text-white">{p.TeamName}</span>
-          <span className="text-body">
-            {(p.Players ?? [])
-              .map((pl) => pl.UserName)
-              .filter(Boolean)
-              .join(", ") || "No players listed"}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="mt-6">
+      <CollapsiblePanel title="Registered teams" count={participants.length}>
+        <ul className="divide-y divide-surface-2">
+          {participants.map((p) => (
+            <li
+              key={p.RegisterTournamentId || p._id}
+              className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
+            >
+              <span className="font-medium text-white">{p.TeamName}</span>
+              <span className="text-body">
+                {(p.Players ?? [])
+                  .map((pl) => pl.UserName)
+                  .filter(Boolean)
+                  .join(", ") || "No players listed"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CollapsiblePanel>
+    </div>
   );
 }
+
+function upsertParticipant(
+  prev: RegisterTournament[],
+  next: RegisterTournament,
+): RegisterTournament[] {
+  const id = next.RegisterTournamentId || next._id;
+  const index = prev.findIndex(
+    (p) => (p.RegisterTournamentId || p._id) === id || p.TeamName === next.TeamName,
+  );
+  if (index < 0) return [...prev, next];
+  const copy = [...prev];
+  copy[index] = next;
+  return copy;
+}
+
+export { upsertParticipant };

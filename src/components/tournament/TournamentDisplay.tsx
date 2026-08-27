@@ -41,7 +41,7 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
   return (
     <Link
       href={`/tournament/${tournament.TournamentId}`}
-      className={`group flex min-h-44 overflow-hidden rounded-xl bg-surface ${paymentFrame(tournament.Payment)}`}
+      className={`group flex min-h-44 overflow-hidden rounded-2xl bg-primary-panel ${paymentFrame(tournament.Payment)}`}
     >
       <div className="relative w-32 shrink-0 bg-black sm:w-36">
         <Image
@@ -50,7 +50,7 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
           fill
           sizes="144px"
           quality={90}
-          className="object-contain"
+          className="object-cover"
         />
         <div className="absolute left-3 top-3">
           <Tag payment={tournament.Payment} className="rounded-md" />
@@ -106,17 +106,18 @@ export function EmptyTournamentDisplay() {
   return (
     <Link
       href="/contact-us"
-      className="group flex min-h-44 items-center overflow-hidden rounded-xl border border-white/20 bg-surface px-5 py-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]"
+      className="group arena-panel arena-hud-corners flex min-h-44 items-center overflow-hidden px-5 py-5"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
           Open slot
         </p>
         <h3 className="mt-1 font-display text-xl text-white sm:text-2xl">
           Feature your tournament
         </h3>
         <p className="mt-2 max-w-sm text-sm text-body">
-          Admins can pin two events to this banner. Contact us to get listed.
+          Two events sit in this banner. Contact us after your tournament is
+          live to get listed.
         </p>
         <span className="mt-4 inline-flex items-center rounded-lg border border-primary px-4 py-2 text-sm font-semibold text-primary group-hover:bg-primary group-hover:text-[#04201e]">
           Contact us

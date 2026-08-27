@@ -12,7 +12,7 @@ const payments: { label: string; value: string }[] = [
 
 const modes: { label: string; value: string }[] = [
   { label: "All", value: "ALL" },
-  { label: "Multiplayer", value: "MULTIPLAYER" },
+  { label: "Knockout", value: "MULTIPLAYER" },
   { label: "Battle Royale", value: "BATTLEROYALE" },
   { label: "Groups", value: "GROUPS" },
   { label: "League", value: "LEAGUE" },

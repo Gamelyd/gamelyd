@@ -8,6 +8,7 @@ import { TextArea } from "@/components/ui/TextArea";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { submitContactAction } from "@/server/actions/contactActions";
+import { Reveal } from "@/components/ui/Reveal";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ Name: "", Email: "", Message: "" });
@@ -31,13 +32,18 @@ export default function ContactPage() {
     <SiteLayout>
       <PageHeader
         kicker="Support"
-        title="Get in touch"
-        description="Questions, feedback, or partnerships — send a message and we will get back to you."
+        title="Open a line"
+        description="Questions about a cup, hosting, or a partnership — send a message. We read everything that lands here."
         width="max-w-5xl"
       />
 
-      <section className="mx-auto grid max-w-5xl gap-10 px-5 py-16 md:grid-cols-2">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <section className="mx-auto max-w-5xl px-5 py-16">
+        <Reveal>
+          <div className="grid gap-6 md:grid-cols-2">
+        <form
+          onSubmit={handleSubmit}
+          className="arena-panel arena-hud-corners flex flex-col gap-4 p-5 sm:p-6"
+        >
           <Input
             label="Name"
             value={form.Name}
@@ -63,26 +69,28 @@ export default function ContactPage() {
           </Button>
         </form>
 
-        <div className="space-y-6 text-body">
+        <div className="arena-panel arena-hud-corners space-y-6 p-5 text-body sm:p-6">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Email
             </h3>
             <p className="mt-1">contact@gamelyd.com</p>
           </div>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Website
             </h3>
             <p className="mt-1">www.gamelyd.co</p>
           </div>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Support hours
             </h3>
             <p className="mt-1">Monday – Friday, 9am – 6pm WAT</p>
           </div>
         </div>
+          </div>
+        </Reveal>
       </section>
     </SiteLayout>
   );

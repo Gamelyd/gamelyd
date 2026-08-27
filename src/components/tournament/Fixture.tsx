@@ -9,10 +9,18 @@ import {
   addLinkAction,
   addScoreAction,
   addTimeAction,
+  addWinnerAction,
+  updateBrDrawAction,
 } from "@/server/actions/drawActions";
 import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
 import { leagueMatchdayLabel } from "@/lib/leagueStandings";
 import { isKnockoutBye } from "@/lib/knockoutSeed";
+import {
+  lastPlayedInTie,
+  legCaption,
+  tieNeedsHostPick,
+} from "@/lib/knockoutSeries";
+import type { KnockoutFormat } from "@/lib/schemas/common";
 
 function scoreTone(
   self: number,
@@ -35,25 +43,46 @@ export function Fixture({
   draw,
   canManage,
   onUpdated,
+  knockoutFormat,
+  seriesGames,
+  hostPicksLevel,
 }: {
   draw: Draw;
   canManage: boolean;
   onUpdated: (draw: Draw) => void;
+  knockoutFormat?: KnockoutFormat;
+  seriesGames?: Draw[];
+  hostPicksLevel?: boolean;
 }) {
   if (draw.BRTeams.length > 0) {
     return <BrFixture draw={draw} canManage={canManage} onUpdated={onUpdated} />;
   }
-  return <MpFixture draw={draw} canManage={canManage} onUpdated={onUpdated} />;
+  return (
+    <MpFixture
+      draw={draw}
+      canManage={canManage}
+      onUpdated={onUpdated}
+      knockoutFormat={knockoutFormat}
+      seriesGames={seriesGames}
+      hostPicksLevel={hostPicksLevel}
+    />
+  );
 }
 
 function MpFixture({
   draw,
   canManage,
   onUpdated,
+  knockoutFormat,
+  seriesGames,
+  hostPicksLevel,
 }: {
   draw: Draw;
   canManage: boolean;
   onUpdated: (draw: Draw) => void;
+  knockoutFormat?: KnockoutFormat;
+  seriesGames?: Draw[];
+  hostPicksLevel?: boolean;
 }) {
   const toast = useToast();
   const [mode, setMode] = useState<EditMode>(null);
@@ -65,6 +94,26 @@ function MpFixture({
   const [saving, setSaving] = useState(false);
 
   const autoBye = isKnockoutBye(draw);
+  const seriesLabel = legCaption(draw, knockoutFormat);
+  const tieGames = seriesGames?.length ? seriesGames : [draw];
+  const pickSurface = lastPlayedInTie(tieGames);
+  const needsWinner =
+    Boolean(hostPicksLevel) &&
+    !autoBye &&
+    pickSurface?.DrawId === draw.DrawId &&
+    tieNeedsHostPick(tieGames, knockoutFormat);
+
+  const pickWinner = async (side: "Team1" | "Team2") => {
+    setSaving(true);
+    const result = await addWinnerAction(draw.DrawId, { Winner: side });
+    setSaving(false);
+    if (result.ok) {
+      toast.success("Winner set");
+      onUpdated(result.data);
+    } else {
+      toast.error(result.error);
+    }
+  };
   const t1 = draw.Team1;
   const t2 = draw.Team2;
   const tone1 = scoreTone(draw.Team1Score, draw.Team2Score);
@@ -132,6 +181,15 @@ function MpFixture({
 
   return (
     <div className="relative flex w-full max-w-[720px] flex-col items-center px-2 py-6">
+      {seriesLabel ? (
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+          {draw.Kind === "THIRD_PLACE" ? `Third place · ${seriesLabel}` : seriesLabel}
+        </p>
+      ) : draw.Kind === "THIRD_PLACE" ? (
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+          Third place
+        </p>
+      ) : null}
       {canManage && !autoBye && (
         <ManageMenu
           onSelect={(next) => {
@@ -175,6 +233,31 @@ function MpFixture({
         />
       </div>
       )}
+
+      {canManage && needsWinner ? (
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <p className="w-full text-center text-xs text-body">
+            {knockoutFormat === "TWO_LEG"
+              ? "Level on aggregate — pick who goes through"
+              : "Level score — pick who goes through"}
+          </p>
+          <Button
+            type="button"
+            loading={saving}
+            onClick={() => void pickWinner("Team1")}
+          >
+            {t1?.TeamName || "Team 1"} wins
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            loading={saving}
+            onClick={() => void pickWinner("Team2")}
+          >
+            {t2?.TeamName || "Team 2"} wins
+          </Button>
+        </div>
+      ) : null}
 
       {!autoBye && (
       <div className="mt-4 flex min-h-6 flex-wrap items-center justify-center gap-x-4 text-[15.5px] font-bold text-white">
@@ -480,29 +563,28 @@ function BrFixture({
   const [date, setDate] = useState(draw.Date);
   const [time, setTime] = useState(draw.Time);
   const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState(draw.BRTeams);
+
+  const saveResults = async () => {
+    setSaving(true);
+    const result = await updateBrDrawAction(draw.DrawId, {
+      Players: rows,
+      Link: link,
+      Date: date,
+      Time: time,
+    });
+    setSaving(false);
+    if (result.ok) {
+      toast.success("Lobby result saved");
+      onUpdated(result.data);
+      setOpen(false);
+    } else {
+      toast.error(result.error);
+    }
+  };
 
   const saveMeta = async () => {
-    setSaving(true);
-    if (date && time) {
-      const timed = await addTimeAction(draw.DrawId, { Time: time, Date: date });
-      if (!timed.ok) {
-        setSaving(false);
-        toast.error(timed.error);
-        return;
-      }
-      onUpdated(timed.data);
-    }
-    if (link.trim()) {
-      const linked = await addLinkAction(draw.DrawId, { Link: link.trim() });
-      if (!linked.ok) {
-        setSaving(false);
-        toast.error(linked.error);
-        return;
-      }
-      onUpdated(linked.data);
-    }
-    setSaving(false);
-    toast.success("Fixture updated");
+    await saveResults();
   };
 
   return (
@@ -510,74 +592,101 @@ function BrFixture({
       {canManage && (
         <ManageMenu
           onSelect={() => {
+            setRows(draw.BRTeams);
             setOpen(true);
           }}
         />
       )}
-      <h4 className="mb-4 text-center font-display text-xl text-white">
-        Battle Royale lobby
+      <h4 className="mb-1 text-center font-display text-xl text-white">
+        Lobby {draw.Stage}
       </h4>
+      {draw.Played ? (
+        <p className="mb-4 text-center text-xs uppercase tracking-wide text-primary">
+          Result in
+        </p>
+      ) : (
+        <p className="mb-4 text-center text-xs text-body">Awaiting placement</p>
+      )}
       <ul className="divide-y divide-white/10">
-        {draw.BRTeams.map((team, i) => (
-          <li key={`${team.TeamName}-${i}`} className="flex items-start gap-3 py-3">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-deep font-display text-sm text-white">
-              {i + 1}
-            </span>
-            <div className="min-w-0">
-              <p className="font-display text-lg leading-none text-white">
-                {team.TeamName}
-              </p>
-              <p className="mt-1 text-xs text-body">
-                {team.Players.map((p) => p.UserName).filter(Boolean).join(" · ") ||
-                  "No players listed"}
-              </p>
+        {(open ? rows : draw.BRTeams).map((team, i) => (
+          <li key={`${team.TeamName}-${i}`} className="flex flex-col gap-2 py-3">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-deep font-display text-sm text-white">
+                {team.Placement || i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-lg leading-none text-white">
+                  {team.TeamName}
+                </p>
+                <p className="mt-1 text-xs text-body">
+                  {team.Players.map((p) => p.UserName).filter(Boolean).join(" · ") ||
+                    "No players listed"}
+                  {!open && team.Kills
+                    ? ` · ${team.Kills} kill${team.Kills === 1 ? "" : "s"}`
+                    : ""}
+                </p>
+              </div>
             </div>
+            {canManage && open ? (
+              <div className="grid grid-cols-3 gap-2 pl-11">
+                <Input
+                  type="number"
+                  min={1}
+                  max={draw.BRTeams.length}
+                  label="Place"
+                  value={team.Placement || ""}
+                  onChange={(e) => {
+                    const next = [...rows];
+                    next[i] = {
+                      ...team,
+                      Placement: Number(e.target.value) || 0,
+                    };
+                    setRows(next);
+                  }}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  label="Kills"
+                  value={team.Kills}
+                  onChange={(e) => {
+                    const next = [...rows];
+                    next[i] = { ...team, Kills: Number(e.target.value) || 0 };
+                    setRows(next);
+                  }}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  label="First bloods"
+                  value={team.FirstBloods}
+                  onChange={(e) => {
+                    const next = [...rows];
+                    next[i] = {
+                      ...team,
+                      FirstBloods: Number(e.target.value) || 0,
+                    };
+                    setRows(next);
+                  }}
+                />
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 text-sm font-bold text-white">
-        {canManage ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="cursor-pointer hover:text-primary"
-          >
-            {draw.Date || "Date TBD"}
-          </button>
-        ) : (
-          <span>{draw.Date || "Date TBD"}</span>
-        )}
+        <span>{draw.Date || "Date TBD"}</span>
         <span className="text-white/40">|</span>
-        {canManage ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="cursor-pointer hover:text-primary"
+        <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
+        {draw.Link ? (
+          <a
+            href={draw.Link}
+            target="_blank"
+            rel="noreferrer"
+            className="text-cyan hover:underline"
           >
-            {draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}
-          </button>
-        ) : (
-          <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
-        )}
-        {draw.Link || canManage ? (
-          canManage ? (
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="cursor-pointer text-cyan hover:underline"
-            >
-              {draw.Link ? "Join match" : "Add link"}
-            </button>
-          ) : (
-            <a
-              href={draw.Link}
-              target="_blank"
-              rel="noreferrer"
-              className="text-cyan hover:underline"
-            >
-              Join match
-            </a>
-          )
+            Join match
+          </a>
         ) : null}
       </div>
       {canManage && open && (
@@ -601,7 +710,7 @@ function BrFixture({
           />
           <div className="sm:col-span-3">
             <Button loading={saving} onClick={saveMeta}>
-              Save
+              Save result
             </Button>
           </div>
         </div>
@@ -615,6 +724,7 @@ export function roundLabel(
   stage: number,
   mode?: string,
 ): string {
+  if (mode === "BATTLEROYALE") return `LOBBY ${stage}`;
   if (mode === "LEAGUE") return leagueMatchdayLabel(stage);
   if (matchCount < 2) return "FINALS";
   if (matchCount < 3) return "SEMI FINALS";

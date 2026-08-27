@@ -35,6 +35,7 @@ import {
   listTournamentManagers,
   listUserTournaments,
   listUserTournamentsLimit,
+  checkInForTournament,
   registerForTournament,
   removeTournamentManager,
   removeUserFromTournament,
@@ -43,6 +44,7 @@ import {
   adminAddParticipants,
   setGroupQualifiers,
   disqualifyTeam,
+  removeRegisteredTeam,
   toggleDeleteTournament,
   toggleSuspendTournament,
   updateTournament,
@@ -160,6 +162,23 @@ export async function registerForTournamentAction(
   }
 }
 
+export async function checkInForTournamentAction(
+  tournamentId: string,
+): Promise<ActionResult<RegisterTournament>> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  try {
+    return ok(
+      await checkInForTournament(claims.uid, tournamentId),
+      "You're checked in",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong checking in");
+  }
+}
+
 export async function listParticipantsAction(
   tournamentId: string,
 ): Promise<ActionResult<RegisterTournament[]>> {
@@ -224,8 +243,8 @@ export async function removeUserAction(
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
   if (claims.uid !== userId) {
-    const denied = await guardManageTournament(tournamentId);
-    if (denied) return denied;
+    const admin = await requireTournamentAdmin(tournamentId);
+    if (!admin.ok) return admin;
   }
   try {
     return ok(
@@ -364,6 +383,24 @@ export async function disqualifyTeamAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Something went wrong disqualifying that team");
+  }
+}
+
+export async function removeRegisteredTeamAction(
+  tournamentId: string,
+  teamName: string,
+): Promise<ActionResult<{ teamName: string; groups: TournamentGroup[] }>> {
+  const admin = await requireTournamentAdmin(tournamentId);
+  if (!admin.ok) return admin;
+  try {
+    return ok(
+      await removeRegisteredTeam(admin.uid, tournamentId, teamName),
+      "Team removed",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Something went wrong removing that team");
   }
 }
 

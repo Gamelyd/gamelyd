@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin/orgs", label: "Organizations" },
   { href: "/admin/tournaments", label: "Tournaments" },
   { href: "/admin/games", label: "Games" },
+  { href: "/admin/images", label: "Images" },
   { href: "/admin/platforms", label: "Platforms" },
 ];
 
@@ -32,8 +33,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 href={item.href}
                 className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-body hover:bg-surface-2 hover:text-white"
+                    ? "border border-primary/40 bg-primary/15 text-primary"
+                    : "border border-transparent text-body hover:border-primary/20 hover:bg-primary-panel hover:text-white"
                 }`}
               >
                 {item.label}

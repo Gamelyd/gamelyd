@@ -21,12 +21,19 @@ import {
   newDrawAction,
 } from "@/server/actions/drawActions";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
-import { isKnockoutMatchSettled } from "@/lib/knockoutSeed";
 import { groupTournamentAction } from "@/server/actions/tournamentActions";
 import {
   asDisqualifiedSet,
   groupQualifiersComplete,
 } from "@/lib/groupQualifiers";
+import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
+import {
+  groupKnockoutTies,
+  isKnockoutTieSettled,
+  knockoutTieWinner,
+  knockoutFormatLabel,
+  tiesAtStage,
+} from "@/lib/knockoutSeries";
 
 type Pending =
   | "start"
@@ -77,29 +84,28 @@ export function TournamentStageControls({
     tournament.TournamentMode === "LEAGUE" &&
     (started || tournament.IsDrawn || draws.length > 0);
 
-  const groupDraws = useMemo(
-    () => draws.filter((d) => Boolean(d.Group?.trim())),
-    [draws],
-  );
-  const knockoutDraws = useMemo(
-    () => draws.filter((d) => !d.Group?.trim() && d.BRTeams.length === 0),
-    [draws],
-  );
+  const groupDraws = useMemo(() => draws.filter(isGroupDraw), [draws]);
+  const knockoutDraws = useMemo(() => draws.filter(isKnockoutDraw), [draws]);
+  const format = tournament.KnockoutFormat;
   const groupStageDrawn = groupDraws.length > 0;
   const knockoutDrawn = knockoutDraws.length > 0;
   const allGroupPlayed =
     groupStageDrawn && groupDraws.every((d) => d.Played);
-  const maxKnockoutStage = knockoutDrawn
-    ? Math.max(...knockoutDraws.map((d) => d.Stage))
-    : 0;
-  const latestKnockoutRound = knockoutDraws.filter(
-    (d) => d.Stage === maxKnockoutStage,
+  const knockoutTies = useMemo(
+    () => groupKnockoutTies(knockoutDraws, false),
+    [knockoutDraws],
   );
+  const maxKnockoutStage = knockoutDrawn
+    ? Math.max(...knockoutTies.map((tie) => tie.stage))
+    : 0;
+  const latestKnockoutTies = tiesAtStage(knockoutTies, maxKnockoutStage);
   const knockoutRoundComplete =
-    latestKnockoutRound.length > 0 &&
-    latestKnockoutRound.every((d) => isKnockoutMatchSettled(d));
+    latestKnockoutTies.length > 0 &&
+    latestKnockoutTies.every((tie) =>
+      isKnockoutTieSettled(tie.games, format),
+    );
   const knockoutDecided =
-    knockoutRoundComplete && latestKnockoutRound.length === 1;
+    knockoutRoundComplete && latestKnockoutTies.length === 1;
 
   const standingSections = useMemo(
     () =>
@@ -109,9 +115,10 @@ export function TournamentStageControls({
           group.Teams,
           draws.filter((d) => d.Group === group.GroupName),
           tournament.PointSystem,
+          tournament.TieBreaker,
         ),
       })),
-    [groups, draws, tournament.PointSystem],
+    [groups, draws, tournament.PointSystem, tournament.TieBreaker],
   );
   const picksComplete = groupQualifiersComplete(
     standingSections,
@@ -240,27 +247,24 @@ export function TournamentStageControls({
   };
 
   const requestKnockoutNext = () => {
-    const remaining = latestKnockoutRound.filter(
-      (d) => !isKnockoutMatchSettled(d),
+    const remaining = latestKnockoutTies.filter(
+      (tie) => !isKnockoutTieSettled(tie.games, format),
     ).length;
     if (remaining > 0) {
       toast.error(
-        `${remaining} match${
-          remaining === 1 ? "" : "es"
+        `${remaining} tie${
+          remaining === 1 ? "" : "s"
         } in this round still need a result.`,
       );
       return;
     }
-    const ties = latestKnockoutRound.filter(
-      (d) =>
-        Boolean(d.Team2?.TeamName) &&
-        d.Winner === "" &&
-        d.Team1Score === d.Team2Score,
+    const open = latestKnockoutTies.filter(
+      (tie) => !knockoutTieWinner(tie.games, format),
     ).length;
-    if (ties > 0) {
+    if (open > 0) {
       toast.error(
-        `${ties} tie${
-          ties === 1 ? "" : "s"
+        `${open} tie${
+          open === 1 ? "" : "s"
         } ended level — set a winner before drawing the next round.`,
       );
       return;
@@ -285,15 +289,19 @@ export function TournamentStageControls({
     },
     groups: {
       title: "Create groups?",
-      message:
-        "Registered teams will be split into groups and registration will close. Nobody else can join.",
+      message: `Registered teams will be split into ${
+        tournament.GroupCount > 0
+          ? `${tournament.GroupCount} groups`
+          : "groups"
+      } and registration will close. Nobody else can join.`,
       confirmLabel: "Yes, create groups",
       onConfirm: handleGroup,
     },
     groupFixtures: {
       title: "Draw group fixtures?",
-      message:
-        "Every team plays each other in its group. Teams can no longer be moved between groups after this.",
+      message: tournament.ReturnLeg
+        ? "Every pairing in a group is played twice (home and away). Teams can no longer be moved between groups after this."
+        : "Every team plays each other in its group once. Teams can no longer be moved between groups after this.",
       confirmLabel: "Yes, draw fixtures",
       onConfirm: handleDrawGroupStage,
     },
@@ -332,6 +340,9 @@ export function TournamentStageControls({
                 {tournament.ReturnLeg
                   ? " Return-leg fixtures are included."
                   : ""}
+                {tournament.TieBreaker === "HEAD_TO_HEAD"
+                  ? " Equal points are broken by head-to-head."
+                  : ""}
               </p>
               <Button loading={busy} onClick={requestDraw}>
                 Start league
@@ -355,8 +366,14 @@ export function TournamentStageControls({
                 Create groups
               </h2>
               <p className="mb-4 text-sm text-body">
-                Split registered teams into groups (min 7 teams). You can
-                fine-tune group members before drawing fixtures.
+                Split registered teams into{" "}
+                {tournament.GroupCount > 0
+                  ? `${tournament.GroupCount} groups`
+                  : "groups (auto, about four teams each)"}
+                {tournament.Shuffle === "MANUAL"
+                  ? " in registration order"
+                  : " at random"}
+                . Minimum 7 teams. You can move teams before drawing fixtures.
               </p>
               <Button loading={busy} onClick={() => setPending("groups")}>
                 Create groups
@@ -368,9 +385,11 @@ export function TournamentStageControls({
                 Draw group fixtures
               </h2>
               <p className="mb-4 text-sm text-body">
-                Generate a round-robin inside every group — each team plays all
-                others in its group. Teams can no longer be moved between groups
-                afterwards.
+                Generate a round-robin inside every group
+                {tournament.ReturnLeg
+                  ? " — each pairing once, then again with sides swapped"
+                  : " — each team plays the others in its group once"}
+                . Teams can no longer be moved between groups afterwards.
               </p>
               <Button
                 loading={busy}
@@ -430,7 +449,13 @@ export function TournamentStageControls({
             <p className="mb-4 text-sm text-body">
               {draws.length > 0
                 ? "Generate the next round of fixtures."
-                : `Generate ${tournament.Shuffle.toLowerCase()} fixtures from the registered teams. Starting closes registration.`}
+                : tournament.TournamentMode === "BATTLEROYALE"
+                  ? `Create ${tournament.BrLobbyCount || 1} lobby${
+                      (tournament.BrLobbyCount || 1) === 1 ? "" : "s"
+                    }. Placement and kill points decide the table. Starting closes registration.`
+                  : `Generate ${tournament.Shuffle.toLowerCase()} fixtures (${knockoutFormatLabel(
+                      tournament.KnockoutFormat,
+                    )}${tournament.ThirdPlace ? ", plus a 3rd place match" : ""}). Starting closes registration.`}
             </p>
             <Button loading={busy} onClick={requestDraw}>
               {draws.length > 0 ? "Draw next stage" : "Start tournament"}

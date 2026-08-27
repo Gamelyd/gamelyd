@@ -11,13 +11,14 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { createOrgAction } from "@/server/actions/orgActions";
 import { IconPicker } from "@/components/ui/IconPicker";
-import { ORG_ICONS } from "@/lib/icons";
+import { FALLBACKS } from "@/lib/icons";
+import { useIcons } from "@/hooks/useIcons";
 import type { CreateOrgInput } from "@/lib/schemas/org";
 
 const empty: CreateOrgInput = {
   name: "",
   description: "",
-  image: ORG_ICONS[0]?.url ?? "",
+  image: FALLBACKS.team,
   banner: "",
   website: "",
   twitter: "",
@@ -32,6 +33,7 @@ export default function CreateOrgPage() {
   const toast = useToast();
   const [form, setForm] = useState<CreateOrgInput>(empty);
   const [loading, setLoading] = useState(false);
+  const { icons: orgIcons, loading: orgIconsLoading } = useIcons("team");
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/signup?redirect=/org/new");
@@ -75,9 +77,10 @@ export default function CreateOrgPage() {
           />
           <IconPicker
             label="Logo"
-            icons={ORG_ICONS}
+            icons={orgIcons}
             value={form.image}
             onChange={(url) => update("image", url)}
+            loading={orgIconsLoading}
           />
           <TextArea
             label="Description"

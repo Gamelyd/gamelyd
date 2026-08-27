@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
-import { AddParticipants } from "@/components/tournament/AddParticipants";
+import { AddParticipants, upsertParticipant } from "@/components/tournament/AddParticipants";
 import {
   EditTournamentSettings,
   ManagerSettings,
@@ -16,9 +16,11 @@ import { TournamentStageControls } from "@/components/tournament/TournamentStage
 import { SelectQualifiers } from "@/components/tournament/SelectQualifiers";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
 import { deleteTournamentAction } from "@/server/actions/tournamentActions";
+import { refreshTournamentIconsAction } from "@/server/actions/tournamentIconActions";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw } from "@/lib/schemas/draw";
+import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 
 export function TournamentManageView({
@@ -49,10 +51,8 @@ export function TournamentManageView({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const canAdd =
     isPlatformAdmin || (canAdminister && tournament.OwnerCanAddParticipants);
-  const groupDraws = draws.filter((d) => Boolean(d.Group?.trim()));
-  const knockoutDrawn = draws.some(
-    (d) => !d.Group?.trim() && d.BRTeams.length === 0,
-  );
+  const groupDraws = draws.filter(isGroupDraw);
+  const knockoutDrawn = draws.some(isKnockoutDraw);
   const allGroupPlayed =
     groupDraws.length > 0 && groupDraws.every((d) => d.Played);
   const showQualifierPicker =
@@ -95,7 +95,7 @@ export function TournamentManageView({
           ) : null}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
             Manage
           </p>
           <h1 className="mt-1 font-display text-3xl text-white">
@@ -129,6 +129,7 @@ export function TournamentManageView({
                 group.Teams,
                 draws.filter((d) => d.Group === group.GroupName),
                 tournament.PointSystem,
+                tournament.TieBreaker,
               ),
             }))}
             advancePerGroup={tournament.AdvancePerGroup || 2}
@@ -143,19 +144,37 @@ export function TournamentManageView({
         {canAdminister ? (
           <div className="rounded-2xl border border-surface-2 bg-surface p-5">
             <h2 className="mb-1 text-lg font-semibold text-white">
-              Disqualify a team
+              {tournament.Start ? "Disqualify a team" : "Remove a team"}
             </h2>
             <p className="mb-4 text-sm text-body">
-              They lose every remaining match 3–0. In knockout, their opponent
-              goes through.
+              {tournament.Start
+                ? "They lose every remaining match 3–0. In knockout, their opponent goes through."
+                : "Take a team off the roster before the tournament starts."}
             </p>
             <DisqualifyTeams
               tournamentId={tournament.TournamentId}
+              started={tournament.Start}
               participants={participants}
               disqualifiedTeams={disqualifiedTeams}
-      onDisqualified={({ tournament: next, draws: nextDraws }) => {
+              onDisqualified={({ tournament: next, draws: nextDraws }) => {
                 setDisqualifiedTeams(next.DisqualifiedTeams ?? []);
                 if (nextDraws) setDraws(nextDraws);
+                router.refresh();
+              }}
+              onRemoved={({ teamName }) => {
+                setParticipants((prev) =>
+                  prev.filter((p) => p.TeamName !== teamName),
+                );
+                router.refresh();
+              }}
+              onPlayerRemoved={({ teamName, players }) => {
+                setParticipants((prev) =>
+                  players.length === 0
+                    ? prev.filter((p) => p.TeamName !== teamName)
+                    : prev.map((p) =>
+                        p.TeamName === teamName ? { ...p, Players: players } : p,
+                      ),
+                );
                 router.refresh();
               }}
             />
@@ -166,6 +185,8 @@ export function TournamentManageView({
             tournament={tournament}
             started={tournament.Start}
             registeredCount={participants.length}
+            fixturesDrawn={draws.length > 0}
+            knockoutDrawn={knockoutDrawn}
             onSaved={() => router.refresh()}
           />
         ) : null}
@@ -178,25 +199,32 @@ export function TournamentManageView({
           />
         ) : null}
 
+        {isPlatformAdmin ? (
+          <RefreshTournamentIconsCard tournamentId={tournament.TournamentId} />
+        ) : null}
+
         {canAdminister ? (
           <div className="rounded-2xl border border-surface-2 bg-surface p-5">
             <h2 className="mb-1 text-lg font-semibold text-white">
               Add players
             </h2>
             <p className="mb-4 text-sm text-body">
-              Search for an existing Gamelyd user and add them before the
-              tournament starts.
+              Add a new team, or add players to a team that still has
+              roster spots. Squads take up to four, duos two, solo one.
             </p>
             {canAdd ? (
               <AddParticipants
                 tournamentId={tournament.TournamentId}
                 teamSize={tournament.Team}
                 started={tournament.Start}
+                participants={participants}
                 existingUserIds={participants.flatMap((p) =>
                   (p.Players ?? []).map((pl) => pl.User_id),
                 )}
                 onAdded={(registration) =>
-                  setParticipants((prev) => [...prev, registration])
+                  setParticipants((prev) =>
+                    upsertParticipant(prev, registration),
+                  )
                 }
               />
             ) : (
@@ -230,6 +258,57 @@ export function TournamentManageView({
         onConfirm={() => void handleDelete()}
         onCancel={() => {
           if (!busy) setConfirmDelete(false);
+        }}
+      />
+    </div>
+  );
+}
+
+function RefreshTournamentIconsCard({
+  tournamentId,
+}: {
+  tournamentId: string;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    const result = await refreshTournamentIconsAction(tournamentId);
+    setBusy(false);
+    setConfirm(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Icons updated");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-surface-2 bg-surface p-5">
+      <h2 className="mb-1 text-lg font-semibold text-white">
+        Refresh team and player icons
+      </h2>
+      <p className="mb-4 text-sm text-body">
+        Replace every team crest and player token in this tournament with
+        images from the catalog. Download images in Admin first.
+      </p>
+      <Button variant="outline" onClick={() => setConfirm(true)}>
+        Update icons from catalog
+      </Button>
+      <Confirm
+        open={confirm}
+        title="Update icons from the catalog?"
+        message="Every team and player in this tournament will get a catalog crest or token. This does not delete the old image files."
+        confirmLabel="Update icons"
+        confirmVariant="default"
+        loading={busy}
+        onConfirm={() => void run()}
+        onCancel={() => {
+          if (!busy) setConfirm(false);
         }}
       />
     </div>

@@ -35,6 +35,7 @@ export const brTeamsSchema = z.object({
   Wins: z.number().default(0),
   Kills: z.number().default(0),
   FirstBloods: z.number().default(0),
+  Placement: z.number().int().min(0).max(64).default(0),
 });
 export type BRTeams = z.infer<typeof brTeamsSchema>;
 
@@ -57,6 +58,9 @@ export const drawSchema = z.object({
   Group: z.string().default(""),
   BRTeams: z.array(brTeamsSchema).default([]),
   Played: z.boolean().default(false),
+  SeriesId: z.string().default(""),
+  Leg: z.number().int().min(1).default(1),
+  Kind: z.string().default(""),
 });
 export type Draw = z.infer<typeof drawSchema>;
 

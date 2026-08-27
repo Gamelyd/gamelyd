@@ -17,7 +17,7 @@ import {
   adminUpdateOrgAction,
 } from "@/server/actions/adminActions";
 import { IconPicker } from "@/components/ui/IconPicker";
-import { ORG_ICONS } from "@/lib/icons";
+import { useIcons } from "@/hooks/useIcons";
 
 export default function AdminOrgDetailPage() {
   const params = useParams<{ id: string }>();
@@ -35,6 +35,7 @@ export default function AdminOrgDetailPage() {
     image: "",
     website: "",
   });
+  const { icons: orgIcons, loading: orgIconsLoading } = useIcons("team");
 
   useEffect(() => {
     let activeReq = true;
@@ -167,9 +168,10 @@ export default function AdminOrgDetailPage() {
         />
         <IconPicker
           label="Logo"
-          icons={ORG_ICONS}
+          icons={orgIcons}
           value={form.image}
           onChange={(url) => setForm({ ...form, image: url })}
+          loading={orgIconsLoading}
         />
         <Input
           label="Website"

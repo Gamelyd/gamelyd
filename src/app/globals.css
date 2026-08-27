@@ -14,7 +14,7 @@
   --color-surface-2: #252f39;
   --color-surface-3: #242e39;
   --color-surface-4: #212733;
-  --color-input: #121315;
+  --color-input: #0e3533;
 
   /* Text */
   --color-body: #b8bcbf;
@@ -575,5 +575,251 @@
 
   .team-card-banner h3 {
     font-size: 16px;
+  }
+}
+
+/* Create tournament — game-lobby wizard */
+@keyframes create-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes create-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes create-select-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(11 192 180 / 0.4),
+      0 0 22px rgb(11 192 180 / 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgb(11 192 180 / 0),
+      0 0 28px rgb(11 192 180 / 0.22);
+  }
+}
+
+@keyframes create-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(220%);
+  }
+}
+
+@keyframes arena-hex-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-48px, -84px);
+  }
+}
+
+@keyframes create-ready {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(11 192 180 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(11 192 180 / 0);
+  }
+}
+
+.arena-pattern-drift {
+  width: calc(100% + 48px);
+  height: calc(100% + 84px);
+  animation: arena-hex-drift 36s linear infinite;
+}
+
+.arena-pattern-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgb(11 192 180 / 0.14), transparent 52%),
+    radial-gradient(ellipse at 100% 100%, rgb(11 192 180 / 0.05), transparent 40%);
+}
+
+.arena-panel {
+  border: 1px solid rgb(11 192 180 / 0.25);
+  background: var(--color-primary-panel);
+  border-radius: 1rem;
+}
+
+.arena-hud-corners {
+  position: relative;
+}
+
+.arena-hud-corners::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    linear-gradient(var(--color-primary), var(--color-primary)) top left / 12px
+      2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top left / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top right / 12px
+      2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top right / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom left /
+      12px 2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom left / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom right /
+      12px 2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom right /
+      2px 12px no-repeat;
+}
+
+.arena-hud-corners:hover::before {
+  opacity: 1;
+}
+
+.create-hud-head {
+  position: relative;
+}
+
+.create-step {
+  animation: create-rise 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.create-tile {
+  position: relative;
+  animation: create-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.create-hud-tile.is-on::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--color-primary), var(--color-primary)) top left / 12px
+      2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top left / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top right / 12px
+      2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) top right / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom left /
+      12px 2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom left / 2px
+      12px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom right /
+      12px 2px no-repeat,
+    linear-gradient(var(--color-primary), var(--color-primary)) bottom right /
+      2px 12px no-repeat;
+}
+
+.create-game-card {
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.create-game-card:hover {
+  transform: translateY(-4px);
+}
+
+.create-game-card.is-on {
+  animation: create-select-pulse 1.8s ease-in-out infinite;
+}
+
+.create-game-card .create-scanline {
+  position: absolute;
+  inset-inline: 0;
+  height: 28%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(11 192 180 / 0.22),
+    transparent
+  );
+  animation: create-scan 2.8s linear infinite;
+  pointer-events: none;
+}
+
+.create-hud-bar {
+  transform-origin: left center;
+  animation: create-bar 0.5s ease-out both;
+}
+
+.create-ready-btn {
+  animation: create-ready 1.8s ease-in-out infinite;
+}
+
+.create-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  margin-top: 2.5rem;
+  padding: 1.25rem 0 0.75rem;
+  background: linear-gradient(to top, var(--color-bg) 62%, transparent);
+}
+
+.create-loadout-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.85) 0%, transparent 55%);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-step,
+  .create-tile,
+  .create-game-card,
+  .create-game-card.is-on,
+  .create-game-card .create-scanline,
+  .create-hud-bar,
+  .create-ready-btn,
+  .arena-pattern-drift {
+    animation: none !important;
+  }
+
+  .create-game-card:hover {
+    transform: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

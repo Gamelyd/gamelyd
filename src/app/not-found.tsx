@@ -16,6 +16,9 @@ export default function NotFound() {
   return (
     <SiteLayout>
       <div className="mx-auto flex max-w-xl flex-col items-center gap-6 px-5 py-24 text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+          Offline
+        </p>
         <Image
           src="/icons/ntn.svg"
           alt="Nothing here"
@@ -23,7 +26,7 @@ export default function NotFound() {
           height={220}
           className="h-auto w-[280px] max-w-full"
         />
-        <p className="text-xl text-white">This page could not be found.</p>
+        <p className="font-display text-2xl text-white">This page could not be found.</p>
         <Link href="/">
           <Button>Back home</Button>
         </Link>

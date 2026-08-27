@@ -125,14 +125,14 @@ export function PhoneInput({
       )}
       <div
         ref={boxRef}
-        className={`relative flex items-stretch rounded-lg border bg-input transition-colors focus-within:border-primary ${error ? "border-lose" : "border-transparent"}`}
+        className={`relative flex items-stretch rounded-lg border bg-input transition-colors focus-within:border-primary ${error ? "border-lose" : "border-primary/25"}`}
       >
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className="flex shrink-0 items-center gap-1.5 rounded-l-lg border-r border-black/30 px-3 text-sm text-white outline-none hover:bg-white/5"
+          className="flex shrink-0 items-center gap-1.5 rounded-l-lg border-r border-primary/20 px-3 text-sm text-white outline-none hover:bg-white/5"
         >
           <span className="text-base leading-none">{selected?.flag}</span>
           <span className="text-body">+{selected?.calling}</span>

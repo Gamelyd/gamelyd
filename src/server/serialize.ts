@@ -3,6 +3,7 @@ import type {
   ContactUsDoc,
   DrawDoc,
   GameDoc,
+  IconDoc,
   InviteTournamentDoc,
   NotificationDoc,
   OrgDoc,
@@ -26,6 +27,7 @@ import type {
 } from "@/lib/schemas/misc";
 import type { Org, OrgInvite, OrgMember } from "@/lib/schemas/org";
 import type { Game } from "@/lib/schemas/game";
+import type { IconAsset } from "@/lib/schemas/icon";
 import type { Platform } from "@/lib/schemas/platform";
 import type {
   Payment,
@@ -162,6 +164,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     Managers: readArray(raw, ["Managers", "managers"]) as string[],
     AdvancePerGroup:
       readNumber(raw, ["AdvancePerGroup", "advancepergroup"]) || 2,
+    GroupCount: readNumber(raw, ["GroupCount", "groupcount"]),
     OwnerCanReshuffleGroups: ownerCanReshuffleGroups(raw),
     OwnerCanAddParticipants: readBool(raw, [
       "OwnerCanAddParticipants",
@@ -176,6 +179,38 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       readArray(raw, ["DisqualifiedTeams", "disqualifiedteams"]) as string[]
     ).filter((name) => typeof name === "string" && name.length > 0),
     Prizes: serializePrizes(raw.Prizes ?? raw.prizes),
+    KnockoutFormat: (readString(
+      raw,
+      ["KnockoutFormat", "knockoutformat"],
+      "SINGLE",
+    ) || "SINGLE") as Tournament["KnockoutFormat"],
+    ThirdPlace: readBool(raw, ["ThirdPlace", "thirdplace"]),
+    TieBreaker: (readString(
+      raw,
+      ["TieBreaker", "tiebreaker"],
+      "GOAL_DIFF",
+    ) || "GOAL_DIFF") as Tournament["TieBreaker"],
+    BrLobbyCount: readNumber(raw, ["BrLobbyCount", "brlobbycount"]) || 1,
+    BrKillPoints: readNumber(raw, ["BrKillPoints", "brkillpoints"], 1),
+    BrFirstBloodPoints: readNumber(raw, [
+      "BrFirstBloodPoints",
+      "brfirstbloodpoints",
+    ]),
+    BrPlacementPoints: serializePlacementPoints(
+      raw.BrPlacementPoints ?? raw.brplacementpoints,
+    ),
+    RegistrationDeadline: readString(raw, [
+      "RegistrationDeadline",
+      "registrationdeadline",
+    ]),
+    CheckInRequired: readBool(raw, ["CheckInRequired", "checkinrequired"]),
+    CheckInOpens: readString(raw, ["CheckInOpens", "checkinopens"]),
+    CheckInCloses: readString(raw, ["CheckInCloses", "checkincloses"]),
+    FirstMatchAt: readString(raw, ["FirstMatchAt", "firstmatchat"]),
+    MatchIntervalMinutes: readNumber(raw, [
+      "MatchIntervalMinutes",
+      "matchintervalminutes",
+    ]),
   };
 }
 
@@ -221,6 +256,15 @@ function serializePrizes(raw: unknown): Tournament["Prizes"] {
     .sort((a, b) => a.Position - b.Position);
 }
 
+function serializePlacementPoints(raw: unknown): number[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [12, 9, 7, 5, 4, 3, 2, 1];
+  }
+  return raw.map((value) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0,
+  );
+}
+
 function serializePlayer(raw: unknown): Player {
   const p = asRecord(raw);
   return {
@@ -254,6 +298,7 @@ function serializeBrTeam(raw: unknown): BRTeams {
     Wins: readNumber(t, ["Wins", "wins"]),
     Kills: readNumber(t, ["Kills", "kills"]),
     FirstBloods: readNumber(t, ["FirstBloods", "firstbloods"]),
+    Placement: readNumber(t, ["Placement", "placement"]),
   };
 }
 
@@ -279,6 +324,9 @@ export function serializeDraw(doc: DrawDoc): Draw {
     Group: readString(raw, ["Group", "group"]),
     BRTeams: readArray(raw, ["BRTeams", "brteams"]).map(serializeBrTeam),
     Played: readBool(raw, ["Played", "played"]),
+    SeriesId: readString(raw, ["SeriesId", "seriesid"]),
+    Leg: readNumber(raw, ["Leg", "leg"]) || 1,
+    Kind: readString(raw, ["Kind", "kind"]),
   };
 }
 
@@ -303,6 +351,8 @@ export function serializeRegistration(
     PaymentChannel: readString(raw, ["PaymentChannel", "paymentchannel"]),
     Amount: readNumber(raw, ["Amount", "amount"]),
     Icon: readString(raw, ["Icon", "icon"]),
+    CheckedIn: readBool(raw, ["CheckedIn", "checkedin"]),
+    CheckedInAt: readString(raw, ["CheckedInAt", "checkedinat"]),
   };
 }
 
@@ -339,6 +389,21 @@ export function serializeGame(doc: GameDoc): Game {
     ...doc,
     _id: doc._id.toHexString(),
     platforms: Array.isArray(doc.platforms) ? doc.platforms : [],
+  };
+}
+
+export function serializeIcon(doc: IconDoc): IconAsset {
+  return {
+    _id: doc._id.toHexString(),
+    icon_id: doc.icon_id,
+    slug: doc.slug,
+    kind: doc.kind,
+    name: doc.name,
+    url: doc.url,
+    gameIds: Array.isArray(doc.gameIds) ? doc.gameIds : [],
+    archived: Boolean(doc.archived),
+    created_at: doc.created_at,
+    updated_at: doc.updated_at ?? "",
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { IconPicker } from "@/components/ui/IconPicker";
@@ -8,26 +8,30 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { searchUsersAction } from "@/server/actions/userActions";
 import { registerForTournamentAction } from "@/server/actions/tournamentActions";
-import { FALLBACKS, PLAYER_ICONS, TEAM_ICONS, playerIconFor } from "@/lib/icons";
+import { FALLBACKS, playerIconFor, type AppIcon } from "@/lib/icons";
+import { useIcons } from "@/hooks/useIcons";
 import type { Player } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { User } from "@/lib/schemas/user";
 import type { TeamSize } from "@/lib/schemas/common";
 import { rosterSize } from "@/lib/schemas/common";
 
-function playerFromUser(u: {
-  user_name?: string;
-  first_name?: string;
-  user_id: string;
-  email?: string;
-}): Player {
+function playerFromUser(
+  u: {
+    user_name?: string;
+    first_name?: string;
+    user_id: string;
+    email?: string;
+  },
+  playerIcons: AppIcon[],
+): Player {
   const userName = u.user_name || u.first_name || "Player";
   return {
     UserName: userName,
     GameUserName: "",
     User_id: u.user_id,
     Email: u.email || "",
-    Icon: playerIconFor(u.user_id),
+    Icon: playerIconFor(u.user_id, playerIcons),
   };
 }
 
@@ -42,18 +46,40 @@ export function RegisterTeam({
 }) {
   const { user } = useAuth();
   const toast = useToast();
+  const { icons: teamIcons, loading: teamIconsLoading } = useIcons("team");
+  const { icons: playerIcons, loading: playerIconsLoading } = useIcons("player");
   const [teamName, setTeamName] = useState("");
-  const [icon, setIcon] = useState(TEAM_ICONS[0]?.url ?? FALLBACKS.team);
+  const [icon, setIcon] = useState<string>(FALLBACKS.team);
   const [gameUserName, setGameUserName] = useState("");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<User[]>([]);
   const [players, setPlayers] = useState<Player[]>(
-    user ? [playerFromUser(user)] : [],
+    user ? [playerFromUser(user, [])] : [],
   );
   const [activePlayerId, setActivePlayerId] = useState(user?.user_id ?? "");
   const [loading, setLoading] = useState(false);
   const needed = rosterSize(teamSize);
   const spotsLeft = Math.max(needed - players.length, 0);
+
+  useEffect(() => {
+    if (teamIcons.length === 0) return;
+    setIcon((prev) =>
+      teamIcons.some((item) => item.url === prev) ? prev : teamIcons[0].url,
+    );
+  }, [teamIcons]);
+
+  useEffect(() => {
+    if (playerIcons.length === 0) return;
+    setPlayers((prev) =>
+      prev.map((player) => {
+        if (playerIcons.some((item) => item.url === player.Icon)) return player;
+        return {
+          ...player,
+          Icon: playerIconFor(player.User_id, playerIcons),
+        };
+      }),
+    );
+  }, [playerIcons]);
 
   const runSearch = async (value: string) => {
     setSearch(value);
@@ -73,7 +99,7 @@ export function RegisterTeam({
       );
       return;
     }
-    const next = playerFromUser(u);
+    const next = playerFromUser(u, playerIcons);
     setPlayers((prev) => [...prev, next]);
     setActivePlayerId(next.User_id);
     setSearch("");
@@ -108,7 +134,7 @@ export function RegisterTeam({
         p.User_id === user?.user_id ? gameUserName : p.GameUserName || "",
       User_id: p.User_id,
       Email: p.Email || "",
-      Icon: p.Icon || playerIconFor(p.User_id),
+      Icon: p.Icon || playerIconFor(p.User_id, playerIcons),
     }));
     const result = await registerForTournamentAction(tournamentId, {
       Players: withGameName,
@@ -123,7 +149,7 @@ export function RegisterTeam({
       toast.success(result.message ?? "Registered");
       onRegistered(result.data);
       setTeamName("");
-      setIcon(TEAM_ICONS[0]?.url ?? FALLBACKS.team);
+      setIcon(teamIcons[0]?.url ?? FALLBACKS.team);
     } else {
       toast.error(result.error);
     }
@@ -150,9 +176,10 @@ export function RegisterTeam({
       />
       <IconPicker
         label="Team icon"
-        icons={TEAM_ICONS}
+        icons={teamIcons}
         value={icon}
         onChange={setIcon}
+        loading={teamIconsLoading}
       />
       <Input
         label="Your in-game username"
@@ -211,7 +238,7 @@ export function RegisterTeam({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={p.Icon || playerIconFor(p.User_id)}
+              src={p.Icon || playerIconFor(p.User_id, playerIcons)}
               alt=""
               className="h-6 w-6 rounded-full object-cover"
             />
@@ -242,10 +269,14 @@ export function RegisterTeam({
       {activePlayer ? (
         <IconPicker
           label={`Player icon for @${activePlayer.UserName}`}
-          icons={PLAYER_ICONS}
-          value={activePlayer.Icon || playerIconFor(activePlayer.User_id)}
+          icons={playerIcons}
+          value={
+            activePlayer.Icon ||
+            playerIconFor(activePlayer.User_id, playerIcons)
+          }
           onChange={(url) => setPlayerIcon(activePlayer.User_id, url)}
           size="sm"
+          loading={playerIconsLoading}
         />
       ) : null}
 

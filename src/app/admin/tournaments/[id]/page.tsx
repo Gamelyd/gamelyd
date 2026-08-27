@@ -19,10 +19,9 @@ import {
   adminToggleFeaturedTournamentAction,
   adminToggleSuspendTournamentAction,
 } from "@/server/actions/adminActions";
-import {
-  AddParticipants,
-  RegisteredTeamsList,
-} from "@/components/tournament/AddParticipants";
+import { AddParticipants, upsertParticipant } from "@/components/tournament/AddParticipants";
+import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
+import { TournamentCoverPicker } from "@/components/tournament/TournamentCoverPicker";
 
 type Pending = "reset" | "suspend" | "delete" | "banner" | null;
 
@@ -131,6 +130,20 @@ export default function AdminTournamentManagePage() {
         <Link href={`/tournament/${tournament._id}`}>
           <Button variant="outline">View tournament</Button>
         </Link>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="mb-1 text-lg font-semibold text-white">Cover art</h2>
+        <p className="mb-4 text-sm text-body">
+          Covers tagged for {tournament.GameName}. This is the same picker the
+          host sees on the manage page.
+        </p>
+        <TournamentCoverPicker
+          tournamentId={tournament.TournamentId}
+          gameName={tournament.GameName}
+          value={tournament.icon}
+          onSaved={() => setReload((r) => r + 1)}
+        />
       </div>
 
       <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">
@@ -253,21 +266,45 @@ export default function AdminTournamentManagePage() {
           Add players
         </h2>
         <p className="mb-4 text-sm text-body">
-          Add existing users to this tournament without them registering
-          themselves. Only possible before the tournament starts.
+          Add a new team with one or more players, or add players to a team
+          that still has spots. Squads take up to four, duos two, solo one.
+          Only before the tournament starts.
         </p>
         <AddParticipants
           tournamentId={tournament.TournamentId || id}
           teamSize={tournament.Team}
           started={tournament.Start}
+          participants={participants}
           existingUserIds={participants.flatMap((p) =>
             (p.Players ?? []).map((pl) => pl.User_id),
           )}
           onAdded={(registration) =>
-            setParticipants((prev) => [...prev, registration])
+            setParticipants((prev) => upsertParticipant(prev, registration))
           }
         />
-        <RegisteredTeamsList participants={participants} />
+        <div className="mt-6">
+          <DisqualifyTeams
+            tournamentId={tournament.TournamentId || id}
+            started={tournament.Start}
+            participants={participants}
+            disqualifiedTeams={tournament.DisqualifiedTeams ?? []}
+            onDisqualified={() => setReload((r) => r + 1)}
+            onRemoved={({ teamName }) => {
+              setParticipants((prev) =>
+                prev.filter((p) => p.TeamName !== teamName),
+              );
+            }}
+            onPlayerRemoved={({ teamName, players }) => {
+              setParticipants((prev) =>
+                players.length === 0
+                  ? prev.filter((p) => p.TeamName !== teamName)
+                  : prev.map((p) =>
+                      p.TeamName === teamName ? { ...p, Players: players } : p,
+                    ),
+              );
+            }}
+          />
+        </div>
       </div>
 
       <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">

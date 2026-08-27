@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getAdminStats } from "@/server/services/adminService";
 import { pageMeta } from "@/lib/seo";
+import { DownloadImagesButton } from "@/components/admin/DownloadImagesButton";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => {
           const inner = (
-            <div className="rounded-xl border border-white/20 bg-surface p-6 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] hover:border-primary">
+            <div className="arena-panel arena-hud-corners p-6 hover:border-primary">
               <p className="text-sm text-body">{card.label}</p>
               <p className="mt-2 font-display text-4xl text-white">
                 {card.value.toLocaleString()}
@@ -49,9 +50,16 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="mt-10 flex flex-wrap gap-3">
+        <DownloadImagesButton />
+        <Link
+          href="/admin/images"
+          className="rounded-lg bg-surface-3 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-surface-2"
+        >
+          Manage images
+        </Link>
         <Link
           href="/admin/games"
-          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-[#04201e] transition-colors hover:bg-primary-dark"
+          className="rounded-lg bg-surface-3 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-surface-2"
         >
           Manage games
         </Link>

@@ -11,7 +11,8 @@ import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import { TOURNAMENT_ICONS, iconForGame } from "@/lib/icons";
+import { iconForGame } from "@/lib/icons";
+import { useIcons } from "@/hooks/useIcons";
 import {
   adminListGamesAction,
   createGameAction,
@@ -47,6 +48,7 @@ export default function AdminGamesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { icons: covers, loading: coversLoading } = useIcons("tournament");
 
   useEffect(() => {
     let activeReq = true;
@@ -222,9 +224,10 @@ export default function AdminGamesPage() {
           />
           <IconPicker
             label="Game image"
-            icons={TOURNAMENT_ICONS}
+            icons={covers}
             value={form.image}
             onChange={(url) => setForm({ ...form, image: url })}
+            loading={coversLoading}
           />
           <MultiSelect
             label="Platforms"

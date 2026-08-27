@@ -6,8 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
+import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { getMyOrgInvitesAction } from "@/server/actions/orgActions";
-import { playerIconFor } from "@/lib/icons";
 
 const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] =
   [
@@ -69,7 +69,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-surface-2 bg-nav">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-primary/20 bg-nav">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
         <Link href="/" className="flex items-center">
           <Image
@@ -114,11 +114,8 @@ export function Navbar() {
                 href={`/profile/${user.user_id}`}
                 className="flex items-center gap-2"
               >
-                <Image
-                  src={playerIconFor(user.user_id)}
-                  alt="user"
-                  width={32}
-                  height={32}
+                <CatalogAvatar
+                  userId={user.user_id}
                   className="h-8 w-8 rounded-full object-cover"
                 />
                 <span className="flex flex-col leading-tight">
@@ -146,7 +143,7 @@ export function Navbar() {
       </nav>
 
       {open && (
-        <div className="border-t border-surface-2 bg-nav px-5 py-4 md:hidden">
+        <div className="border-t border-primary/20 bg-nav px-5 py-4 md:hidden">
           <div className="flex flex-col gap-4">
             {visibleLinks.map((l) => (
               <Link

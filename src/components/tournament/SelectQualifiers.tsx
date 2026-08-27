@@ -254,7 +254,7 @@ export function SelectQualifiers({
                               teamName: e.target.value,
                             })
                           }
-                          className="mb-2 w-full rounded-lg border border-transparent bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary"
+                          className="mb-2 w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary"
                         >
                           <option value="">Select a team</option>
                           {tie.candidates.map((name) => (

@@ -79,6 +79,12 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
     { key: { platform_id: 1 } },
     { key: { active: 1, name: 1 } },
   ],
+  [Collections.icon]: [
+    { key: { icon_id: 1 } },
+    { key: { slug: 1 }, unique: true },
+    { key: { kind: 1, archived: 1, name: 1 } },
+    { key: { kind: 1, gameIds: 1, archived: 1 } },
+  ],
 };
 
 /**

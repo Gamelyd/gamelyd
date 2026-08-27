@@ -17,6 +17,7 @@ export const Collections = {
   orgInvite: "orgInvite",
   game: "game",
   platform: "platform",
+  icon: "icon",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];

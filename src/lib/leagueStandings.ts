@@ -1,5 +1,6 @@
 import type { Draw, Player, Teams } from "@/lib/schemas/draw";
 import type { PointSystem } from "@/lib/schemas/tournament";
+import type { TieBreaker } from "@/lib/schemas/common";
 
 export interface LeagueStanding {
   TeamName: string;
@@ -64,11 +65,34 @@ function applyResult(
   }
 }
 
-/** League table from played fixtures. Sort: points, GD, GF, then name. */
+function compareRows(a: LeagueStanding, b: LeagueStanding): number {
+  if (b.Points !== a.Points) return b.Points - a.Points;
+  if (b.GoalDifference !== a.GoalDifference) {
+    return b.GoalDifference - a.GoalDifference;
+  }
+  if (b.GoalsFor !== a.GoalsFor) return b.GoalsFor - a.GoalsFor;
+  return a.TeamName.localeCompare(b.TeamName);
+}
+
+function matchesAmong(draws: Draw[], names: Set<string>): Draw[] {
+  return draws.filter((draw) => {
+    const a = draw.Team1?.TeamName;
+    const b = draw.Team2?.TeamName;
+    return Boolean(a && b && names.has(a) && names.has(b));
+  });
+}
+
+/**
+ * League table from played fixtures.
+ * Default order: points, GD, GF, name.
+ * Head-to-head: points, then a mini-table among teams on the same points,
+ * then overall GD, GF, name.
+ */
 export function computeLeagueStandings(
   teams: Teams[],
   draws: Draw[],
   points: PointSystem = { Win: 3, Draw: 1 },
+  tieBreaker: TieBreaker = "GOAL_DIFF",
 ): LeagueStanding[] {
   const table = new Map<string, LeagueStanding>();
   for (const team of teams) {
@@ -87,14 +111,51 @@ export function computeLeagueStandings(
     applyResult(table.get(team2.TeamName)!, draw.Team2Score, draw.Team1Score, points);
   }
 
-  return [...table.values()].sort((a, b) => {
-    if (b.Points !== a.Points) return b.Points - a.Points;
-    if (b.GoalDifference !== a.GoalDifference) {
-      return b.GoalDifference - a.GoalDifference;
+  const rows = [...table.values()];
+  if (tieBreaker !== "HEAD_TO_HEAD") {
+    return rows.sort(compareRows);
+  }
+
+  const byPoints = new Map<number, LeagueStanding[]>();
+  for (const row of rows) {
+    const list = byPoints.get(row.Points) ?? [];
+    list.push(row);
+    byPoints.set(row.Points, list);
+  }
+
+  const ranked: LeagueStanding[] = [];
+  for (const pts of [...byPoints.keys()].sort((a, b) => b - a)) {
+    const bucket = byPoints.get(pts) ?? [];
+    if (bucket.length <= 1) {
+      ranked.push(...bucket);
+      continue;
     }
-    if (b.GoalsFor !== a.GoalsFor) return b.GoalsFor - a.GoalsFor;
-    return a.TeamName.localeCompare(b.TeamName);
-  });
+    const names = new Set(bucket.map((row) => row.TeamName));
+    const mini = computeLeagueStandings(
+      bucket.map((row) => ({
+        TeamName: row.TeamName,
+        Players: row.Players,
+        Icon: row.Icon,
+        Points: 0,
+        GoalsScored: 0,
+        GoalsReceived: 0,
+        GoalsDifference: 0,
+      })),
+      matchesAmong(draws, names),
+      points,
+      "GOAL_DIFF",
+    );
+    const miniRank = new Map(mini.map((row, index) => [row.TeamName, index]));
+    ranked.push(
+      ...[...bucket].sort((a, b) => {
+        const ia = miniRank.get(a.TeamName) ?? 99;
+        const ib = miniRank.get(b.TeamName) ?? 99;
+        if (ia !== ib) return ia - ib;
+        return compareRows(a, b);
+      }),
+    );
+  }
+  return ranked;
 }
 
 export function leagueMatchdayLabel(stage: number): string {

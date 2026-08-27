@@ -1,6 +1,14 @@
 import type { Draw } from "@/lib/schemas/draw";
 import type { TournamentMode } from "@/lib/schemas/common";
-import { isKnockoutMatchSettled } from "@/lib/knockoutSeed";
+import type { KnockoutFormat } from "@/lib/schemas/common";
+import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
+import {
+  groupKnockoutTies,
+  isKnockoutTieSettled,
+  knockoutRoundHasOpenTie,
+  knockoutTieWinner,
+  tiesAtStage,
+} from "@/lib/knockoutSeries";
 
 export type NextStageKind =
   | "advance"
@@ -15,23 +23,6 @@ export type NextStagePrompt = {
   confirmLabel: string;
 };
 
-function isGroupDraw(draw: Draw): boolean {
-  return Boolean(draw.Group?.trim());
-}
-
-function isKnockoutDraw(draw: Draw): boolean {
-  return !isGroupDraw(draw) && draw.BRTeams.length === 0;
-}
-
-function roundTied(round: Draw[]): boolean {
-  return round.some(
-    (d) =>
-      Boolean(d.Team2?.TeamName) &&
-      d.Winner === "" &&
-      d.Team1Score === d.Team2Score,
-  );
-}
-
 /** After a newly recorded score, what the manager should do next — if anything. */
 export function nextStageAfterScore({
   mode,
@@ -40,6 +31,7 @@ export function nextStageAfterScore({
   wasAlreadyPlayed,
   canSelectQualifiers,
   picksComplete,
+  knockoutFormat,
 }: {
   mode: TournamentMode;
   draws: Draw[];
@@ -47,6 +39,7 @@ export function nextStageAfterScore({
   wasAlreadyPlayed: boolean;
   canSelectQualifiers: boolean;
   picksComplete: boolean;
+  knockoutFormat?: KnockoutFormat;
 }): NextStagePrompt | null {
   if (wasAlreadyPlayed || !scored.Played) return null;
   if (mode === "LEAGUE" || mode === "BATTLEROYALE") return null;
@@ -78,13 +71,17 @@ export function nextStageAfterScore({
   if (!isKnockoutDraw(scored)) return null;
 
   const stage = scored.Stage;
-  const round = draws.filter((d) => isKnockoutDraw(d) && d.Stage === stage);
-  if (round.length === 0 || round.some((d) => !isKnockoutMatchSettled(d))) {
+  const ties = tiesAtStage(groupKnockoutTies(draws, false), stage);
+  if (ties.length === 0) return null;
+  if (ties.some((tie) => !isKnockoutTieSettled(tie.games, knockoutFormat))) {
     return null;
   }
-  if (round.length === 1) return null;
+  if (ties.length === 1) return null;
   if (draws.some((d) => isKnockoutDraw(d) && d.Stage > stage)) return null;
-  if (roundTied(round)) return null;
+  if (knockoutRoundHasOpenTie(draws, stage, knockoutFormat)) return null;
+  if (ties.some((tie) => !knockoutTieWinner(tie.games, knockoutFormat))) {
+    return null;
+  }
 
   if (mode === "GROUPS") {
     return {

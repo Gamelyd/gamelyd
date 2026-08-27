@@ -86,6 +86,7 @@ export interface TournamentDoc {
   FeaturedAt?: string;
   Managers?: string[];
   AdvancePerGroup?: number;
+  GroupCount?: number;
   OwnerCanReshuffleGroups?: boolean;
   OwnerCanAddParticipants?: boolean;
   OwnerCanSelectQualifiers?: boolean;
@@ -96,6 +97,19 @@ export interface TournamentDoc {
     Seed: number;
   }[];
   DisqualifiedTeams?: string[];
+  KnockoutFormat?: string;
+  ThirdPlace?: boolean;
+  TieBreaker?: string;
+  BrLobbyCount?: number;
+  BrKillPoints?: number;
+  BrFirstBloodPoints?: number;
+  BrPlacementPoints?: number[];
+  RegistrationDeadline?: string;
+  CheckInRequired?: boolean;
+  CheckInOpens?: string;
+  CheckInCloses?: string;
+  FirstMatchAt?: string;
+  MatchIntervalMinutes?: number;
 }
 
 export interface DrawDoc {
@@ -117,6 +131,9 @@ export interface DrawDoc {
   Group: string;
   BRTeams: BRTeams[];
   Played?: boolean;
+  SeriesId?: string;
+  Leg?: number;
+  Kind?: string;
 }
 
 export interface RegisterTournamentDoc {
@@ -134,6 +151,8 @@ export interface RegisterTournamentDoc {
   PaymentChannel: string;
   Amount: number;
   Icon: string;
+  CheckedIn?: boolean;
+  CheckedInAt?: string;
 }
 
 export interface InviteTournamentDoc {
@@ -235,6 +254,21 @@ export interface PlatformDoc {
   platform_id: string;
   name: string;
   active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type IconKind = "tournament" | "team" | "player";
+
+export interface IconDoc {
+  _id: ObjectId;
+  icon_id: string;
+  slug: string;
+  kind: IconKind;
+  name: string;
+  url: string;
+  gameIds: string[];
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }

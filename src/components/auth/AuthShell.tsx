@@ -1,10 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
-
-const LEFT_BG =
-  'url("https://ik.imagekit.io/dmkczkqll/Gamelyd/Backgrounds/siren.svg?updatedAt=1701865629886"), url("https://ik.imagekit.io/dmkczkqll/Gamelyd/Backgrounds/siren1.svg?updatedAt=1701869410057"), black';
-const PAD_BG =
-  'url("https://ik.imagekit.io/dmkczkqll/Gamelyd/Backgrounds/pad.svg?updatedAt=1701866171804")';
+import { ArenaPattern } from "@/components/layout/ArenaPattern";
 
 export function AuthShell({
   title,
@@ -14,31 +11,45 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen w-full flex-row bg-black">
-      <div
-        className="hidden w-[60vw] flex-col items-center justify-center bg-cover bg-center bg-no-repeat md:flex"
-        style={{ background: LEFT_BG, backgroundBlendMode: "hard-light" }}
-      >
-        <div
-          className="h-[370px] w-[422px] max-w-[80%] bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: PAD_BG }}
-        />
+    <div className="relative flex min-h-screen w-full flex-col bg-bg lg:flex-row">
+      <ArenaPattern />
+      <div className="relative z-1 hidden min-h-screen flex-1 flex-col justify-center border-b border-primary/20 bg-primary-panel/90 px-10 py-16 lg:flex lg:border-b-0 lg:border-r">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-primary">
+          Live terminal
+        </p>
+        <h2 className="mt-3 max-w-lg font-display text-5xl leading-none text-white">
+          Host matches. Play for the crown.
+        </h2>
+        <p className="mt-4 max-w-md text-sm text-cyan-soft/80">
+          Create a tournament, register teams, draw fixtures, and keep scores in
+          one place.
+        </p>
+        <ul className="mt-8 flex flex-wrap gap-2">
+          {["Knockout", "Groups", "League", "Battle royale"].map((label) => (
+            <li
+              key={label}
+              className="rounded-xl border border-primary/25 bg-black/20 px-3 py-2 text-sm text-white"
+            >
+              {label}
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div className="h-screen w-full overflow-auto md:w-[40vw]">
-        <div className="flex flex-col items-center">
+      <div className="relative z-1 flex min-h-screen w-full flex-col items-center overflow-auto px-6 py-12 lg:w-md lg:shrink-0 xl:w-lg">
+        <Link href="/" className="mb-10">
           <Image
             src="/images/logoWhite.png"
             alt="Gamelyd"
-            width={220}
-            height={90}
-            className="mb-[70px] mt-[60px] h-[90px] w-[220px] object-contain"
+            width={180}
+            height={72}
+            className="h-14 w-auto object-contain"
           />
-          <h1 className="mb-[50px] px-6 text-center font-display text-[36px] leading-tight text-white">
-            {title}
-          </h1>
-        </div>
-        <div className="mx-auto w-full max-w-md px-6 pb-16">{children}</div>
+        </Link>
+        <h1 className="mb-8 text-center font-display text-3xl leading-none text-white">
+          {title}
+        </h1>
+        <div className="w-full max-w-md pb-16">{children}</div>
       </div>
     </div>
   );

@@ -32,6 +32,19 @@ export function rosterSize(team: string): number {
 export const shuffleSchema = z.enum(["MANUAL", "AUTOMATIC"]);
 export type Shuffle = z.infer<typeof shuffleSchema>;
 
+/** How a knockout pairing is decided. */
+export const knockoutFormatSchema = z.enum([
+  "SINGLE",
+  "TWO_LEG",
+  "BO3",
+  "BO5",
+]);
+export type KnockoutFormat = z.infer<typeof knockoutFormatSchema>;
+
+/** How equal points are ordered on a league / group table. */
+export const tieBreakerSchema = z.enum(["GOAL_DIFF", "HEAD_TO_HEAD"]);
+export type TieBreaker = z.infer<typeof tieBreakerSchema>;
+
 export const winnerSchema = z.enum(["Team1", "Team2"]);
 export type Winner = z.infer<typeof winnerSchema>;
 

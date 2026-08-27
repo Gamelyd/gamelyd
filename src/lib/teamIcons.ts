@@ -7,7 +7,12 @@ export function iconMapFromTeams(
   const map = new Map<string, string>();
   for (const team of teams) {
     const name = team.TeamName.trim().toLowerCase();
-    if (name && team.Icon.startsWith("http")) map.set(name, team.Icon);
+    if (
+      name &&
+      (team.Icon.startsWith("http") || team.Icon.startsWith("/"))
+    ) {
+      map.set(name, team.Icon);
+    }
   }
   return map;
 }
@@ -17,7 +22,7 @@ function fillTeam(
   icons: Map<string, string>,
 ): Teams | undefined {
   if (!team) return team;
-  if (team.Icon.startsWith("http")) return team;
+  if (team.Icon.startsWith("http") || team.Icon.startsWith("/")) return team;
   const icon = icons.get(team.TeamName.trim().toLowerCase());
   return icon ? { ...team, Icon: icon } : team;
 }

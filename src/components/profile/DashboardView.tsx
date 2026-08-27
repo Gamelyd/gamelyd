@@ -9,7 +9,7 @@ import {
   TournamentCard,
   EmptyTournaments,
 } from "@/components/tournament/TournamentCard";
-import { playerIconFor } from "@/lib/icons";
+import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 
 export function DashboardView({
   profile,
@@ -22,17 +22,15 @@ export function DashboardView({
 }) {
   return (
     <div>
-      <section className="border-b border-surface-2 bg-bg">
+      <section className="border-b border-primary/20 bg-primary-panel">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 lg:py-12 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={playerIconFor(profile.user_id)}
-              alt=""
-              className="h-16 w-16 rounded-full object-cover ring-2 ring-white/20"
+            <CatalogAvatar
+              userId={profile.user_id}
+              className="h-16 w-16 rounded-full object-cover ring-2 ring-primary/40"
             />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
                 Dashboard
               </p>
               <h1 className="mt-1 font-display text-4xl text-white">
@@ -60,7 +58,7 @@ export function DashboardView({
 
       <section className="mx-auto max-w-7xl px-5 pb-12">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-xl font-semibold text-white">
+          <h2 className="font-display text-2xl text-white">
             Tournaments you created
           </h2>
           <Link
@@ -85,7 +83,7 @@ export function DashboardView({
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pb-16">
-        <h2 className="mb-6 text-xl font-semibold text-white">
+        <h2 className="mb-6 font-display text-2xl text-white">
           Tournaments you joined
         </h2>
         {registered.length === 0 ? (
@@ -96,7 +94,7 @@ export function DashboardView({
               <Link
                 key={reg.RegisterTournamentId || reg._id}
                 href={`/tournament/${reg.TournamentId}`}
-                className="rounded-xl border border-surface-2 bg-surface p-4 transition-colors hover:border-primary/40"
+                className="arena-panel arena-hud-corners p-4 transition-colors hover:border-primary"
               >
                 <h3 className="font-semibold text-white">
                   {reg.TournamentName || "Tournament"}
@@ -113,8 +111,8 @@ export function DashboardView({
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-white/20 bg-surface p-5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
-      <p className="text-2xl font-bold text-primary">{value}</p>
+    <div className="arena-panel arena-hud-corners p-5">
+      <p className="font-display text-3xl text-primary">{value}</p>
       <p className="mt-1 text-sm text-body">{label}</p>
     </div>
   );

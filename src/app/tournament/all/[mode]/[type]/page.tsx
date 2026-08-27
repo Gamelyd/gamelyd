@@ -66,7 +66,12 @@ export default async function TournamentsPage({
             <EmptyTournaments message="No tournaments match these filters yet." />
           ) : (
             data.items.map((t) => (
-              <TournamentCard key={`${t._id}:${t.TournamentId}`} tournament={t} />
+              <div
+                key={`${t._id}:${t.TournamentId}`}
+                className="create-game-card"
+              >
+                <TournamentCard tournament={t} />
+              </div>
             ))
           )}
         </div>
@@ -80,7 +85,7 @@ export default async function TournamentsPage({
                 className={`rounded-lg px-4 py-2 text-sm ${
                   p === data.page
                     ? "bg-primary text-[#04201e]"
-                    : "bg-surface text-body hover:text-white"
+                    : "border border-primary/25 bg-primary-panel text-body hover:text-white"
                 }`}
               >
                 {p}
