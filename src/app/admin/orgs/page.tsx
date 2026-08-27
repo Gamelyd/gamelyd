@@ -106,7 +106,7 @@ export default function AdminOrgsPage() {
                 <td className="px-4 py-3 text-body">
                   {org.created_at
                     ? new Date(org.created_at).toLocaleDateString()
-                    : "—"}
+                    : "-"}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap justify-end gap-2">

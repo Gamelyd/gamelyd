@@ -220,7 +220,7 @@ export function RegisterTeam({
         </div>
       ) : (
         <p className="text-sm text-body">
-          Solo tournament — you register alone.
+          Solo tournament. You register alone.
         </p>
       )}
 

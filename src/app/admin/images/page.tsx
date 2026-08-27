@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -198,7 +198,7 @@ export default function AdminImagesPage() {
             >
               <div className="relative h-36 w-full bg-surface-2">
                 {icon.url ? (
-                  <Image
+                  <CatalogImage
                     src={icon.url}
                     alt={icon.name}
                     fill
@@ -264,7 +264,7 @@ export default function AdminImagesPage() {
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
             required
-            placeholder="/images/crests/team/crest-team-01-wolf.png"
+            placeholder="/api/icons/crest-team-01-wolf"
           />
           <Select
             label="Kind"

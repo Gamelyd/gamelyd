@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -93,7 +93,7 @@ export default function AdminTournamentManagePage() {
       <div className="mb-8 flex flex-wrap items-start gap-4">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
           {tournament.icon ? (
-            <Image
+            <CatalogImage
               src={tournament.icon}
               alt=""
               fill

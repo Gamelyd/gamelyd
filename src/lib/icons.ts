@@ -12,26 +12,26 @@ export type AppIcon = {
   url: string;
 };
 
+function catalogIcon(
+  file: string,
+  label: string,
+): AppIcon {
+  const id = file.replace(/\.png$/, "");
+  return { id, label, url: `/api/icons/${id}` };
+}
+
 function localCrests(
-  kind: "team" | "player",
+  _kind: "team" | "player",
   entries: [file: string, label: string][],
 ): AppIcon[] {
-  return entries.map(([file, label]) => ({
-    id: file.replace(/\.png$/, ""),
-    label,
-    url: `/images/crests/${kind}/${file}`,
-  }));
+  return entries.map(([file, label]) => catalogIcon(file, label));
 }
 
 function localCovers(
-  folder: string,
+  _folder: string,
   entries: [file: string, label: string][],
 ): AppIcon[] {
-  return entries.map(([file, label]) => ({
-    id: file.replace(/\.png$/, ""),
-    label,
-    url: `/images/tournaments/${folder}/${file}`,
-  }));
+  return entries.map(([file, label]) => catalogIcon(file, label));
 }
 
 const EAFC_COVERS = localCovers("eafc", [
@@ -420,7 +420,7 @@ export function iconForGame(
           icon.id === wanted || catalogFileSlug(icon.url) === wanted,
       );
     if (fromList) return fromList.url;
-    return rewriteCatalogPath(match.url);
+    return match.url;
   }
   const labeled = icons.find(
     (icon) => icon.label.toLowerCase() === name.toLowerCase(),
@@ -437,20 +437,26 @@ export function playerIconFor(
 }
 
 function catalogFileSlug(url: string): string {
-  return url.split("/").pop()?.split("?")[0]?.replace(/\.png$/i, "") ?? "";
+  return url.split("/").pop()?.split("?")[0]?.replace(/\.(png|jpe?g|webp|gif|svg)$/i, "") ?? "";
 }
 
-/** Turn stored local catalog paths into the database-backed API URL. */
-export function rewriteCatalogPath(url: string, slug?: string): string {
+/**
+ * Same URL the admin images page uses: GridFS via `/api/icons/{slug}`,
+ * or an https URL if that’s what’s stored on the catalog row.
+ */
+export function catalogUrl(url: string, slug?: string): string {
   if (!url) return url;
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (url.startsWith("/api/icons/")) return url;
-  const fromPath =
+  if (slug) return `/api/icons/${slug}`;
+  if (
     url.startsWith("/images/tournaments/") ||
-    url.startsWith("/images/crests/");
-  if (!fromPath) return url;
-  const nextSlug = slug || catalogFileSlug(url);
-  return nextSlug ? `/api/icons/${nextSlug}` : url;
+    url.startsWith("/images/crests/")
+  ) {
+    const id = catalogFileSlug(url);
+    return id ? `/api/icons/${id}` : url;
+  }
+  return url;
 }
 
 function isUsableIconSrc(value: string): boolean {
@@ -466,7 +472,7 @@ export function resolveIcon(
   fallback: string = FALLBACKS.team,
 ): string {
   const src = value && isUsableIconSrc(value) ? value : fallback;
-  return rewriteCatalogPath(src);
+  return catalogUrl(src);
 }
 
 export function resolvePlayerIcon(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
@@ -135,7 +135,7 @@ export function DisqualifyTeams({
               <li key={p.RegisterTournamentId || p._id} className="py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Image
+                    <CatalogImage
                       src={resolveIcon(p.Icon, FALLBACKS.team)}
                       alt=""
                       width={32}
@@ -177,7 +177,7 @@ export function DisqualifyTeams({
                               ? ` · ${pl.GameUserName}`
                               : ""}
                           </span>
-                          {!started && pl.User_id ? (
+                          {!started && pl.User_id && players.length > 1 ? (
                             <button
                               type="button"
                               className="shrink-0 text-lose hover:underline"

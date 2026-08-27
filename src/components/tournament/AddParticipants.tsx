@@ -219,7 +219,7 @@ export function AddParticipants({
 
       <p className="text-xs text-body">
         {needed === 1
-          ? "Solo event — pick a user to add them as their own team."
+          ? "Solo event. Pick a user to add them as their own team."
           : addingToExisting
             ? `Adding to ${target}. ${spotsLeft} of ${needed} ${sizeWord} spots left after this pick (${picked.length} selected).`
             : `New ${sizeWord}: add 1–${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected).`}

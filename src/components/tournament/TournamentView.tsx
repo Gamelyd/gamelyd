@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import { placeLabel } from "@/lib/schemas/tournament";
@@ -383,6 +384,8 @@ export function TournamentView({
     return false;
   };
 
+  const cover = resolveIcon(tournament.icon, FALLBACKS.tournament);
+
   return (
     <div>
       {celebrate && champion?.TeamName?.trim() ? (
@@ -393,23 +396,22 @@ export function TournamentView({
           onClose={() => setCelebrate(false)}
         />
       ) : null}
-      <section className="border-b border-primary/20 bg-primary-panel">
-        <div className="mx-auto max-w-6xl px-5 py-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <div className="relative h-36 w-28 shrink-0 overflow-hidden rounded-xl border border-primary/25 bg-black/40 sm:h-40 sm:w-32">
-              <Image
-                src={resolveIcon(tournament.icon, FALLBACKS.tournament)}
-                alt=""
-                fill
-                sizes="128px"
-                quality={90}
-                className="object-cover"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
+      <section className="relative overflow-hidden border-b border-primary/20 bg-primary-panel">
+        <CatalogImage
+          src={cover}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          quality={90}
+          className="object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-linear-to-t from-black via-black/55 to-black/20" />
+        <div className="relative z-1 mx-auto flex min-h-56 max-w-6xl flex-col justify-end px-5 py-8 sm:min-h-80 sm:py-14 md:min-h-96 md:py-16">
+          <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <Tag payment={tournament.Payment} className="rounded-md" />
-                <span className="rounded-full border border-primary/25 bg-black/25 px-3 py-1 text-xs text-white">
+                <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
                   {tournament.TournamentMode}
                 </span>
                 {champion?.TeamName?.trim() ? (
@@ -422,89 +424,112 @@ export function TournamentView({
                   </button>
                 ) : null}
               </div>
-              <h1 className="mt-3 font-display text-3xl text-white md:text-4xl">
+              <h1 className="mt-3 font-display text-3xl leading-none text-white sm:text-4xl md:text-5xl">
                 {tournament.Name}
               </h1>
-              <p className="mt-2 text-body">
+              <p className="mt-2 text-sm text-white/75 sm:text-base">
                 {tournament.GameName} · {tournament.Date}
               </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                {canRegister ? (
-                  <Button onClick={() => setTab("register")}>Register</Button>
-                ) : null}
-                {isRegistered ? (
-                  <span className="inline-flex h-9 items-center rounded-full border border-primary/40 bg-primary/15 px-3 text-sm text-primary">
-                    {myTeam?.CheckedIn
-                      ? "Checked in"
-                      : "You're registered"}
-                  </span>
-                ) : null}
-                {canCheckIn ? (
-                  <Button
-                    loading={checkingIn}
-                    onClick={async () => {
-                      setCheckingIn(true);
-                      const result = await checkInForTournamentAction(
-                        tournament.TournamentId,
-                      );
-                      setCheckingIn(false);
-                      if (result.ok) {
-                        setParticipants((prev) =>
-                          prev.map((p) =>
-                            p.RegisterTournamentId ===
-                            result.data.RegisterTournamentId
-                              ? result.data
-                              : p,
-                          ),
+              <div className="mt-5 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                  {canRegister ? (
+                    <Button
+                      className="col-span-2 w-full sm:col-auto sm:w-auto"
+                      onClick={() => setTab("register")}
+                    >
+                      Register
+                    </Button>
+                  ) : null}
+                  {canCheckIn ? (
+                    <Button
+                      className="w-full sm:w-auto"
+                      loading={checkingIn}
+                      onClick={async () => {
+                        setCheckingIn(true);
+                        const result = await checkInForTournamentAction(
+                          tournament.TournamentId,
                         );
-                        toast.success("You're checked in");
-                      } else {
-                        toast.error(result.error);
-                      }
-                    }}
+                        setCheckingIn(false);
+                        if (result.ok) {
+                          setParticipants((prev) =>
+                            prev.map((p) =>
+                              p.RegisterTournamentId ===
+                              result.data.RegisterTournamentId
+                                ? result.data
+                                : p,
+                            ),
+                          );
+                          toast.success("You're checked in");
+                        } else {
+                          toast.error(result.error);
+                        }
+                      }}
+                    >
+                      Check in
+                    </Button>
+                  ) : null}
+                  <ShareTournamentButton
+                    className="w-full sm:w-auto"
+                    name={tournament.Name}
+                    description={tournamentShareDescription(tournament)}
+                    urlPath={`/tournament/${tournament.TournamentId}`}
+                  />
+                  {canAdminister ? (
+                    <Link
+                      href={`/tournament/${tournament.TournamentId}/manage`}
+                      className="w-full sm:w-auto"
+                    >
+                      <Button variant="outline" className="w-full">
+                        Manage
+                        <span className="hidden sm:inline"> tournament</span>
+                      </Button>
+                    </Link>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isRegistered ? (
+                    <span className="inline-flex h-8 items-center rounded-lg border border-primary/40 bg-black/50 px-2.5 text-xs text-primary">
+                      {myTeam?.CheckedIn
+                        ? "Checked in"
+                        : "You're registered"}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setTab("teams")}
+                    className="inline-flex h-8 items-center rounded-lg border border-white/15 bg-black/50 px-2.5 text-xs text-white hover:border-primary/50"
                   >
-                    Check in
-                  </Button>
-                ) : null}
-                <ShareTournamentButton
-                  name={tournament.Name}
-                  description={tournamentShareDescription(tournament)}
-                  urlPath={`/tournament/${tournament.TournamentId}`}
-                />
-                {canAdminister ? (
-                  <Link href={`/tournament/${tournament.TournamentId}/manage`}>
-                    <Button variant="outline">Manage tournament</Button>
-                  </Link>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setTab("teams")}
-                  className="inline-flex h-9 items-center rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
-                >
-                  {participants.length} of {tournament.TournamentSize} teams
-                  registered
-                </button>
-                {tournament.OrgId && tournament.OrgName && (
-                  <Link
-                    href={`/org/${tournament.OrgId}`}
-                    className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-surface-2 px-3 text-sm text-white hover:border-primary/50"
-                  >
-                    {tournament.OrgIcon ? (
-                      <Image
-                        src={tournament.OrgIcon}
-                        alt=""
-                        width={20}
-                        height={20}
-                        className="h-5 w-5 shrink-0 rounded-full object-cover"
-                      />
-                    ) : null}
-                    Hosted by {tournament.OrgName}
-                  </Link>
-                )}
+                    <span className="sm:hidden">
+                      {participants.length}/{tournament.TournamentSize} teams
+                    </span>
+                    <span className="hidden sm:inline">
+                      {participants.length} of {tournament.TournamentSize}{" "}
+                      teams registered
+                    </span>
+                  </button>
+                  {tournament.OrgId && tournament.OrgName && (
+                    <Link
+                      href={`/org/${tournament.OrgId}`}
+                      className="inline-flex h-8 max-w-full items-center gap-2 rounded-lg border border-white/15 bg-black/50 px-2.5 text-xs text-white hover:border-primary/50"
+                    >
+                      {tournament.OrgIcon ? (
+                        <Image
+                          src={tournament.OrgIcon}
+                          alt=""
+                          width={20}
+                          height={20}
+                          className="h-4 w-4 shrink-0 rounded-full object-cover"
+                        />
+                      ) : null}
+                      <span className="truncate">
+                        Hosted by {tournament.OrgName}
+                      </span>
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
       </section>
 
       <div className="border-b border-surface-2 bg-nav">
@@ -1160,7 +1185,7 @@ function Details({
     { label: "Draw", value: tournament.Shuffle },
     { label: "Size", value: `${tournament.TournamentSize} teams` },
     { label: "Date", value: tournament.Date },
-    { label: "Platform", value: tournament.Platform || "—" },
+    { label: "Platform", value: tournament.Platform || "-" },
     ...(tournament.Payment === "PAID"
       ? [
           {
@@ -1171,7 +1196,7 @@ function Details({
       : []),
     {
       label: "Prize pool",
-      value: tournament.Amount ? `₦${tournament.Amount.toLocaleString()}` : "—",
+      value: tournament.Amount ? `₦${tournament.Amount.toLocaleString()}` : "-",
     },
     ...(tournament.Prizes ?? []).map((prize) => ({
       label: `${placeLabel(prize.Position)} prize`,

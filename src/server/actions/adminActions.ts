@@ -92,7 +92,7 @@ export async function adminToggleBanUserAction(
     return ok(
       banned,
       banned
-        ? "User banned — their session has been revoked"
+        ? "User banned. Their session has been revoked"
         : "User unbanned",
     );
   } catch (error) {

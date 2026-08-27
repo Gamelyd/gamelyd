@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
@@ -44,7 +44,7 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
       className={`group flex min-h-44 overflow-hidden rounded-2xl bg-primary-panel ${paymentFrame(tournament.Payment)}`}
     >
       <div className="relative w-32 shrink-0 bg-black sm:w-36">
-        <Image
+        <CatalogImage
           src={image}
           alt={tournament.Name}
           fill

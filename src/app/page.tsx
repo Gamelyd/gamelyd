@@ -18,9 +18,9 @@ import {
 } from "@/server/actions/tournamentActions";
 import { getGamesAction } from "@/server/actions/gameActions";
 
-const homeTitle = "Gamelyd — Host and join game tournaments";
+const homeTitle = "Gamelyd: Host and join game tournaments";
 const homeDescription =
-  "Create a tournament, register teams, draw fixtures, and keep scores in one place — leagues, groups, knockouts, and battle royale.";
+  "Create a tournament, register teams, draw fixtures, and keep scores in one place: leagues, groups, knockouts, and battle royale.";
 
 export const metadata: Metadata = pageMeta({
   title: homeTitle,

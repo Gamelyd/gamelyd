@@ -265,7 +265,7 @@ export function TournamentStageControls({
       toast.error(
         `${open} tie${
           open === 1 ? "" : "s"
-        } ended level — set a winner before drawing the next round.`,
+        } ended level. Set a winner before drawing the next round.`,
       );
       return;
     }
@@ -387,8 +387,8 @@ export function TournamentStageControls({
               <p className="mb-4 text-sm text-body">
                 Generate a round-robin inside every group
                 {tournament.ReturnLeg
-                  ? " — each pairing once, then again with sides swapped"
-                  : " — each team plays the others in its group once"}
+                  ? ": each pairing once, then again with sides swapped"
+                  : ": each team plays the others in its group once"}
                 . Teams can no longer be moved between groups afterwards.
               </p>
               <Button

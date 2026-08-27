@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
@@ -12,7 +13,7 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
       href={`/tournament/${tournament.TournamentId}`}
       className={`group relative flex h-full min-h-55 flex-col overflow-hidden rounded-xl bg-surface-4 ${paymentFrame(tournament.Payment)}`}
     >
-      <Image
+      <CatalogImage
         src={image}
         alt={tournament.Name}
         fill

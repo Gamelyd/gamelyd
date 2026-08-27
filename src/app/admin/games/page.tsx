@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -157,7 +157,7 @@ export default function AdminGamesPage() {
             >
               <div className="relative h-36 w-full bg-surface-2">
                 {game.image ? (
-                  <Image
+                  <CatalogImage
                     src={resolveIcon(game.image, FALLBACKS.tournament)}
                     alt={game.name}
                     fill

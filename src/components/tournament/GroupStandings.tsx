@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { GroupQualifier } from "@/lib/schemas/tournament";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
@@ -144,7 +144,7 @@ function GroupTable({
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <Image
+                      <CatalogImage
                         src={resolveIcon(row.Icon, FALLBACKS.team)}
                         alt=""
                         width={24}

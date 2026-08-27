@@ -14,7 +14,7 @@ import { getGamesAction } from "@/server/actions/gameActions";
 import { getPlatformsAction } from "@/server/actions/platformActions";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import { FALLBACKS, iconForGame, rewriteCatalogPath } from "@/lib/icons";
+import { FALLBACKS, iconForGame } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import { joinPlatforms } from "@/lib/platforms";
 import type { Game } from "@/lib/schemas/game";
@@ -313,7 +313,7 @@ export function CreateTournamentWizard() {
             Create tournament
           </h1>
           <p className="mt-3 max-w-xl text-sm text-cyan-soft/80">
-            Lock in the game, format, and rules — then launch the lobby.
+            Lock in the game, format, and rules, then launch the lobby.
           </p>
 
           <ol className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -514,7 +514,7 @@ export function CreateTournamentWizard() {
                       />
                       <ChoiceTile
                         title="Host picks ties"
-                        blurb="If teams finish level on points, you choose who goes through — with a public reason."
+                        blurb="If teams finish level on points, you choose who goes through, with a public reason."
                         active={pickQualifiers}
                         onClick={() => setPickQualifiers(true)}
                         delay={1}
@@ -1245,7 +1245,7 @@ function GameStep({
                 <span className="create-loadout-art relative block aspect-4/3 bg-black">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={rewriteCatalogPath(art)}
+                    src={art}
                     alt=""
                     className="h-full w-full object-cover"
                   />

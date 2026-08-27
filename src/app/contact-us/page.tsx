@@ -33,7 +33,7 @@ export default function ContactPage() {
       <PageHeader
         kicker="Support"
         title="Open a line"
-        description="Questions about a cup, hosting, or a partnership — send a message. We read everything that lands here."
+        description="Questions about a cup, hosting, or a partnership. Send a message. We read everything that lands here."
         width="max-w-5xl"
       />
 

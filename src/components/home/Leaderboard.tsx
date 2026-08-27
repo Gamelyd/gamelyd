@@ -29,7 +29,7 @@ export function Leaderboard() {
                     <td className="px-5 py-4 font-display text-xl text-primary">
                       {rank}
                     </td>
-                    <td className="px-5 py-4 text-white/40">—</td>
+                    <td className="px-5 py-4 text-white/40">-</td>
                     <td className="px-5 py-4 text-right text-sm uppercase tracking-wider text-primary/70">
                       Standby
                     </td>

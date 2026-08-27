@@ -28,7 +28,7 @@ import type {
 import type { Org, OrgInvite, OrgMember } from "@/lib/schemas/org";
 import type { Game } from "@/lib/schemas/game";
 import type { IconAsset } from "@/lib/schemas/icon";
-import { rewriteCatalogPath } from "@/lib/icons";
+import { catalogUrl } from "@/lib/icons";
 import type { Platform } from "@/lib/schemas/platform";
 import type {
   Payment,
@@ -107,7 +107,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     _id: doc._id.toHexString(),
     Name: readString(raw, ["Name", "name"]),
     GameName: readString(raw, ["GameName", "gamename"]),
-    icon: readString(raw, ["icon"]),
+    icon: catalogUrl(readString(raw, ["icon", "Icon"])),
     TournamentType: readString(
       raw,
       ["TournamentType", "tournamenttype"],
@@ -273,7 +273,7 @@ function serializePlayer(raw: unknown): Player {
     GameUserName: readString(p, ["GameUserName", "gameusername"]),
     User_id: readString(p, ["User_id", "user_id"]),
     Email: readString(p, ["Email", "email"]),
-    Icon: readString(p, ["Icon", "icon"]),
+    Icon: catalogUrl(readString(p, ["Icon", "icon"])),
   };
 }
 
@@ -283,7 +283,7 @@ function serializeTeam(raw: unknown): Teams | undefined {
   return {
     TeamName: readString(t, ["TeamName", "teamname"]),
     Players: readArray(t, ["Players", "players"]).map(serializePlayer),
-    Icon: readString(t, ["Icon", "icon"]),
+    Icon: catalogUrl(readString(t, ["Icon", "icon"])),
     Points: readNumber(t, ["Points", "points"]),
     GoalsScored: readNumber(t, ["GoalsScored", "goalsscored"]),
     GoalsReceived: readNumber(t, ["GoalsReceived", "goalsreceived"]),
@@ -342,7 +342,9 @@ export function serializeRegistration(
     Updated_at: readDate(raw, ["Updated_at", "updated_at"]),
     TournamentId: readString(raw, ["TournamentId", "tournamentid"]),
     TournamentName: readString(raw, ["TournamentName", "tournamentname"]),
-    TournamentIcon: readString(raw, ["TournamentIcon", "tournamenticon"]),
+    TournamentIcon: catalogUrl(
+      readString(raw, ["TournamentIcon", "tournamenticon"]),
+    ),
     TournamentDate: readDate(raw, ["TournamentDate", "tournamentdate"]),
     RegisterTournamentId:
       readString(raw, ["RegisterTournamentId", "registertournamentid"]) ||
@@ -351,7 +353,7 @@ export function serializeRegistration(
     RefNumber: readString(raw, ["RefNumber", "refnumber"]),
     PaymentChannel: readString(raw, ["PaymentChannel", "paymentchannel"]),
     Amount: readNumber(raw, ["Amount", "amount"]),
-    Icon: readString(raw, ["Icon", "icon"]),
+    Icon: catalogUrl(readString(raw, ["Icon", "icon"])),
     CheckedIn: readBool(raw, ["CheckedIn", "checkedin"]),
     CheckedInAt: readString(raw, ["CheckedInAt", "checkedinat"]),
   };
@@ -400,7 +402,7 @@ export function serializeIcon(doc: IconDoc): IconAsset {
     slug: doc.slug,
     kind: doc.kind,
     name: doc.name,
-    url: rewriteCatalogPath(doc.url, doc.slug),
+    url: catalogUrl(doc.url, doc.slug),
     gameIds: Array.isArray(doc.gameIds) ? doc.gameIds : [],
     archived: Boolean(doc.archived),
     created_at: doc.created_at,

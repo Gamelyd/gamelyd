@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 
@@ -43,7 +43,7 @@ export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
                 <td className="px-4 py-3 font-medium text-white">{index + 1}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Image
+                    <CatalogImage
                       src={icon}
                       alt=""
                       width={28}

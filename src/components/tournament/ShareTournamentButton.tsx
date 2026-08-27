@@ -7,10 +7,12 @@ export function ShareTournamentButton({
   name,
   description,
   urlPath,
+  className = "",
 }: {
   name: string;
   description: string;
   urlPath: string;
+  className?: string;
 }) {
   const toast = useToast();
 
@@ -33,7 +35,12 @@ export function ShareTournamentButton({
   };
 
   return (
-    <Button type="button" variant="outline" onClick={() => void share()}>
+    <Button
+      type="button"
+      variant="outline"
+      className={className}
+      onClick={() => void share()}
+    >
       Share
     </Button>
   );

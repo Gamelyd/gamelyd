@@ -118,7 +118,7 @@ export default function AdminTournamentsPage() {
                     </span>
                   ) : null}
                 </td>
-                <td className="px-4 py-3 text-body">{t.GameName || "—"}</td>
+                <td className="px-4 py-3 text-body">{t.GameName || "-"}</td>
                 <td className="px-4 py-3 text-body">
                   {t.Payment} · {t.TournamentMode}
                 </td>
@@ -134,13 +134,13 @@ export default function AdminTournamentsPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-body">
-                  {t.Date ? new Date(t.Date).toLocaleDateString() : "—"}
+                  {t.Date ? new Date(t.Date).toLocaleDateString() : "-"}
                 </td>
                 <td className="px-4 py-3">
                   {t.Featured ? (
                     <span className="text-xs text-primary">On banner</span>
                   ) : (
-                    <span className="text-xs text-body">—</span>
+                    <span className="text-xs text-body">-</span>
                   )}
                 </td>
                 <td className="px-4 py-3">

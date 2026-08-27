@@ -34,7 +34,7 @@ export function HowItWorks() {
     {
       n: "01",
       title: "Create the event",
-      body: "Pick a game, platform, team size, and format. Set the date, prize, and how many teams can join. Publishing closes nothing — registration stays open until you start.",
+      body: "Pick a game, platform, team size, and format. Set the date, prize, and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
     },
     {
       n: "02",
@@ -121,7 +121,7 @@ export function Formats() {
           <SectionHead
             kicker="Formats"
             title="Run the structure the game needs"
-            description="FIFA cups, Warzone lobbies, and club leagues do not share a bracket. Choose the mode when you create the event — the draw engine and the public page follow that choice."
+            description="FIFA cups, Warzone lobbies, and club leagues do not share a bracket. Choose the mode when you create the event. The draw engine and the public page follow that choice."
           />
           <div className="mt-10 grid gap-4 md:grid-cols-2">
             {formats.map((item) => (
@@ -159,7 +159,7 @@ export function GamesStrip({ games }: { games: Game[] }) {
           <SectionHead
             kicker="Titles"
             title="Games you can host"
-            description="Pick a title when you create a tournament, then choose the platforms it supports — Crossplay, PlayStation, Xbox, or PC."
+            description="Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC."
           />
           <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {games.map((game) => (
@@ -207,7 +207,7 @@ export function Audience() {
                 Browse public tournaments by mode and type. Open an event to see
                 the roster, group tables, fixtures, and the knockout tree.
                 Register with the team size the host set. After it starts,
-                follow results on the same page — you do not need a separate
+                follow results on the same page. You do not need a separate
                 results thread.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-body">
@@ -256,7 +256,7 @@ export function HomeFaq() {
     },
     {
       q: "When does registration close?",
-      a: "When the host starts the tournament or creates groups. After that, new teams cannot join. Confirm before you draw — starting is the lock.",
+      a: "When the host starts the tournament or creates groups. After that, new teams cannot join. Confirm before you draw. Starting is the lock.",
     },
     {
       q: "Can I change settings after teams sign up?",

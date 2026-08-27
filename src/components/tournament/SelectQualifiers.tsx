@@ -194,7 +194,7 @@ export function SelectQualifiers({
         ? null
         : "The organiser will pick who goes through from teams level on points.";
     }
-    return "Teams finished level on points. Pick who goes through and add a public reason — only for these tied teams.";
+    return "Teams finished level on points. Pick who goes through and add a public reason, only for these tied teams.";
   }, [
     allGroupPlayed,
     canEdit,

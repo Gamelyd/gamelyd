@@ -53,7 +53,7 @@ export function DashboardView({
       <section className="mx-auto grid max-w-7xl gap-4 px-5 py-10 sm:grid-cols-3">
         <Stat label="Tournaments created" value={created.length} />
         <Stat label="Tournaments joined" value={registered.length} />
-        <Stat label="Country" value={profile.country || "—"} />
+        <Stat label="Country" value={profile.country || "-"} />
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pb-12">

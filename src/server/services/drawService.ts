@@ -629,7 +629,7 @@ function qualifiersFromGroups(
     );
     if (!complete) {
       throw new ServiceError(
-        "Teams are level on points — pick who qualifies (with a public reason) before advancing",
+        "Teams are level on points. Pick who qualifies (with a public reason) before advancing",
       );
     }
   }

@@ -6,7 +6,7 @@ import { publicAppUrl } from "@/lib/tournamentShare";
 export const SITE_NAME = "Gamelyd";
 
 const DEFAULT_DESCRIPTION =
-  "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores — for friends, clubs, and communities.";
+  "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
 
 const PAYMENT_LABEL: Record<string, string> = {
   ALL: "All",

@@ -238,8 +238,8 @@ function MpFixture({
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <p className="w-full text-center text-xs text-body">
             {knockoutFormat === "TWO_LEG"
-              ? "Level on aggregate — pick who goes through"
-              : "Level score — pick who goes through"}
+              ? "Level on aggregate. Pick who goes through"
+              : "Level score. Pick who goes through"}
           </p>
           <Button
             type="button"

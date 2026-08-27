@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,7 @@ import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw } from "@/lib/schemas/draw";
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
+import { FALLBACKS, resolveIcon } from "@/lib/icons";
 
 export function TournamentManageView({
   tournament,
@@ -83,15 +84,13 @@ export function TournamentManageView({
 
       <div className="mb-8 flex flex-wrap items-start gap-4">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
-          {tournament.icon ? (
-            <Image
-              src={tournament.icon}
-              alt=""
-              fill
-              className="object-cover"
-              sizes="64px"
-            />
-          ) : null}
+          <CatalogImage
+            src={resolveIcon(tournament.icon, FALLBACKS.tournament)}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="64px"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">

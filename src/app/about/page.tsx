@@ -9,7 +9,7 @@ import { pageMeta } from "@/lib/seo";
 export const metadata: Metadata = pageMeta({
   title: "About",
   description:
-    "Gamelyd is the operations layer for game tournaments — one page for signup, draws, fixtures, tables, and the bracket.",
+    "Gamelyd is the operations layer for game tournaments: one page for signup, draws, fixtures, tables, and the bracket.",
   path: "/about",
 });
 
@@ -22,7 +22,7 @@ const STEPS = [
   {
     n: "02",
     title: "Fill the roster",
-    body: "Players register as solo, duo, or squad. The event page is the source of truth — no second chat for who is in.",
+    body: "Players register as solo, duo, or squad. The event page is the source of truth. No second chat for who is in.",
   },
   {
     n: "03",
@@ -61,7 +61,7 @@ export default function AboutPage() {
       <PageHeader
         kicker="The lobby"
         title="Built for the night you are already running"
-        description="Gamelyd is the page a cup lives on — registration, draws, fixtures, tables, and the bracket. Hosts stop juggling a sheet, a group chat, and a graphics pack. Players stop asking where the next match is."
+        description="Gamelyd is the page a cup lives on: registration, draws, fixtures, tables, and the bracket. Hosts stop juggling a sheet, a group chat, and a graphics pack. Players stop asking where the next match is."
         width="max-w-5xl"
       />
 
@@ -97,8 +97,8 @@ export default function AboutPage() {
             <p className="mt-3 text-sm leading-relaxed text-body">
               Browse public events by format. Open a cup and you see the roster,
               group tables, fixtures, and knockout. Register with the team size
-              the host set. After it starts, results land on that same page —
-              you do not need a separate results thread.
+              the host set. After it starts, results land on that same page.
+              You do not need a separate results thread.
             </p>
           </article>
           <article className="arena-panel arena-hud-corners p-5 sm:p-6">

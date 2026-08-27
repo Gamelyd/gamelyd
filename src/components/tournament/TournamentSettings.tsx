@@ -373,7 +373,7 @@ export function EditTournamentSettings({
       {canEditCore ? (
         <>
           <Input
-            label={busyField === "name" ? "Name — saving…" : "Name"}
+            label={busyField === "name" ? "Name (saving…)" : "Name"}
             value={name}
             disabled={Boolean(busyField)}
             onChange={(e) => setName(e.target.value)}
@@ -388,7 +388,7 @@ export function EditTournamentSettings({
 
           <Input
             type="date"
-            label={busyField === "date" ? "Date — saving…" : "Date"}
+            label={busyField === "date" ? "Date (saving…)" : "Date"}
             value={date}
             disabled={Boolean(busyField)}
             onChange={(e) => setDate(e.target.value)}
@@ -396,7 +396,7 @@ export function EditTournamentSettings({
           />
 
           <TextArea
-            label={busyField === "note" ? "Briefing — saving…" : "Briefing"}
+            label={busyField === "note" ? "Briefing (saving…)" : "Briefing"}
             rows={3}
             value={note}
             disabled={Boolean(busyField)}
@@ -406,7 +406,7 @@ export function EditTournamentSettings({
 
           <Select
             label={
-              busyField === "shuffle" ? "Draw order — saving…" : "Draw order"
+              busyField === "shuffle" ? "Draw order (saving…)" : "Draw order"
             }
             value={shuffle}
             disabled={Boolean(busyField)}
@@ -420,7 +420,7 @@ export function EditTournamentSettings({
           />
 
           <Select
-            label={busyField === "type" ? "Visibility — saving…" : "Visibility"}
+            label={busyField === "type" ? "Visibility (saving…)" : "Visibility"}
             value={type}
             disabled={Boolean(busyField)}
             onChange={(e) =>
@@ -435,7 +435,7 @@ export function EditTournamentSettings({
           <Input
             label={
               busyField === "size"
-                ? "Tournament size — saving…"
+                ? "Tournament size (saving…)"
                 : "Tournament size"
             }
             type="number"
@@ -457,7 +457,7 @@ export function EditTournamentSettings({
       {canEditReturnLeg ? (
         <Select
           label={
-            busyField === "returnLeg" ? "Return leg — saving…" : "Return leg"
+            busyField === "returnLeg" ? "Return leg (saving…)" : "Return leg"
           }
           value={returnLeg ? "true" : "false"}
           disabled={Boolean(busyField)}
@@ -475,7 +475,7 @@ export function EditTournamentSettings({
             type="number"
             min={0}
             max={20}
-            label={busyField === "points" ? "Win points — saving…" : "Win points"}
+            label={busyField === "points" ? "Win points (saving…)" : "Win points"}
             value={pointsWin}
             disabled={Boolean(busyField)}
             onChange={(e) => setPointsWin(e.target.value)}
@@ -492,7 +492,7 @@ export function EditTournamentSettings({
             min={0}
             max={20}
             label={
-              busyField === "points" ? "Draw points — saving…" : "Draw points"
+              busyField === "points" ? "Draw points (saving…)" : "Draw points"
             }
             value={pointsDraw}
             disabled={Boolean(busyField)}
@@ -512,7 +512,7 @@ export function EditTournamentSettings({
         <Select
           label={
             busyField === "groups"
-              ? "Number of groups — saving…"
+              ? "Number of groups (saving…)"
               : "Number of groups"
           }
           value={groupCount}
@@ -535,7 +535,7 @@ export function EditTournamentSettings({
           max={8}
           label={
             busyField === "advance"
-              ? "Advance per group — saving…"
+              ? "Advance per group (saving…)"
               : "Advance per group"
           }
           value={advancePerGroup}
@@ -555,7 +555,7 @@ export function EditTournamentSettings({
         <Select
           label={
             busyField === "qualifiers"
-              ? "Ties on the table — saving…"
+              ? "Ties on the table (saving…)"
               : "Ties on the table"
           }
           value={pickQualifiers ? "true" : "false"}
@@ -570,7 +570,7 @@ export function EditTournamentSettings({
 
       {canEditTieBreaker ? (
         <Select
-          label={busyField === "tie" ? "Tie-break — saving…" : "Table tie-break"}
+          label={busyField === "tie" ? "Tie-break (saving…)" : "Table tie-break"}
           value={tieBreaker}
           disabled={Boolean(busyField)}
           onChange={(e) => {
@@ -593,7 +593,7 @@ export function EditTournamentSettings({
           <Select
             label={
               busyField === "knockout"
-                ? "Knockout ties — saving…"
+                ? "Knockout ties (saving…)"
                 : "Knockout ties"
             }
             value={knockoutFormat}
@@ -617,7 +617,7 @@ export function EditTournamentSettings({
           />
           <Select
             label={
-              busyField === "third" ? "Third place — saving…" : "Third place"
+              busyField === "third" ? "Third place (saving…)" : "Third place"
             }
             value={thirdPlace ? "true" : "false"}
             disabled={Boolean(busyField)}
@@ -643,7 +643,7 @@ export function EditTournamentSettings({
             type="number"
             min={1}
             max={20}
-            label={busyField === "br" ? "Lobbies — saving…" : "Lobbies"}
+            label={busyField === "br" ? "Lobbies (saving…)" : "Lobbies"}
             value={brLobbies}
             disabled={Boolean(busyField)}
             onChange={(e) => setBrLobbies(e.target.value)}
@@ -705,7 +705,7 @@ export function EditTournamentSettings({
             type="date"
             label={
               busyField === "deadline"
-                ? "Registration closes — saving…"
+                ? "Registration closes (saving…)"
                 : "Registration closes"
             }
             value={deadline}
@@ -721,7 +721,7 @@ export function EditTournamentSettings({
             }}
           />
           <Select
-            label={busyField === "checkin" ? "Check-in — saving…" : "Check-in"}
+            label={busyField === "checkin" ? "Check-in (saving…)" : "Check-in"}
             value={checkInRequired ? "true" : "false"}
             disabled={Boolean(busyField)}
             onChange={(e) => {
@@ -762,7 +762,7 @@ export function EditTournamentSettings({
           <Input
             type="datetime-local"
             label={
-              busyField === "schedule" ? "First match — saving…" : "First match"
+              busyField === "schedule" ? "First match (saving…)" : "First match"
             }
             value={firstMatchAt}
             disabled={Boolean(busyField)}
@@ -891,7 +891,7 @@ export function ManagerSettings({
     <div className="rounded-xl border border-surface-2 bg-surface p-5">
       <h3 className="mb-1 font-semibold text-white">Tournament managers</h3>
       <p className="mb-4 text-sm text-body">
-        Add people from your organization who can help run this tournament —
+        Add people from your organization who can help run this tournament:
         draw fixtures, record scores and create groups. Only the tournament
         owner can manage this list.
       </p>

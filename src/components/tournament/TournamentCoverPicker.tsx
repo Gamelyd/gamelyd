@@ -64,7 +64,7 @@ export function TournamentCoverPicker({
   return (
     <div className="flex flex-col gap-3">
       <IconPicker
-        label={saving ? "Cover art — saving…" : "Cover art"}
+        label={saving ? "Cover art (saving…)" : "Cover art"}
         icons={icons}
         value={icon}
         onChange={setIcon}
