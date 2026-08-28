@@ -8,7 +8,6 @@ import {
   listOrgTournamentsAction,
 } from "@/server/actions/orgActions";
 import { getOrgById } from "@/server/services/orgService";
-import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { orgShareDescription, pageMeta } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -24,7 +23,7 @@ export async function generateMetadata({
     title: org.name,
     description: orgShareDescription(org),
     path: `/org/${org.org_id}`,
-    image: resolveIcon(org.image, FALLBACKS.team),
+    image: `/org/${org.org_id}/opengraph-image`,
     imageAlt: org.name,
   });
 }

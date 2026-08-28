@@ -16,6 +16,7 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
       href: "/tournament/all/ALL/ALL",
       label: "Tournaments",
     },
+    { href: "/games", label: "Games" },
     { href: "/dashboard", label: "Dashboard", auth: true },
     { href: "/org", label: "Organizations", auth: true },
     { href: "/about", label: "About" },

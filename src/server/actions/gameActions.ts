@@ -1,7 +1,7 @@
 "use server";
 
 import { parseInput } from "@/lib/validate";
-import { ok, fail, type ActionResult } from "@/lib/result";
+import { ok, fail, type ActionResult, type Paginated } from "@/lib/result";
 import {
   createGameInputSchema,
   updateGameInputSchema,
@@ -11,6 +11,7 @@ import {
   createGame,
   deleteGame,
   listGames,
+  listGamesPage,
   toggleGameActive,
   updateGame,
 } from "@/server/services/gameService";
@@ -20,6 +21,15 @@ import { guardAdmin } from "@/server/auth/admin";
 /** Public: active games, used to populate the tournament creation picker. */
 export async function getGamesAction(): Promise<ActionResult<Game[]>> {
   return ok(await listGames(true));
+}
+
+/** Public: searchable, paginated active games. */
+export async function getGamesPageAction(
+  search = "",
+  page = 1,
+  perPage = 12,
+): Promise<ActionResult<Paginated<Game>>> {
+  return ok(await listGamesPage({ activeOnly: true, search, page, perPage }));
 }
 
 /** Admin: every game, including inactive ones. */

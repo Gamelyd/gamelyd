@@ -629,12 +629,15 @@
   }
 }
 
-@keyframes arena-hex-drift {
+@keyframes arena-pattern-drift {
   from {
     transform: translate(0, 0);
   }
   to {
-    transform: translate(-48px, -84px);
+    transform: translate(
+      calc(-1 * var(--arena-cell, 48px)),
+      calc(-1 * var(--arena-cell-y, 84px))
+    );
   }
 }
 
@@ -649,17 +652,21 @@
 }
 
 .arena-pattern-drift {
-  width: calc(100% + 48px);
-  height: calc(100% + 84px);
-  animation: arena-hex-drift 36s linear infinite;
+  width: calc(100% + var(--arena-cell, 48px));
+  height: calc(100% + var(--arena-cell-y, 84px));
+  animation: arena-pattern-drift 36s linear infinite;
 }
 
 .arena-pattern-vignette {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% -10%, rgb(11 192 180 / 0.14), transparent 52%),
-    radial-gradient(ellipse at 100% 100%, rgb(11 192 180 / 0.05), transparent 40%);
+    radial-gradient(ellipse at 50% -10%, rgb(184 192 200 / 0.08), transparent 52%),
+    radial-gradient(ellipse at 100% 100%, rgb(184 192 200 / 0.04), transparent 40%);
+}
+
+.arena-hex-lit {
+  transition: opacity 0.25s ease;
 }
 
 .arena-panel {

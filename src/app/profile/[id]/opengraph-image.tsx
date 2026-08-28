@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getUserById } from "@/server/services/userService";
 import { playerIconForUser } from "@/server/services/iconService";
+import { ogIconSrc } from "@/server/ogIcon";
 import { profileShareDescription } from "@/lib/seo";
 import { DefaultOgMarkup, EntityOgMarkup } from "@/lib/ogCard";
 
@@ -24,7 +25,7 @@ export default async function Image({
   return new ImageResponse(
     (
       <EntityOgMarkup
-        image={await playerIconForUser(user.user_id)}
+        image={await ogIconSrc(await playerIconForUser(user.user_id))}
         kicker="Player"
         title={name || user.user_name}
         subtitle={profileShareDescription(user).slice(0, 140)}

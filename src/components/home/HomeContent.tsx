@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Game } from "@/lib/schemas/game";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
+import { GamesCarousel } from "@/components/home/GamesCarousel";
 
 export function SectionHead({
   kicker,
@@ -156,34 +156,17 @@ export function GamesStrip({ games }: { games: Game[] }) {
     <section className="border-t border-primary/20">
       <div className="mx-auto max-w-7xl px-5 py-16">
         <Reveal>
-          <SectionHead
-            kicker="Titles"
-            title="Games you can host"
-            description="Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC."
-          />
-          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {games.map((game) => (
-              <li
-                key={game.game_id}
-                className="create-game-card overflow-hidden rounded-2xl border border-primary/25 bg-primary-panel"
-              >
-                <div className="create-loadout-art relative aspect-4/3 bg-black">
-                  {game.image ? (
-                    <Image
-                      src={game.image}
-                      alt=""
-                      fill
-                      sizes="200px"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <p className="truncate px-3 py-3 font-display text-lg leading-none text-white">
-                  {game.name}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+            <SectionHead
+              kicker="Titles"
+              title="Games you can host"
+              description="Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC."
+            />
+            <Link href="/games">
+              <Button variant="outline">View more</Button>
+            </Link>
+          </div>
+          <GamesCarousel games={games} />
         </Reveal>
       </div>
     </section>

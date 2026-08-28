@@ -8,10 +8,15 @@ export function publicAppUrl(): string {
   return "https://www.gamelyd.co";
 }
 
-export function tournamentCoverUrl(tournament: Tournament): string {
-  const src = resolveIcon(tournament.icon, FALLBACKS.tournament);
+export function absoluteImageUrl(src: string): string {
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
   if (src.startsWith("/")) return `${publicAppUrl()}${src}`;
   return src;
+}
+
+export function tournamentCoverUrl(tournament: Tournament): string {
+  const src = resolveIcon(tournament.icon, FALLBACKS.tournament);
+  return absoluteImageUrl(src);
 }
 
 export function tournamentShareDescription(tournament: Tournament): string {

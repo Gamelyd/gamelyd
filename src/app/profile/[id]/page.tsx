@@ -8,7 +8,6 @@ import {
   userRegisteredTournamentsLimitAction,
 } from "@/server/actions/tournamentActions";
 import { getUserById } from "@/server/services/userService";
-import { playerIconForUser } from "@/server/services/iconService";
 import { pageMeta, profileShareDescription } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -25,7 +24,7 @@ export async function generateMetadata({
     title: name,
     description: profileShareDescription(user),
     path: `/profile/${user.user_id}`,
-    image: await playerIconForUser(user.user_id),
+    image: `/profile/${user.user_id}/opengraph-image`,
     imageAlt: name,
   });
 }

@@ -392,6 +392,7 @@ export function serializeGame(doc: GameDoc): Game {
   return {
     ...doc,
     _id: doc._id.toHexString(),
+    image: catalogUrl(doc.image || ""),
     platforms: Array.isArray(doc.platforms) ? doc.platforms : [],
   };
 }

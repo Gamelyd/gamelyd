@@ -48,6 +48,7 @@ export default function AdminGamesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState("");
   const { icons: covers, loading: coversLoading } = useIcons("tournament");
 
   useEffect(() => {
@@ -132,12 +133,27 @@ export default function AdminGamesPage() {
     }
   };
 
+  const filtered = gamesList.filter((game) =>
+    game.name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl text-white">Games</h1>
         <Button onClick={openCreate}>Add game</Button>
       </div>
+
+      {gamesList.length > 0 ? (
+        <div className="mb-6 max-w-md">
+          <Input
+            placeholder="Search games by name"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search games by name"
+          />
+        </div>
+      ) : null}
 
       {loading && gamesList.length === 0 ? (
         <p className="text-body">Loading…</p>
@@ -148,9 +164,13 @@ export default function AdminGamesPage() {
             a tournament.
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border border-surface-2 bg-surface p-10 text-center">
+          <p className="text-body">No games match that name.</p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {gamesList.map((game) => (
+          {filtered.map((game) => (
             <div
               key={game.game_id}
               className="overflow-hidden rounded-2xl border border-surface-2 bg-surface"

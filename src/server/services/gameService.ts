@@ -9,14 +9,64 @@ import type {
   Game,
   UpdateGameInput,
 } from "@/lib/schemas/game";
+import type { Paginated } from "@/lib/result";
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function gamesFilter(activeOnly: boolean, search = ""): Record<string, unknown> {
+  const clauses: Record<string, unknown>[] = [];
+  if (activeOnly) clauses.push({ active: { $ne: false } });
+  const q = search.trim();
+  if (q) {
+    clauses.push({ name: { $regex: escapeRegex(q), $options: "i" } });
+  }
+  if (clauses.length === 0) return {};
+  if (clauses.length === 1) return clauses[0];
+  return { $and: clauses };
+}
 
 export async function listGames(activeOnly = false): Promise<Game[]> {
   const col = await games();
   // Treat missing `active` as selectable so admin-created games always appear
   // unless they were explicitly deactivated.
-  const filter = activeOnly ? { active: { $ne: false } } : {};
-  const docs = await col.find(filter).sort({ name: 1 }).limit(500).toArray();
+  const docs = await col
+    .find(gamesFilter(activeOnly))
+    .sort({ name: 1 })
+    .limit(500)
+    .toArray();
   return docs.map(serializeGame);
+}
+
+export async function listGamesPage({
+  activeOnly = true,
+  search = "",
+  page = 1,
+  perPage = 12,
+}: {
+  activeOnly?: boolean;
+  search?: string;
+  page?: number;
+  perPage?: number;
+}): Promise<Paginated<Game>> {
+  const col = await games();
+  const safePage = Math.max(page, 1);
+  const size = Math.min(Math.max(perPage, 1), 48);
+  const filter = gamesFilter(activeOnly, search);
+  const total = await col.countDocuments(filter);
+  const docs = await col
+    .find(filter)
+    .sort({ name: 1 })
+    .skip((safePage - 1) * size)
+    .limit(size)
+    .toArray();
+  return {
+    total,
+    page: safePage,
+    last_page: Math.max(Math.ceil(total / size), 1),
+    items: docs.map(serializeGame),
+  };
 }
 
 export async function getGameById(gameId: string): Promise<Game | null> {

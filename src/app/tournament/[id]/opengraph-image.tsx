@@ -4,6 +4,7 @@ import {
   tournamentCoverUrl,
   tournamentShareDescription,
 } from "@/lib/tournamentShare";
+import { ogIconSrc } from "@/server/ogIcon";
 import { ds } from "@/lib/designSystem";
 
 export const runtime = "nodejs";
@@ -40,7 +41,7 @@ export default async function Image({
     );
   }
 
-  const cover = tournamentCoverUrl(tournament);
+  const cover = await ogIconSrc(tournamentCoverUrl(tournament));
   const mode =
     tournament.TournamentMode === "BATTLEROYALE"
       ? "Battle Royale"

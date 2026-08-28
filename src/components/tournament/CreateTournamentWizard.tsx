@@ -1206,9 +1206,24 @@ function GameStep({
   covers: { id: string; label: string; url: string }[];
   onPick: (game: Game) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const filtered = games.filter((game) =>
+    game.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
   return (
     <div>
       <SectionTitle kicker="Arena" title="Choose your arena" />
+      {loaded && games.length > 0 ? (
+        <div className="mt-6 max-w-md">
+          <Input
+            placeholder="Search games by name"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search games by name"
+          />
+        </div>
+      ) : null}
       {!loaded ? (
         <p className="mt-6 text-sm text-body">Loading games…</p>
       ) : games.length === 0 ? (
@@ -1225,9 +1240,11 @@ function GameStep({
             "No games are listed yet."
           )}
         </p>
+      ) : filtered.length === 0 ? (
+        <p className="mt-6 text-sm text-body">No games match that name.</p>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {games.map((game, i) => {
+          {filtered.map((game, i) => {
             const on = selected === game.name;
             const art = game.image || iconForGame(game.name, covers);
             return (

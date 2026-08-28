@@ -16,7 +16,7 @@ import {
   getTournamentsAction,
   getBannerTournamentsAction,
 } from "@/server/actions/tournamentActions";
-import { getGamesAction } from "@/server/actions/gameActions";
+import { getGamesPageAction } from "@/server/actions/gameActions";
 
 const homeTitle = "Gamelyd: Host and join game tournaments";
 const homeDescription =
@@ -33,11 +33,11 @@ export default async function HomePage() {
   const [bannerResult, latestResult, gamesResult] = await Promise.all([
     getBannerTournamentsAction(),
     getTournamentsAction("", 1),
-    getGamesAction(),
+    getGamesPageAction("", 1, 10),
   ]);
   const banner = bannerResult.ok ? bannerResult.data : [];
   const latest = latestResult.ok ? latestResult.data.items.slice(0, 10) : [];
-  const games = gamesResult.ok ? gamesResult.data : [];
+  const games = gamesResult.ok ? gamesResult.data.items : [];
 
   return (
     <SiteLayout>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { Org } from "@/lib/schemas/org";
 import type { User } from "@/lib/schemas/user";
-import { publicAppUrl } from "@/lib/tournamentShare";
+import { publicAppUrl, absoluteImageUrl } from "@/lib/tournamentShare";
 
 export const SITE_NAME = "Gamelyd";
 
@@ -44,7 +44,15 @@ export function pageMeta({
   const url = `${publicAppUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   const displayTitle = absoluteTitle ? title : `${title} · ${SITE_NAME}`;
   const images = image
-    ? [{ url: image, width: 1200, height: 630, alt: imageAlt ?? title }]
+    ? [
+        {
+          url: absoluteImageUrl(image),
+          width: 1200,
+          height: 630,
+          alt: imageAlt ?? title,
+          type: "image/png" as const,
+        },
+      ]
     : undefined;
 
   return {
@@ -67,7 +75,7 @@ export function pageMeta({
       card: "summary_large_image",
       title: displayTitle,
       description: desc,
-      ...(image ? { images: [image] } : {}),
+      ...(image ? { images: [absoluteImageUrl(image)] } : {}),
     },
   };
 }

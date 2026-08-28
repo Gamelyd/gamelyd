@@ -5,7 +5,6 @@ import { TournamentView } from "@/components/tournament/TournamentView";
 import { getTournamentById, listParticipants } from "@/server/services/tournamentService";
 import { getDrawsByTournament } from "@/server/services/drawService";
 import {
-  tournamentCoverUrl,
   tournamentShareDescription,
 } from "@/lib/tournamentShare";
 import { pageMeta } from "@/lib/seo";
@@ -24,13 +23,12 @@ export async function generateMetadata({
   }
 
   const title = `${tournament.Name} · ${tournament.GameName}`;
-  const image = tournamentCoverUrl(tournament);
 
   return pageMeta({
     title,
     description: tournamentShareDescription(tournament),
     path: `/tournament/${tournament.TournamentId}`,
-    image,
+    image: `/tournament/${tournament.TournamentId}/opengraph-image`,
     imageAlt: tournament.Name,
     absoluteTitle: true,
   });

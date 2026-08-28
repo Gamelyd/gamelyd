@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getOrgById } from "@/server/services/orgService";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { ogIconSrc } from "@/server/ogIcon";
 import { orgShareDescription } from "@/lib/seo";
 import { DefaultOgMarkup, EntityOgMarkup } from "@/lib/ogCard";
 
@@ -23,7 +24,7 @@ export default async function Image({
   return new ImageResponse(
     (
       <EntityOgMarkup
-        image={resolveIcon(org.image, FALLBACKS.team)}
+        image={await ogIconSrc(resolveIcon(org.image, FALLBACKS.team))}
         kicker="Organization"
         title={org.name}
         subtitle={orgShareDescription(org).slice(0, 140)}
