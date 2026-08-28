@@ -105,6 +105,12 @@ export async function getIconById(iconId: string): Promise<IconAsset | null> {
   return found ? serializeIcon(found) : null;
 }
 
+export async function getIconBySlug(slug: string): Promise<IconAsset | null> {
+  const col = await icons();
+  const found = await col.findOne({ slug });
+  return found ? serializeIcon(found) : null;
+}
+
 export async function createIcon(
   input: CreateIconInput,
   options?: { slugHint?: string; slug?: string },

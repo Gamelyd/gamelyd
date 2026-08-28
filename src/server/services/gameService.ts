@@ -75,6 +75,32 @@ export async function getGameById(gameId: string): Promise<Game | null> {
   return found ? serializeGame(found) : null;
 }
 
+export async function getGameByName(name: string): Promise<Game | null> {
+  const col = await games();
+  const found = await col.findOne({
+    name: { $regex: `^${escapeRegex(name.trim())}$`, $options: "i" },
+  });
+  return found ? serializeGame(found) : null;
+}
+
+/** Create the game if the name is new. Image can be empty and filled in later. */
+export async function ensureGame(name: string): Promise<{
+  game: Game;
+  created: boolean;
+}> {
+  const existing = await getGameByName(name);
+  if (existing) return { game: existing, created: false };
+  return {
+    game: await createGame({
+      name: name.trim(),
+      image: "",
+      platforms: [],
+      active: true,
+    }),
+    created: true,
+  };
+}
+
 export async function createGame(input: CreateGameInput): Promise<Game> {
   const col = await games();
   const exists = await col.countDocuments({ name: input.name });

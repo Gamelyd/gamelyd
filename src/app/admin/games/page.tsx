@@ -11,7 +11,7 @@ import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
-import { FALLBACKS, iconForGame, resolveIcon } from "@/lib/icons";
+import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import {
   adminListGamesAction,
@@ -233,14 +233,7 @@ export default function AdminGamesPage() {
           <Input
             label="Name"
             value={form.name}
-            onChange={(e) => {
-              const name = e.target.value;
-              setForm({
-                ...form,
-                name,
-                image: form.image || iconForGame(name, covers),
-              });
-            }}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
           />
           <IconPicker

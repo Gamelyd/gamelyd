@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import {
   verifyRefreshToken,
   verifyToken,
@@ -74,12 +74,25 @@ export async function getAccessClaims(): Promise<TokenClaims | null> {
   return verifyToken(token);
 }
 
+async function getBearerToken(): Promise<string | null> {
+  const auth = (await headers()).get("authorization");
+  if (!auth) return null;
+  const [scheme, token] = auth.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  return token.trim() || null;
+}
+
 /**
- * Session identity from the access cookie, or the refresh cookie if access
- * has expired. Does not write cookies (safe in Server Components).
+ * Session identity from the access cookie, the refresh cookie if access has
+ * expired, or an `Authorization: Bearer` token (CLI / catalog upload).
  */
 export async function getSessionClaims(): Promise<TokenClaims | null> {
-  return (await getAccessClaims()) ?? (await getRefreshClaims());
+  const fromCookies =
+    (await getAccessClaims()) ?? (await getRefreshClaims());
+  if (fromCookies) return fromCookies;
+  const bearer = await getBearerToken();
+  if (!bearer) return null;
+  return (await verifyToken(bearer)) ?? (await verifyRefreshToken(bearer));
 }
 
 export async function getRefreshClaims(): Promise<TokenClaims | null> {

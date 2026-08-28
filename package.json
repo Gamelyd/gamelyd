@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:indexes": "tsx scripts/create-indexes.ts",
-    "set-admin": "tsx scripts/set-admin.ts"
+    "set-admin": "tsx scripts/set-admin.ts",
+    "catalog:upload": "tsx scripts/upload-game-images.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
