@@ -15,9 +15,8 @@ import { adminListGamesAction } from "@/server/actions/gameActions";
 import {
   adminListIconsAction,
   archiveIconAction,
-  createIconAction,
   deleteIconAction,
-  updateIconAction,
+  saveIconFormAction,
 } from "@/server/actions/iconActions";
 
 const KINDS: { id: IconKind | "all"; label: string }[] = [
@@ -41,6 +40,11 @@ const emptyForm: FormState = {
   gameIds: [],
 };
 
+function nameFromImageFile(filename: string): string {
+  const base = filename.split(/[/\\]/).pop() ?? filename;
+  return base.replace(/\.[^.]+$/, "").trim();
+}
+
 export default function AdminImagesPage() {
   const toast = useToast();
   const [items, setItems] = useState<IconAsset[]>([]);
@@ -52,6 +56,8 @@ export default function AdminImagesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<IconAsset | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<IconAsset | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -80,9 +86,24 @@ export default function AdminImagesPage() {
 
   const refresh = () => setReload((r) => r + 1);
 
+  useEffect(() => {
+    if (!file) {
+      setFilePreview("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFilePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const resetForm = (next: FormState) => {
+    setForm(next);
+    setFile(null);
+  };
+
   const openCreate = () => {
     setEditing(null);
-    setForm({
+    resetForm({
       ...emptyForm,
       kind: kind === "all" ? "tournament" : kind,
     });
@@ -91,7 +112,7 @@ export default function AdminImagesPage() {
 
   const openEdit = (icon: IconAsset) => {
     setEditing(icon);
-    setForm({
+    resetForm({
       name: icon.name,
       url: icon.url,
       kind: icon.kind,
@@ -100,12 +121,26 @@ export default function AdminImagesPage() {
     setModalOpen(true);
   };
 
+  const pickFile = (next: File | null) => {
+    setFile(next);
+    if (!next) return;
+    setForm((prev) => ({
+      ...prev,
+      name: nameFromImageFile(next.name),
+    }));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const result = editing
-      ? await updateIconAction(editing.icon_id, form)
-      : await createIconAction(form);
+    const data = new FormData();
+    if (editing) data.set("icon_id", editing.icon_id);
+    data.set("name", form.name);
+    data.set("kind", form.kind);
+    data.set("url", form.url);
+    data.set("gameIds", JSON.stringify(form.gameIds));
+    if (file) data.set("file", file);
+    const result = await saveIconFormAction(data);
     setSaving(false);
     if (result.ok) {
       toast.success(result.message ?? "Saved");
@@ -252,20 +287,48 @@ export default function AdminImagesPage() {
         width="max-w-xl"
       >
         <form onSubmit={handleSave} className="flex flex-col gap-4">
+          <label className="block w-full">
+            <span className="mb-1.5 block text-sm text-label">Image file</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+              className="w-full cursor-pointer rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-[#04201e] hover:file:bg-primary/90"
+            />
+            <span className="mt-1 block text-xs text-body">
+              Choosing a file fills the name from the filename. PNG, JPEG, WebP,
+              or GIF, up to 6 MB.
+            </span>
+          </label>
+          {filePreview || form.url ? (
+            <div className="relative h-36 w-full overflow-hidden rounded-xl bg-surface-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={filePreview || form.url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : null}
           <Input
             label="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
-            placeholder="Wolf"
+            placeholder="EAFC"
           />
           <Input
             label="Image URL"
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
-            required
-            placeholder="/api/icons/crest-team-01-wolf"
+            required={!file && !editing}
+            placeholder="/api/icons/eafc"
           />
+          {file ? (
+            <p className="-mt-2 text-xs text-body">
+              URL is not needed when you select a file. The upload sets it.
+            </p>
+          ) : null}
           <Select
             label="Kind"
             value={form.kind}

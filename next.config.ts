@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "8mb",
+    },
+  },
   images: {
     // Admins/hosts paste image URLs (game art, tournament icons, org logos)
     // from arbitrary hosts, so allow any HTTPS image source. Known CDNs are

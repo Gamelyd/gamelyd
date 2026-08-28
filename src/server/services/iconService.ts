@@ -26,6 +26,10 @@ function slugify(name: string): string {
   return slug || "icon";
 }
 
+export async function allocateIconSlug(hint: string): Promise<string> {
+  return uniqueSlug(slugify(hint));
+}
+
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   const col = await icons();
   let slug = base;
@@ -101,10 +105,15 @@ export async function getIconById(iconId: string): Promise<IconAsset | null> {
   return found ? serializeIcon(found) : null;
 }
 
-export async function createIcon(input: CreateIconInput): Promise<IconAsset> {
+export async function createIcon(
+  input: CreateIconInput,
+  options?: { slugHint?: string; slug?: string },
+): Promise<IconAsset> {
   const col = await icons();
   const now = new Date().toISOString();
-  const slug = await uniqueSlug(slugify(input.name));
+  const slug =
+    options?.slug ??
+    (await uniqueSlug(slugify(options?.slugHint || input.name)));
   const _id = new ObjectId();
   const doc: IconDoc = {
     _id,

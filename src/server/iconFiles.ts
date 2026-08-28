@@ -37,3 +37,25 @@ export async function getIconBuffer(slug: string): Promise<{
   }
   return { contentType: found.contentType, buffer: Buffer.concat(chunks) };
 }
+
+/** Replace or insert a catalog file in GridFS. Filename must match `/api/icons/{slug}`. */
+export async function putIconFile(
+  slug: string,
+  buffer: Buffer,
+  contentType: string,
+): Promise<void> {
+  const filesBucket = await bucket();
+  const existing = await filesBucket.find({ filename: slug }).toArray();
+  for (const file of existing) {
+    await filesBucket.delete(file._id);
+  }
+  await new Promise<void>((resolve, reject) => {
+    const upload = filesBucket.openUploadStream(slug, {
+      contentType,
+      metadata: { contentType },
+    });
+    upload.once("finish", () => resolve());
+    upload.once("error", reject);
+    upload.end(buffer);
+  });
+}
