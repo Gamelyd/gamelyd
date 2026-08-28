@@ -51,7 +51,6 @@ export async function putIconFile(
   }
   await new Promise<void>((resolve, reject) => {
     const upload = filesBucket.openUploadStream(slug, {
-      contentType,
       metadata: { contentType },
     });
     upload.once("finish", () => resolve());

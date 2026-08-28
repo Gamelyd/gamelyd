@@ -175,23 +175,23 @@ export async function saveIconFormAction(
       );
     }
 
-    const parsed = iconId
-      ? parseInput(updateIconInputSchema, {
-          name,
-          url,
-          kind: kindParsed.data,
-          gameIds,
-        })
-      : parseInput(createIconInputSchema, {
-          name,
-          url,
-          kind: kindParsed.data,
-          gameIds,
-        });
-    if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
     if (iconId) {
+      const parsed = parseInput(updateIconInputSchema, {
+        name,
+        url,
+        kind: kindParsed.data,
+        gameIds,
+      });
+      if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
       return ok(await updateIcon(iconId, parsed.data), "Image updated");
     }
+    const parsed = parseInput(createIconInputSchema, {
+      name,
+      url,
+      kind: kindParsed.data,
+      gameIds,
+    });
+    if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
     return ok(await createIcon(parsed.data), "Image added");
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
