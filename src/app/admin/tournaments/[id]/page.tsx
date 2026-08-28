@@ -3,10 +3,12 @@
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
+import { Loader } from "@/components/ui/Loader";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import {
@@ -72,7 +74,7 @@ export default function AdminTournamentManagePage() {
   };
 
   if (loading && !tournament) {
-    return <p className="text-body">Loading…</p>;
+    return <Loader label="Loading tournament" />;
   }
 
   if (!tournament) {
@@ -157,7 +159,15 @@ export default function AdminTournamentManagePage() {
           />
           <Item label="Shuffle" value={tournament.Shuffle} />
           {tournament.OrgName ? (
-            <Item label="Organization" value={tournament.OrgName} />
+            <Item
+              label="Organization"
+              value={
+                <VerifiedName
+                  name={tournament.OrgName}
+                  verified={tournament.OrgVerified}
+                />
+              }
+            />
           ) : null}
           <Item label="Registered" value={`${participants.length} teams`} />
         </dl>
@@ -421,7 +431,13 @@ export default function AdminTournamentManagePage() {
   );
 }
 
-function Item({ label, value }: { label: string; value: string }) {
+function Item({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs text-body">{label}</dt>

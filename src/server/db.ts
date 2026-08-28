@@ -13,6 +13,8 @@ import type {
   OrgDoc,
   OrgInviteDoc,
   OrgMemberDoc,
+  PaymentDoc,
+  PayoutDoc,
   PlatformDoc,
   RegisterTournamentDoc,
   ReportAbuseDoc,
@@ -108,4 +110,10 @@ export async function platforms(): Promise<Collection<PlatformDoc>> {
 }
 export async function icons(): Promise<Collection<IconDoc>> {
   return (await getDb()).collection<IconDoc>(Collections.icon);
+}
+export async function payments(): Promise<Collection<PaymentDoc>> {
+  return (await getDb()).collection<PaymentDoc>(Collections.payment);
+}
+export async function payouts(): Promise<Collection<PayoutDoc>> {
+  return (await getDb()).collection<PayoutDoc>(Collections.payout);
 }

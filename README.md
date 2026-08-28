@@ -1,7 +1,7 @@
 # Gamelyd (Next.js)
 
-A full port of the Gamelyd esports tournament platform — the Go/Gin/MongoDB
-backend and the React frontend — unified into a single, strongly-typed
+A full port of the Gamelyd esports tournament platform - the Go/Gin/MongoDB
+backend and the React frontend - unified into a single, strongly-typed
 **Next.js 16 (App Router)** application.
 
 - **Language:** TypeScript, strict mode, **zero `any`** (enforced by ESLint)
@@ -9,7 +9,7 @@ backend and the React frontend — unified into a single, strongly-typed
 - **Validation:** Zod schemas shared across the client and server
 - **Backend:** Modern Next.js **Server Actions** + **Route-less service layer**,
   with MongoDB, JWT (`jose`), bcrypt and SMTP all kept **server-only**
-- **Auth:** JWT stored in an **httpOnly cookie** — never exposed to client JS
+- **Auth:** JWT stored in an **httpOnly cookie** - never exposed to client JS
 
 ## Architecture
 
@@ -69,7 +69,7 @@ into client code.
 
 ## Scripts
 
-- `npm run dev` — start the dev server
-- `npm run build` — production build
-- `npm run lint` — ESLint (fails on any `any`)
-- `npx tsc --noEmit` — type check
+- `npm run dev` - start the dev server
+- `npm run build` - production build
+- `npm run lint` - ESLint (fails on any `any`)
+- `npx tsc --noEmit` - type check

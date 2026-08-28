@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
+import { Loader } from "@/components/ui/Loader";
 import type { Tournament } from "@/lib/schemas/tournament";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
 import {
   adminListTournamentsAction,
@@ -114,7 +116,10 @@ export default function AdminTournamentsPage() {
                   </Link>
                   {t.OrgName ? (
                     <span className="mt-0.5 block text-xs text-body">
-                      {t.OrgName}
+                      <VerifiedName
+                        name={t.OrgName}
+                        verified={t.OrgVerified}
+                      />
                     </span>
                   ) : null}
                 </td>
@@ -205,6 +210,13 @@ export default function AdminTournamentsPage() {
                 </td>
               </tr>
             ))}
+            {loading && !data ? (
+              <tr>
+                <td colSpan={7}>
+                  <Loader variant="compact" label="Loading tournaments" />
+                </td>
+              </tr>
+            ) : null}
             {data && data.items.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-body">

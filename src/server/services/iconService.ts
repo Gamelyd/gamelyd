@@ -68,10 +68,11 @@ function filterCatalog(items: IconAsset[], input: IconQuery): IconAsset[] {
   if (search) {
     next = next.filter((icon) => icon.name.toLowerCase().includes(search));
   }
-  if (input.gameId && input.kind === "tournament") {
-    const tagged = next.filter((icon) => icon.gameIds.includes(input.gameId!));
-    if (tagged.length > 0) return tagged;
-    return next.filter((icon) => icon.gameIds.length === 0);
+  if (input.gameId) {
+    const gameId = String(input.gameId);
+    return next.filter((icon) =>
+      icon.gameIds.some((id) => String(id) === gameId),
+    );
   }
   return next;
 }

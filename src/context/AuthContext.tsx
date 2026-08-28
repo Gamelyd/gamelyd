@@ -77,7 +77,7 @@ export function AuthProvider({
           }
         })
         .catch(() => {
-          // Dev server restart / offline — keep the last known session.
+          // Dev server restart / offline - keep the last known session.
         })
         .finally(() => {
           inFlight = false;

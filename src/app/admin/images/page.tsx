@@ -9,6 +9,7 @@ import { Confirm } from "@/components/ui/Confirm";
 import { Select } from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import { useToast } from "@/components/ui/Toast";
+import { Loader } from "@/components/ui/Loader";
 import type { Game } from "@/lib/schemas/game";
 import type { IconAsset, IconKind } from "@/lib/schemas/icon";
 import { adminListGamesAction } from "@/server/actions/gameActions";
@@ -217,7 +218,7 @@ export default function AdminImagesPage() {
       </div>
 
       {loading && items.length === 0 ? (
-        <p className="text-body">Loading…</p>
+        <Loader label="Loading images" />
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-surface-2 bg-surface p-10 text-center">
           <p className="text-body">

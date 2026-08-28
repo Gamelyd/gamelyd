@@ -10,7 +10,7 @@ import {
 const payments: { label: string; value: string }[] = [
   { label: "All", value: "ALL" },
   { label: "Free", value: "FREE" },
-  // { label: "Paid", value: "PAID" },
+  { label: "Paid", value: "PAID" },
   { label: "Sponsored", value: "SPONSORED" },
 ];
 

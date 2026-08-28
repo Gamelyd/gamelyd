@@ -3,6 +3,9 @@ import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { formatMoney } from "@/lib/currency";
+import { feePercent } from "@/lib/fees";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 function formatDate(date: string): string {
   if (!date) return "Date TBA";
@@ -13,10 +16,6 @@ function formatDate(date: string): string {
     day: "numeric",
     month: "short",
   });
-}
-
-function naira(amount: number): string {
-  return "₦" + (amount || 0).toLocaleString();
 }
 
 function modeLabel(mode: Tournament["TournamentMode"]): string {
@@ -52,8 +51,13 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
           quality={90}
           className="object-cover"
         />
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           <Tag payment={tournament.Payment} className="rounded-md" />
+          {tournament.TournamentType === "PRIVATE" ? (
+            <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+              Invite only
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -74,8 +78,12 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
             ].join(" · ")}
           </p>
           {tournament.OrgName ? (
-            <p className="mt-1 truncate text-xs text-white/50">
-              Hosted by {tournament.OrgName}
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-white/50">
+              Hosted by{" "}
+              <VerifiedName
+                name={tournament.OrgName}
+                verified={tournament.OrgVerified}
+              />
             </p>
           ) : null}
         </div>
@@ -87,14 +95,26 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
             </p>
             <p className="font-display text-2xl leading-none text-primary">
               {showPrize
-                ? naira(tournament.Amount)
+                ? formatMoney(tournament.Amount, tournament.Currency)
                 : tournament.IsPaid
-                  ? naira(tournament.RegistrationAmount)
+                  ? formatMoney(
+                      tournament.RegistrationAmount,
+                      tournament.Currency,
+                    )
                   : "Free"}
             </p>
+            {tournament.Payment === "PAID" ? (
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                {feePercent(tournament.PlatformFeeBps)}% platform fee
+              </p>
+            ) : tournament.Payment === "SPONSORED" ? (
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                Host-funded · {feePercent(tournament.PlatformFeeBps)}% fee
+              </p>
+            ) : null}
           </div>
           <span className="inline-flex shrink-0 items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-[#04201e] group-hover:bg-primary-dark">
-            Enter
+            {tournament.TournamentType === "PRIVATE" ? "View" : "Enter"}
           </span>
         </div>
       </div>

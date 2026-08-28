@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
+import { Loader } from "@/components/ui/Loader";
 import type { User } from "@/lib/schemas/user";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
 import {
   adminListUsersAction,
   adminSetUserTypeAction,
+  adminSetUserVerifiedAction,
   adminToggleBanUserAction,
   adminToggleDeleteUserAction,
 } from "@/server/actions/adminActions";
@@ -104,7 +107,10 @@ export default function AdminUsersPage() {
               return (
                 <tr key={u.user_id} className="border-t border-surface-2">
                   <td className="px-4 py-3 text-white">
-                    {u.first_name} {u.last_name}
+                    <VerifiedName
+                      name={`${u.first_name} ${u.last_name}`.trim()}
+                      verified={u.verified}
+                    />
                     <span className="block text-xs text-body">
                       @{u.user_name}
                     </span>
@@ -132,6 +138,20 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        loading={busyId === u.user_id}
+                        onClick={() =>
+                          run(u.user_id, () =>
+                            adminSetUserVerifiedAction(
+                              u.user_id,
+                              !u.verified,
+                            ),
+                          )
+                        }
+                      >
+                        {u.verified ? "Unverify" : "Verify"}
+                      </Button>
                       <Button
                         variant="outline"
                         loading={busyId === u.user_id}
@@ -191,6 +211,13 @@ export default function AdminUsersPage() {
                 </tr>
               );
             })}
+            {loading && !data ? (
+              <tr>
+                <td colSpan={5}>
+                  <Loader variant="compact" label="Loading users" />
+                </td>
+              </tr>
+            ) : null}
             {data && data.items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-body">

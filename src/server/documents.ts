@@ -1,8 +1,10 @@
 import "server-only";
 import type { ObjectId } from "mongodb";
 import type {
+  NotificationKind,
   OrgInviteStatus,
   OrgRole,
+  TournamentInviteKind,
   UserType,
 } from "@/lib/schemas/common";
 import type { Player, Teams, BRTeams } from "@/lib/schemas/draw";
@@ -35,6 +37,7 @@ export interface UserDoc {
   isDeleted: boolean;
   isSuspended: boolean;
   emailVerified: boolean;
+  verified: boolean;
   twitter: string;
   instagram: string;
   linkedin: string;
@@ -51,6 +54,7 @@ export interface TournamentDoc {
   icon: string;
   TournamentType: string;
   Payment: string;
+  Currency: string;
   TournamentMode: string;
   TournamentSize: number;
   Team: string;
@@ -62,6 +66,7 @@ export interface TournamentDoc {
   OrgId: string;
   OrgName: string;
   OrgIcon: string;
+  OrgVerified?: boolean;
   Active: boolean;
   IsDeleted: boolean;
   IsSuspended: boolean;
@@ -76,6 +81,21 @@ export interface TournamentDoc {
   RegistrationAmount: number;
   Prizes: PrizePosition[];
   Note: string;
+  Announcements?: {
+    Id: string;
+    Body: string;
+    CreatedAt: string;
+    AuthorId: string;
+  }[];
+  PendingSettingChange?: {
+    Id: string;
+    ProposedBy: string;
+    CreatedAt: string;
+    Summary: string;
+    Patch: Record<string, unknown>;
+    RequiredUserIds: string[];
+    AcceptedUserIds: string[];
+  };
   AcceptedInvites: string[];
   Platform: string;
   Winner?: Teams;
@@ -99,6 +119,7 @@ export interface TournamentDoc {
   }[];
   DisqualifiedTeams?: string[];
   KnockoutFormat?: string;
+  KnockoutFinalsSeries?: boolean;
   ThirdPlace?: boolean;
   TieBreaker?: string;
   BrLobbyCount?: number;
@@ -111,6 +132,11 @@ export interface TournamentDoc {
   CheckInCloses?: string;
   FirstMatchAt?: string;
   MatchIntervalMinutes?: number;
+  PlatformFeeBps?: number;
+  PurseFunded?: boolean;
+  PotNet?: number;
+  FeeCollected?: number;
+  SettlementStatus?: string;
 }
 
 export interface DrawDoc {
@@ -158,8 +184,17 @@ export interface RegisterTournamentDoc {
 
 export interface InviteTournamentDoc {
   _id: ObjectId;
+  invite_id: string;
+  kind: TournamentInviteKind;
   tournament_id: string;
-  user_id: string;
+  tournament_name: string;
+  team_name: string;
+  register_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  /** Legacy Go field; prefer invitee_id. */
+  user_id?: string;
+  status: OrgInviteStatus;
   CreatedAt: string;
   UpdatedAt: string;
 }
@@ -170,6 +205,9 @@ export interface NotificationDoc {
   message: string;
   timestamp: string;
   is_read: boolean;
+  kind?: NotificationKind;
+  invite_id?: string;
+  tournament_id?: string;
 }
 
 export interface ContactUsDoc {
@@ -216,6 +254,7 @@ export interface OrgDoc {
   created_at: string;
   updated_at: string;
   isDeleted: boolean;
+  verified: boolean;
 }
 
 export interface OrgMemberDoc {
@@ -270,6 +309,46 @@ export interface IconDoc {
   url: string;
   gameIds: string[];
   archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentDoc {
+  _id: ObjectId;
+  payment_id: string;
+  kind: "ENTRY" | "SPONSOR_FUND";
+  status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  processor: "STRIPE" | "PAYSTACK";
+  currency: string;
+  tournamentId: string;
+  userId: string;
+  amount: number;
+  fee: number;
+  net: number;
+  feeBps: number;
+  processorRef: string;
+  checkoutUrl: string;
+  email: string;
+  registration?: {
+    Players: Player[];
+    TeamName: string;
+    Icon: string;
+  };
+  created_at: string;
+  updated_at: string;
+  paid_at: string;
+}
+
+export interface PayoutDoc {
+  _id: ObjectId;
+  payout_id: string;
+  tournamentId: string;
+  place: number;
+  teamName: string;
+  amount: number;
+  currency: string;
+  status: "OWED" | "PAID" | "FAILED";
+  note: string;
   created_at: string;
   updated_at: string;
 }

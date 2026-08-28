@@ -11,6 +11,7 @@ import { rosterSize, type TeamSize } from "@/lib/schemas/common";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { User } from "@/lib/schemas/user";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { VerifiedName, PlayerNameList } from "@/components/ui/VerifiedName";
 import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
 
 const NEW_TEAM = "";
@@ -176,7 +177,10 @@ export function AddParticipants({
                 className="h-8 w-8 rounded-full object-cover"
               />
               <span>
-                {u.first_name} {u.last_name}{" "}
+                <VerifiedName
+                  name={`${u.first_name} ${u.last_name}`.trim()}
+                  verified={u.verified}
+                />{" "}
                 <span className="text-primary">@{u.user_name}</span>
               </span>
               <span className="ml-auto text-primary">+ Add</span>
@@ -223,7 +227,7 @@ export function AddParticipants({
           ? "Solo event. Pick a user to add them as their own team."
           : addingToExisting
             ? `Adding to ${target}. ${spotsLeft} of ${needed} ${sizeWord} spots left after this pick (${picked.length} selected).`
-            : `New ${sizeWord}: add 1–${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected).`}
+            : `New ${sizeWord}: add 1-${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected).`}
       </p>
 
       {needed > 1 || picked.length > 0 ? (
@@ -262,10 +266,7 @@ export function RegisteredTeamsList({
             >
               <span className="font-medium text-white">{p.TeamName}</span>
               <span className="text-body">
-                {(p.Players ?? [])
-                  .map((pl) => pl.UserName)
-                  .filter(Boolean)
-                  .join(", ") || "No players listed"}
+                <PlayerNameList players={p.Players ?? []} />
               </span>
             </li>
           ))}

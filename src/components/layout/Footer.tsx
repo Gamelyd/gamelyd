@@ -26,7 +26,7 @@ export function Footer() {
           className="h-10 w-auto"
         />
         <p className="mt-4 max-w-md text-sm text-body">
-          Organize game tournaments: create an event, register teams, draw
+          Host game tournaments: create an event, register teams, draw
           fixtures, and keep scores in one place.
         </p>
         <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">

@@ -13,7 +13,7 @@ const ACCESS_MAX_AGE = 60 * 15; // 15 minutes
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function cookieBase() {
-  // Never set Secure on plain HTTP — browsers drop those cookies and protected
+  // Never set Secure on plain HTTP - browsers drop those cookies and protected
   // routes look like a logout. Opt in only when COOKIE_SECURE=true (HTTPS).
   const secure = process.env.COOKIE_SECURE === "true";
   return {

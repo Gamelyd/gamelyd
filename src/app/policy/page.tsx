@@ -5,34 +5,62 @@ import { pageMeta } from "@/lib/seo";
 export const metadata: Metadata = pageMeta({
   title: "Privacy Policy",
   description:
-    "How Gamelyd collects, uses, and stores account and tournament information.",
+    "What Gamelyd collects, why we keep it, and who we share it with to run tournaments and payments.",
   path: "/policy",
 });
 
 const sections: LegalSection[] = [
   {
-    heading: "Information We Collect",
-    body: "We collect the information you provide when creating an account, including your name, email, phone number and profile details.",
+    heading: "What this covers",
+    body: "This policy explains what we collect when you use Gamelyd, why we use it, and who sees it. It applies to the website at gamelyd.com (and www.gamelyd.com).",
   },
   {
-    heading: "How We Use Information",
-    body: "Your information is used to operate the platform, run tournaments, send notifications and improve our services.",
+    heading: "What we collect",
+    body: [
+      "Account: name, username, email, phone, password (stored hashed, never in plain text), profile photo, and optional social links.",
+      "Tournaments: events you host or join, team names, in-game names, scores, and messages you post in tournament notes.",
+      "Payments: amount, currency, tournament, status, and a reference from Stripe or Paystack. After an event ends we also store prize amounts owed. We do not store full card numbers.",
+      "Technical: sign-in cookies, device and IP used to keep the session honest, and basic logs to fix errors.",
+    ],
   },
   {
-    heading: "Data Storage",
-    body: "Account data is stored securely. Passwords are hashed and never stored in plain text.",
+    heading: "Why we use it",
+    body: [
+      "To run your account, tournaments, and checkout.",
+      "To email you about invites, registration, matches, and security.",
+      "To hold and settle prize money as described in the Terms.",
+      "To stop abuse, fraud, and chargebacks.",
+      "We do not sell your personal information.",
+    ],
   },
   {
     heading: "Cookies",
-    body: "We use httpOnly cookies to keep you signed in securely. These cookies are not accessible to client-side scripts.",
+    body: "We use httpOnly session cookies so you stay signed in. They are not readable by scripts in the browser. We do not use them for advertising networks.",
   },
   {
-    heading: "Third Parties",
-    body: "We share limited data with payment processors and email providers strictly to deliver our services.",
+    heading: "Who we share with",
+    body: [
+      "Stripe and Paystack, to charge tournament payments. If prize money is sent, they receive what they need to pay you (for example email and amount).",
+      "Email delivery (our mail provider), to send the messages above.",
+      "Hosting and database providers that store the site and files you upload (covers, crests, avatars).",
+      "We share with others only if the law requires it, or to protect the service from abuse.",
+    ],
   },
   {
-    heading: "Your Rights",
-    body: "You may access, update or delete your personal information at any time from your profile or by contacting us.",
+    heading: "How long we keep it",
+    body: "We keep account and tournament records while your account is open and as long as we need them for disputes, tax, or the law. You can update profile fields in the app. To delete an account, contact us.",
+  },
+  {
+    heading: "Your choices",
+    body: "You can change profile details while signed in. You can ask what we hold, or ask us to correct or delete it, through the contact page. We may keep a minimum record if a payment or dispute is still open.",
+  },
+  {
+    heading: "Children",
+    body: "Gamelyd is not aimed at children under 13. You must be 18 to pay, fund prizes, or receive prize money.",
+  },
+  {
+    heading: "Changes",
+    body: "We may update this policy. The date at the top is the current version. Questions: use the contact page.",
   },
 ];
 
@@ -40,7 +68,7 @@ export default function PolicyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      updated="August 2026"
+      updated="28 August 2026"
       sections={sections}
     />
   );

@@ -18,6 +18,8 @@ export const Collections = {
   game: "game",
   platform: "platform",
   icon: "icon",
+  payment: "payment",
+  payout: "payout",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];

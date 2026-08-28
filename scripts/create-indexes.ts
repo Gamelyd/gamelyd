@@ -8,7 +8,7 @@
  *   npm run db:indexes                       # uses .env.local / .env / process env
  *   MONGODB_URL="..." DB_NAME="..." npm run db:indexes
  *
- * It is idempotent — safe to run repeatedly.
+ * It is idempotent - safe to run repeatedly.
  */
 import { MongoClient } from "mongodb";
 import { ensureIndexes } from "../src/server/indexes";
@@ -21,7 +21,7 @@ function loadEnvFiles(): void {
     try {
       process.loadEnvFile(file);
     } catch {
-      // file not found or not supported — fine, fall back to process.env
+      // file not found or not supported - fine, fall back to process.env
     }
   }
 }

@@ -5,6 +5,7 @@ import type { TournamentGroup } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player } from "@/lib/schemas/draw";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
+import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
 
 type GroupTeam = {
   key: string;
@@ -318,7 +319,10 @@ function GroupTeamRow({
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium text-white">
-              {team.name || "Unnamed team"}
+              <VerifiedName
+                name={team.name || "Unnamed team"}
+                verified={isSoloVerified(team.players)}
+              />
             </span>
             <span className="block text-xs text-body">
               {team.players.length} player
@@ -375,7 +379,10 @@ function GroupTeamRow({
               />
               <span className="min-w-0">
                 <span className="block truncate text-xs font-medium text-white">
-                  {player.UserName || "Unknown"}
+                  <VerifiedName
+                    name={player.UserName || "Unknown"}
+                    verified={player.Verified}
+                  />
                 </span>
                 {player.GameUserName ? (
                   <span className="block truncate text-[11px] text-body">

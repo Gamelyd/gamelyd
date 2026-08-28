@@ -12,6 +12,7 @@ import {
 import {
   searchUsers,
   setUserType,
+  setUserVerified,
   toggleDeleteUser,
   toggleSuspendUser,
   ServiceError,
@@ -26,6 +27,7 @@ import {
   getOrgByIdAdmin,
   listMembers,
   listOrgs,
+  setOrgVerified,
   toggleDeleteOrg,
 } from "@/server/services/orgService";
 import {
@@ -116,6 +118,22 @@ export async function adminToggleDeleteUserAction(
   }
 }
 
+export async function adminSetUserVerifiedAction(
+  userId: string,
+  verified: boolean,
+): Promise<ActionResult<User>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    return ok(
+      await setUserVerified(userId, verified),
+      verified ? "Player verified" : "Verification removed",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
 /* ----------------------------- Orgs ----------------------------- */
 
 export async function adminListOrgsAction(
@@ -162,6 +180,22 @@ export async function adminToggleDeleteOrgAction(
   try {
     const deleted = await toggleDeleteOrg(orgId);
     return ok(deleted, deleted ? "Organization deleted" : "Organization restored");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminSetOrgVerifiedAction(
+  orgId: string,
+  verified: boolean,
+): Promise<ActionResult<Org>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    return ok(
+      await setOrgVerified(orgId, verified),
+      verified ? "Organization verified" : "Verification removed",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");

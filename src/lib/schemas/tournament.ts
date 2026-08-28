@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   knockoutFormatSchema,
   paymentSchema,
+  currencySchema,
   shuffleSchema,
   teamSizeSchema,
   tieBreakerSchema,
@@ -19,6 +20,8 @@ export type PointSystem = z.infer<typeof pointSystemSchema>;
 export const prizePositionSchema = z.object({
   Position: z.number().int().positive(),
   Amount: z.number().default(0),
+  /** Percent of the net paid pot (0-100). Used for PAID events. */
+  Share: z.number().min(0).max(100).default(0),
 });
 export type PrizePosition = z.infer<typeof prizePositionSchema>;
 
@@ -77,8 +80,35 @@ export const tournamentManagerSchema = z.object({
   last_name: z.string().default(""),
   user_name: z.string().default(""),
   email: z.string().default(""),
+  verified: z.boolean().default(false),
 });
 export type TournamentManager = z.infer<typeof tournamentManagerSchema>;
+
+export const tournamentAnnouncementSchema = z.object({
+  Id: z.string(),
+  Body: z.string(),
+  CreatedAt: z.string(),
+  AuthorId: z.string().default(""),
+});
+export type TournamentAnnouncement = z.infer<
+  typeof tournamentAnnouncementSchema
+>;
+
+export const pendingSettingChangeSchema = z.object({
+  Id: z.string(),
+  ProposedBy: z.string().default(""),
+  CreatedAt: z.string().default(""),
+  Summary: z.string().default(""),
+  Patch: z.record(z.string(), z.unknown()).default({}),
+  RequiredUserIds: z.array(z.string()).default([]),
+  AcceptedUserIds: z.array(z.string()).default([]),
+});
+export type PendingSettingChange = z.infer<typeof pendingSettingChangeSchema>;
+
+export const addAnnouncementInputSchema = z.object({
+  Body: z.string().trim().min(1, "Write an announcement").max(2000),
+});
+export type AddAnnouncementInput = z.infer<typeof addAnnouncementInputSchema>;
 
 export const tournamentSchema = z.object({
   _id: z.string(),
@@ -87,6 +117,7 @@ export const tournamentSchema = z.object({
   icon: z.string(),
   TournamentType: tournamentTypeSchema,
   Payment: paymentSchema,
+  Currency: currencySchema.default("USD"),
   TournamentMode: tournamentModeSchema,
   TournamentSize: z.number(),
   Team: teamSizeSchema,
@@ -98,6 +129,7 @@ export const tournamentSchema = z.object({
   OrgId: z.string().default(""),
   OrgName: z.string().default(""),
   OrgIcon: z.string().default(""),
+  OrgVerified: z.boolean().default(false),
   Active: z.boolean().default(false),
   IsDeleted: z.boolean().default(false),
   IsSuspended: z.boolean().default(false),
@@ -111,7 +143,14 @@ export const tournamentSchema = z.object({
   Amount: z.number().default(0),
   RegistrationAmount: z.number().default(0),
   Prizes: z.array(prizePositionSchema).default([]),
+  PlatformFeeBps: z.number().int().min(0).max(5000).default(1000),
+  PurseFunded: z.boolean().default(true),
+  PotNet: z.number().default(0),
+  FeeCollected: z.number().default(0),
+  SettlementStatus: z.enum(["NONE", "OPEN", "SETTLED"]).default("NONE"),
   Note: z.string(),
+  Announcements: z.array(tournamentAnnouncementSchema).default([]),
+  PendingSettingChange: pendingSettingChangeSchema.optional(),
   AcceptedInvites: z.array(z.string()).default([]),
   Platform: z.string().default(""),
   Winner: teamsSchema.optional(),
@@ -129,7 +168,7 @@ export const tournamentSchema = z.object({
   /**
    * When true, the tournament owner (and co-managers) can drag teams between
    * groups before fixtures are drawn. When false, only a platform admin can.
-   * Missing on older documents — treated as true so existing events keep
+   * Missing on older documents - treated as true so existing events keep
    * the current owner reshuffle behaviour.
    */
   OwnerCanReshuffleGroups: z.boolean().default(true),
@@ -147,6 +186,12 @@ export const tournamentSchema = z.object({
   Qualifiers: z.array(groupQualifierSchema).default([]),
   DisqualifiedTeams: z.array(z.string()).default([]),
   KnockoutFormat: knockoutFormatSchema.default("SINGLE"),
+  /**
+   * When true, the final uses the same two-leg / best-of format as earlier
+   * knockout rounds. When false (default), the final is one match. Third place
+   * is always one match.
+   */
+  KnockoutFinalsSeries: z.boolean().default(false),
   ThirdPlace: z.boolean().default(false),
   TieBreaker: tieBreakerSchema.default("GOAL_DIFF"),
   BrLobbyCount: z.number().int().min(1).max(20).default(1),
@@ -168,6 +213,7 @@ export const saveTournamentInputSchema = z.object({
   icon: z.string().min(1).max(500),
   TournamentType: tournamentTypeSchema,
   Payment: paymentSchema,
+  Currency: currencySchema.optional().default("USD"),
   TournamentMode: tournamentModeSchema,
   TournamentSize: z.coerce.number().int().positive(),
   Team: teamSizeSchema,
@@ -188,6 +234,7 @@ export const saveTournamentInputSchema = z.object({
   GroupCount: z.coerce.number().int().min(0).max(8).optional().default(0),
   OwnerCanSelectQualifiers: z.boolean().optional().default(false),
   KnockoutFormat: knockoutFormatSchema.optional().default("SINGLE"),
+  KnockoutFinalsSeries: z.boolean().optional().default(false),
   ThirdPlace: z.boolean().optional().default(false),
   TieBreaker: tieBreakerSchema.optional().default("GOAL_DIFF"),
   BrLobbyCount: z.coerce.number().int().min(1).max(20).optional().default(1),
@@ -239,6 +286,7 @@ export const editTournamentInputSchema = z
     PointSystem: pointSystemSchema.optional(),
     OwnerCanSelectQualifiers: z.boolean().optional(),
     KnockoutFormat: knockoutFormatSchema.optional(),
+    KnockoutFinalsSeries: z.boolean().optional(),
     ThirdPlace: z.boolean().optional(),
     TieBreaker: tieBreakerSchema.optional(),
     BrLobbyCount: z.coerce.number().int().min(1).max(20).optional(),

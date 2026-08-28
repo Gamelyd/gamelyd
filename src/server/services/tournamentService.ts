@@ -24,19 +24,26 @@ import {
 } from "../legacy";
 import { ServiceError, getUserById } from "./userService";
 import { getMembership, getOrgById, isMember } from "./orgService";
-import { createNotification } from "./notificationService";
+import {
+  hydrateDraws,
+  hydrateRegistrations,
+  hydrateTournament,
+} from "../hydrateVerified";
 import { sendEmail } from "../email/mailer";
 import {
+  announcementEmail,
   createTournamentEmail,
   registerTournamentEmail,
-  tournamentInviteEmail,
+  settingChangeEmail,
 } from "../email/templates";
-import type { Tournament } from "@/lib/schemas/tournament";
-import { browseStatusClause } from "@/lib/tournamentStatus";
+import { createNotifications } from "./notificationService";
+import type { Tournament, PendingSettingChange } from "@/lib/schemas/tournament";
+import { browseStatusClause, tournamentBrowsePhase } from "@/lib/tournamentStatus";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player, Teams, Draw } from "@/lib/schemas/draw";
 import type {
   AdminAddParticipantsInput,
+  TournamentAnnouncement,
   SetGroupQualifiersInput,
   TournamentGroup,
   TournamentManager,
@@ -48,8 +55,10 @@ import type {
   SetGroupsInput,
   UpdateTournamentInput,
 } from "@/lib/schemas/tournament";
+import { editTournamentInputSchema } from "@/lib/schemas/tournament";
 import type { RegisterTournamentInput } from "@/lib/schemas/register";
 import { rosterSize } from "@/lib/schemas/common";
+import { PLATFORM_FEE_BPS } from "@/lib/fees";
 import {
   asDisqualifiedSet,
   groupQualifiersComplete,
@@ -58,8 +67,26 @@ import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import { checkInWindowOpen, registrationDeadlinePassed } from "@/lib/tournamentWindow";
 import { FALLBACKS } from "@/lib/icons";
 import { playerIconForUser } from "@/server/services/iconService";
+import {
+  isSeriousSettingPatch,
+  settingChangeReady,
+  summarizeSettingPatch,
+} from "@/lib/settingChange";
 
 const PER_PAGE = 10;
+
+function fundedPublicClause(): Record<string, unknown> {
+  return {
+    $nor: [
+      {
+        $and: [
+          { $or: [{ Payment: "SPONSORED" }, { payment: "SPONSORED" }] },
+          { PurseFunded: false },
+        ],
+      },
+    ],
+  };
+}
 
 export async function saveTournament(
   uid: string,
@@ -73,6 +100,7 @@ export async function saveTournament(
   let orgId = "";
   let orgName = "";
   let orgIcon = "";
+  let orgVerified = false;
   if (input.OrgId) {
     const membership = await getMembership(input.OrgId, uid);
     if (!membership) {
@@ -83,6 +111,20 @@ export async function saveTournament(
     orgId = org.org_id;
     orgName = org.name;
     orgIcon = org.image;
+    orgVerified = org.verified;
+  }
+
+  if (input.Payment === "PAID" && input.RegistrationAmount <= 0) {
+    throw new ServiceError("Set an entry fee greater than zero");
+  }
+  if (input.Payment === "SPONSORED") {
+    const total = (input.Prizes ?? []).reduce(
+      (sum, prize) => sum + (prize.Amount || 0),
+      0,
+    );
+    if (total <= 0) {
+      throw new ServiceError("Set prize amounts greater than zero");
+    }
   }
 
   const doc: TournamentDoc = {
@@ -92,6 +134,7 @@ export async function saveTournament(
     icon: input.icon,
     TournamentType: input.TournamentType,
     Payment: input.Payment,
+    Currency: input.Payment === "FREE" ? "USD" : input.Currency,
     TournamentMode: input.TournamentMode,
     TournamentSize: input.TournamentSize,
     Team: input.Team,
@@ -103,6 +146,7 @@ export async function saveTournament(
     OrgId: orgId,
     OrgName: orgName,
     OrgIcon: orgIcon,
+    OrgVerified: orgVerified,
     Active: true,
     IsDeleted: false,
     IsSuspended: false,
@@ -119,8 +163,16 @@ export async function saveTournament(
         : input.Amount,
     RegistrationAmount:
       input.Payment === "PAID" ? input.RegistrationAmount : 0,
-    Prizes: input.Payment === "SPONSORED" ? (input.Prizes ?? []) : [],
+    Prizes: input.Payment === "SPONSORED" || input.Payment === "PAID"
+      ? (input.Prizes ?? [])
+      : [],
+    PlatformFeeBps: PLATFORM_FEE_BPS,
+    PurseFunded: input.Payment !== "SPONSORED",
+    PotNet: 0,
+    FeeCollected: 0,
+    SettlementStatus: "NONE",
     Note: input.Note,
+    Announcements: [],
     AcceptedInvites: [],
     Platform: input.Platform,
     Stage: 0,
@@ -151,6 +203,12 @@ export async function saveTournament(
       input.TournamentMode === "GROUPS"
         ? input.KnockoutFormat || "SINGLE"
         : "SINGLE",
+    KnockoutFinalsSeries:
+      (input.TournamentMode === "MULTIPLAYER" ||
+        input.TournamentMode === "GROUPS") &&
+      (input.KnockoutFormat || "SINGLE") !== "SINGLE"
+        ? Boolean(input.KnockoutFinalsSeries)
+        : false,
     ThirdPlace:
       input.TournamentMode === "MULTIPLAYER" ||
       input.TournamentMode === "GROUPS"
@@ -194,7 +252,8 @@ export async function getTournamentById(
   tournamentId: string,
 ): Promise<Tournament | null> {
   const found = await findByAnyId(tournamentId);
-  return found ? serializeTournament(found) : null;
+  if (!found) return null;
+  return hydrateTournament(serializeTournament(found));
 }
 
 export async function getPublicTournaments(
@@ -206,10 +265,8 @@ export async function getPublicTournaments(
   const regex = { $regex: search, $options: "i" };
   const filter = asDocFilter<TournamentDoc>({
     $and: [
-      {
-        $or: [{ TournamentType: "PUBLIC" }, { tournamenttype: "PUBLIC" }],
-      },
       notDeleted(),
+      fundedPublicClause(),
       ...(search.trim().length > 0
         ? [
             {
@@ -250,7 +307,10 @@ export async function getTournamentsByMode(
   const col = await tournaments();
   const perPage = 15;
   const safePage = Math.max(page, 1);
-  const clauses: Record<string, unknown>[] = [notDeleted()];
+  const clauses: Record<string, unknown>[] = [
+    notDeleted(),
+    fundedPublicClause(),
+  ];
   if (payment && payment.toUpperCase() !== "ALL") {
     clauses.push({ $or: [{ Payment: payment }, { payment: payment }] });
   }
@@ -290,6 +350,7 @@ export async function getTournamentsByModeLimit(
         $and: [
           { $or: [{ Payment: payment }, { payment: payment }] },
           notDeleted(),
+          fundedPublicClause(),
         ],
       }),
     )
@@ -309,6 +370,7 @@ export async function getBannerTournaments(): Promise<Tournament[]> {
         $and: [
           { $or: [{ Featured: true }, { featured: true }] },
           notDeleted(),
+          fundedPublicClause(),
           { IsSuspended: { $ne: true } },
           { issuspended: { $ne: true } },
         ],
@@ -561,7 +623,7 @@ export async function userRegisteredTournaments(
     total,
     page: safePage,
     last_page: Math.max(Math.ceil(total / perPage), 1),
-    items: docs.map(serializeRegistration),
+    items: await hydrateRegistrations(docs.map(serializeRegistration)),
   };
 }
 
@@ -574,13 +636,39 @@ export async function userRegisteredTournamentsLimit(
     .sort({ _id: -1 })
     .limit(6)
     .toArray();
-  return docs.map(serializeRegistration);
+  return hydrateRegistrations(docs.map(serializeRegistration));
+}
+
+async function userHasPrivateAccess(
+  uid: string,
+  tournament: Tournament,
+  doc: TournamentDoc,
+): Promise<boolean> {
+  if (tournament.TournamentType !== "PRIVATE") return true;
+  if (await canManageTournament(uid, doc)) return true;
+  if (tournament.AcceptedInvites.includes(uid)) return true;
+  const accepted = await (
+    await invites()
+  ).findOne({
+    tournament_id: tournament.TournamentId,
+    $or: [{ invitee_id: uid }, { user_id: uid }],
+    status: "ACCEPTED",
+  });
+  return Boolean(accepted);
 }
 
 export async function registerForTournament(
   tournamentId: string,
   input: RegisterTournamentInput,
-  options?: { allowPartialRoster?: boolean; autoCheckIn?: boolean },
+  options?: {
+    allowPartialRoster?: boolean;
+    autoCheckIn?: boolean;
+    paidPaymentId?: string;
+    waiveFee?: boolean;
+    actorUid?: string;
+    captainOnly?: boolean;
+    skipInviteGate?: boolean;
+  },
 ): Promise<RegisterTournament> {
   const tournamentDoc = await findByAnyId(tournamentId);
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
@@ -600,6 +688,47 @@ export async function registerForTournament(
   if (registrationDeadlinePassed(tournament.RegistrationDeadline)) {
     throw new ServiceError("Registration has closed for this tournament");
   }
+  if (tournament.Payment === "SPONSORED" && !tournament.PurseFunded) {
+    throw new ServiceError("Prize pool is not funded yet");
+  }
+  if (
+    tournament.Payment === "PAID" &&
+    !options?.paidPaymentId &&
+    !options?.waiveFee
+  ) {
+    throw new ServiceError("Pay the entry fee to join this tournament");
+  }
+
+  const actor = options?.actorUid ?? input.Players[0]?.User_id;
+  if (!options?.skipInviteGate && actor) {
+    const allowed = await userHasPrivateAccess(actor, tournament, tournamentDoc);
+    if (!allowed) {
+      throw new ServiceError(
+        "This tournament is invite-only. Accept an invite before you register.",
+      );
+    }
+  }
+
+  if (!options?.skipInviteGate && tournament.TournamentSize > 0) {
+    const taken = await (
+      await registrations()
+    ).countDocuments(
+      asDocFilter<RegisterTournamentDoc>(
+        byAnyTournamentId([tournament.TournamentId, tournament._id]),
+      ),
+    );
+    if (taken >= tournament.TournamentSize) {
+      throw new ServiceError("Tournament full");
+    }
+  }
+
+  if (options?.captainOnly) {
+    if (!actor || input.Players.length !== 1 || input.Players[0].User_id !== actor) {
+      throw new ServiceError(
+        "Register yourself first, then invite teammates. They join when they accept.",
+      );
+    }
+  }
 
   const needed = rosterSize(tournament.Team);
   if (input.Players.length < 1 || input.Players.length > needed) {
@@ -607,7 +736,11 @@ export async function registerForTournament(
       `A ${tournament.Team.toLowerCase()} team can have at most ${needed} player${needed === 1 ? "" : "s"}`,
     );
   }
-  if (!options?.allowPartialRoster && input.Players.length !== needed) {
+  if (
+    !options?.allowPartialRoster &&
+    !options?.captainOnly &&
+    input.Players.length !== needed
+  ) {
     throw new ServiceError(
       `This ${tournament.Team.toLowerCase()} tournament requires exactly ${needed} player${needed === 1 ? "" : "s"}`,
     );
@@ -714,6 +847,7 @@ export async function adminAddParticipants(
       User_id: u.user_id,
       Email: u.email || "",
       Icon: await playerIconForUser(u.user_id),
+      Verified: Boolean(u.verified),
     })),
   );
 
@@ -746,7 +880,12 @@ export async function adminAddParticipants(
       PaymentChannel: "",
       Amount: 0,
     },
-    { allowPartialRoster: true, autoCheckIn: true },
+    {
+      allowPartialRoster: true,
+      autoCheckIn: true,
+      waiveFee: true,
+      skipInviteGate: true,
+    },
   );
 }
 
@@ -807,6 +946,16 @@ async function addPlayersToExistingTeam(
     Players: nextPlayers,
     Updated_at: now,
   });
+}
+
+export async function addPlayerToTeam(
+  tournamentId: string,
+  teamName: string,
+  player: Player,
+): Promise<RegisterTournament> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  return addPlayersToExistingTeam(found, teamName, [player]);
 }
 
 export async function adminSetOwnerCanReshuffleGroups(
@@ -884,51 +1033,7 @@ export async function listParticipants(
     .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
     .limit(1000)
     .toArray();
-  return docs.map(serializeRegistration);
-}
-
-export async function inviteUser(
-  actorUid: string,
-  userId: string,
-  tournamentId: string,
-): Promise<void> {
-  const found = await findByAnyId(tournamentId);
-  if (!found) throw new ServiceError("Tournament not found");
-  if (!(await canManageTournament(actorUid, found))) {
-    throw new ServiceError("You are not allowed to manage this tournament");
-  }
-  const tournament = serializeTournament(found);
-  const invitee = await getUserById(userId);
-  if (!invitee) throw new ServiceError("User not found");
-
-  const iCol = await invites();
-  const now = new Date().toISOString();
-  await iCol.insertOne({
-    _id: new ObjectId(),
-    tournament_id: tournamentId,
-    user_id: userId,
-    CreatedAt: now,
-    UpdatedAt: now,
-  });
-
-  await createNotification(
-    userId,
-    `You have been invited to ${tournament.Name}`,
-  );
-  void sendEmail(
-    invitee.email,
-    tournamentInviteEmail(invitee.first_name, tournamentId, tournament.Name),
-  );
-}
-
-export async function acceptInvite(
-  userId: string,
-  tournamentId: string,
-): Promise<void> {
-  const col = await tournaments();
-  await col.updateOne(asDocFilter<TournamentDoc>(byTournamentId(tournamentId)), {
-    $addToSet: { AcceptedInvites: userId },
-  });
+  return hydrateRegistrations(docs.map(serializeRegistration));
 }
 
 export async function removeUserFromTournament(
@@ -987,6 +1092,11 @@ export async function removeUserFromTournament(
       { $set: { Players: remaining, Updated_at: new Date().toISOString() } },
     );
   }
+  await revokeInviteAccess(
+    found,
+    [userId],
+    remaining.length === 0 ? mapped.RegisterTournamentId : "",
+  );
   return remaining;
 }
 
@@ -1042,7 +1152,7 @@ export async function canManageTournamentById(
 
 /**
  * True if the user owns the tournament or is a platform admin. Co-managers are
- * NOT included — only these two can manage co-managers or delete/suspend.
+ * NOT included - only these two can manage co-managers or delete/suspend.
  */
 export async function canAdministerTournament(
   uid: string,
@@ -1351,6 +1461,7 @@ export async function removeRegisteredTeam(
     }),
   );
   if (!reg) throw new ServiceError("Team not found");
+  const mapped = serializeRegistration(reg);
   await rCol.deleteOne({ _id: reg._id });
 
   const groups = (tournament.Groups ?? []).map((group) => ({
@@ -1370,6 +1481,12 @@ export async function removeRegisteredTeam(
     } as unknown as Parameters<typeof col.updateOne>[1],
   );
 
+  await revokeInviteAccess(
+    found,
+    mapped.Players.map((p) => p.User_id),
+    mapped.RegisterTournamentId,
+  );
+
   return { teamName: trimmed, groups };
 }
 
@@ -1387,6 +1504,7 @@ async function hydrateManagers(userIds: string[]): Promise<TournamentManager[]> 
       last_name: u?.last_name ?? "",
       user_name: u?.user_name ?? "",
       email: u?.email ?? "",
+      verified: Boolean(u?.verified),
     };
   });
 }
@@ -1572,14 +1690,15 @@ export async function updateTournament(
 }
 
 /**
- * Owner/admin: edit configurable settings before the tournament starts.
- * The size cannot drop below the number of teams already registered.
+ * Owner/admin: edit settings. After the event starts, rules that change how
+ * it is played wait for every registered player to accept, then the owner
+ * applies them.
  */
 export async function editTournamentSettings(
   actorUid: string,
   id: string,
   input: EditTournamentInput,
-): Promise<Tournament> {
+): Promise<{ tournament: Tournament; proposed: boolean }> {
   const col = await tournaments();
   const found = await findByAnyId(id);
   if (!found) throw new ServiceError("Tournament not found");
@@ -1588,283 +1707,315 @@ export async function editTournamentSettings(
   }
 
   const current = serializeTournament(found);
-  const groupsExist = (current.Groups ?? []).length > 0;
-  const ids = relatedIdsFromDoc(found);
-  const drawDocs = await (await draws())
-    .find(asDocFilter<DrawDoc>(byAnyTournamentId(ids)))
-    .project({ Group: 1, BRTeams: 1, Kind: 1 })
-    .toArray();
-  const fixturesDrawn = drawDocs.length > 0;
-  const knockoutDrawn = drawDocs.some((d) => {
-    const group = (d.Group || "").trim();
-    const br = Boolean(d.BRTeams && d.BRTeams.length);
-    const kind = (d.Kind || "").trim();
-    return !group && !br && kind !== "THIRD_PLACE";
-  });
+  if (current.Start && isSeriousSettingPatch(input)) {
+    const tournament = await proposeSettingChange(actorUid, found, current, input);
+    return { tournament, proposed: true };
+  }
 
-  const rejectAfterStart = (label: string) => {
-    if (current.Start) {
-      throw new ServiceError(
-        `${label} can't be changed after the tournament has started`,
-      );
-    }
+  const tournament = await applyTournamentSettings(actorUid, found, current, input);
+  return { tournament, proposed: false };
+}
+
+export async function acceptSettingChange(
+  uid: string,
+  tournamentId: string,
+): Promise<Tournament> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  const current = serializeTournament(found);
+  const pending = current.PendingSettingChange;
+  if (!pending) throw new ServiceError("There is no setting change to accept");
+  if (!pending.RequiredUserIds.includes(uid)) {
+    throw new ServiceError("You are not in this tournament");
+  }
+  if (pending.AcceptedUserIds.includes(uid)) {
+    return current;
+  }
+
+  const now = new Date().toISOString();
+  const accepted = [...new Set([...pending.AcceptedUserIds, uid])];
+  const next: PendingSettingChange = { ...pending, AcceptedUserIds: accepted };
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id, "PendingSettingChange.Id": pending.Id },
+    {
+      $set: {
+        PendingSettingChange: next,
+        pendingsettingchange: next,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("There is no setting change to accept");
+  const tournament = serializeTournament(updated);
+  if (settingChangeReady(next)) {
+    void notifyOwnerSettingChangeReady(found, current.Name, current.User_id);
+  }
+  return tournament;
+}
+
+export async function applySettingChange(
+  actorUid: string,
+  tournamentId: string,
+): Promise<Tournament> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("Only the tournament owner can apply this change");
+  }
+  const current = serializeTournament(found);
+  const pending = current.PendingSettingChange;
+  if (!pending) throw new ServiceError("There is no setting change to apply");
+  if (!settingChangeReady(pending)) {
+    throw new ServiceError(
+      "Everyone in the tournament has to accept before you can apply this",
+    );
+  }
+  const parsed = parseInputSafe(pending.Patch);
+  const tournament = await applyTournamentSettings(
+    actorUid,
+    found,
+    current,
+    parsed,
+    { clearPending: true },
+  );
+  return tournament;
+}
+
+export async function cancelSettingChange(
+  actorUid: string,
+  tournamentId: string,
+): Promise<Tournament> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canAdministerTournament(actorUid, found))) {
+    throw new ServiceError("Only the tournament owner can cancel this change");
+  }
+  if (!serializeTournament(found).PendingSettingChange) {
+    throw new ServiceError("There is no setting change to cancel");
+  }
+  const now = new Date().toISOString();
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id },
+    {
+      $unset: { PendingSettingChange: "", pendingsettingchange: "" },
+      $set: { Updated_at: now, updated_at: now },
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Tournament not found");
+  return serializeTournament(updated);
+}
+
+function parseInputSafe(patch: Record<string, unknown>): EditTournamentInput {
+  const parsed = editTournamentInputSchema.safeParse(patch);
+  if (!parsed.success) {
+    throw new ServiceError("That setting change is no longer valid");
+  }
+  return parsed.data;
+}
+
+async function proposeSettingChange(
+  actorUid: string,
+  found: TournamentDoc,
+  current: Tournament,
+  input: EditTournamentInput,
+): Promise<Tournament> {
+  if (current.PendingSettingChange) {
+    throw new ServiceError(
+      "There's already a setting change waiting. Cancel it or apply it first.",
+    );
+  }
+  await validateSettingsInput(found, current, input);
+
+  const roster = await rosterPlayersForDoc(found);
+  const required = [...new Set(roster.map((p) => p.User_id).filter(Boolean))];
+  const accepted = required.includes(actorUid) ? [actorUid] : [];
+  const summary = summarizeSettingPatch(input);
+  const pending: PendingSettingChange = {
+    Id: new ObjectId().toHexString(),
+    ProposedBy: actorUid,
+    CreatedAt: new Date().toISOString(),
+    Summary: summary,
+    Patch: input as unknown as Record<string, unknown>,
+    RequiredUserIds: required,
+    AcceptedUserIds: accepted,
   };
 
+  const now = new Date().toISOString();
+  const col = await tournaments();
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id },
+    {
+      $set: {
+        PendingSettingChange: pending,
+        pendingsettingchange: pending,
+        Updated_at: now,
+        updated_at: now,
+      },
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Tournament not found");
+
+  const voters = roster.filter(
+    (p) => p.User_id && !accepted.includes(p.User_id),
+  );
+  const message = `The host wants to change ${current.Name}: ${summary}. Accept it so it can be applied.`;
+  void notifyRoster(
+    voters,
+    message,
+    "SETTING_CHANGE",
+    current.TournamentId,
+    (name) => settingChangeEmail(name, current.Name, current.TournamentId, summary),
+  );
+  if (settingChangeReady(pending)) {
+    void notifyOwnerSettingChangeReady(found, current.Name, current.User_id);
+  }
+  return serializeTournament(updated);
+}
+
+async function applyTournamentSettings(
+  actorUid: string,
+  found: TournamentDoc,
+  current: Tournament,
+  input: EditTournamentInput,
+  extra?: { clearPending?: boolean },
+): Promise<Tournament> {
+  await validateSettingsInput(found, current, input);
+  const ids = relatedIdsFromDoc(found);
   const now = new Date().toISOString();
   const set: Record<string, unknown> = { Updated_at: now, updated_at: now };
 
   if (input.TournamentSize !== undefined) {
-    rejectAfterStart("Tournament size");
-    const ids = relatedIdsFromDoc(found);
-    const registeredCount = await (await registrations()).countDocuments(
-      asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)),
-    );
-    if (input.TournamentSize < registeredCount) {
-      throw new ServiceError(
-        `Size can't be less than the ${registeredCount} team${
-          registeredCount === 1 ? "" : "s"
-        } already registered`,
-      );
-    }
     set.TournamentSize = input.TournamentSize;
     set.tournamentsize = input.TournamentSize;
   }
-
   if (input.Shuffle !== undefined) {
-    rejectAfterStart("Draw order");
     set.Shuffle = input.Shuffle;
     set.shuffle = input.Shuffle;
   }
-
   if (input.TournamentType !== undefined) {
-    rejectAfterStart("Visibility");
     set.TournamentType = input.TournamentType;
     set.tournamenttype = input.TournamentType;
   }
-
   if (input.Name !== undefined) {
-    rejectAfterStart("Name");
     set.Name = input.Name;
     set.name = input.Name;
   }
-
   if (input.Date !== undefined) {
-    rejectAfterStart("Date");
     set.Date = input.Date;
     set.date = input.Date;
   }
-
   if (input.Note !== undefined) {
-    rejectAfterStart("Briefing");
     set.Note = input.Note;
     set.note = input.Note;
   }
-
   if (input.ReturnLeg !== undefined) {
-    if (
-      current.TournamentMode !== "LEAGUE" &&
-      current.TournamentMode !== "GROUPS"
-    ) {
-      throw new ServiceError("Return leg only applies to league and groups");
-    }
-    if (fixturesDrawn) {
-      throw new ServiceError(
-        "Return leg can't be changed after fixtures have been drawn",
-      );
-    }
     set.ReturnLeg = input.ReturnLeg;
     set.returnleg = input.ReturnLeg;
   }
-
   if (input.AdvancePerGroup !== undefined) {
-    if (current.TournamentMode !== "GROUPS") {
-      throw new ServiceError("Advance per group only applies to groups");
-    }
-    if (knockoutDrawn) {
-      throw new ServiceError(
-        "Advance per group can't be changed after the knockout is drawn",
-      );
-    }
     set.AdvancePerGroup = input.AdvancePerGroup;
     set.advancepergroup = input.AdvancePerGroup;
   }
-
   if (input.GroupCount !== undefined) {
-    if (current.TournamentMode !== "GROUPS") {
-      throw new ServiceError("Group count only applies to groups");
-    }
-    if (groupsExist) {
-      throw new ServiceError(
-        "Group count can't be changed after groups are created",
-      );
-    }
     set.GroupCount = input.GroupCount;
     set.groupcount = input.GroupCount;
   }
-
   if (input.PointSystem !== undefined) {
-    if (
-      current.TournamentMode !== "LEAGUE" &&
-      current.TournamentMode !== "GROUPS"
-    ) {
-      throw new ServiceError("Point system only applies to league and groups");
-    }
-    if (current.TournamentMode === "LEAGUE" && fixturesDrawn) {
-      throw new ServiceError(
-        "Point system can't be changed after league fixtures are drawn",
-      );
-    }
-    if (current.TournamentMode === "GROUPS" && knockoutDrawn) {
-      throw new ServiceError(
-        "Point system can't be changed after the knockout is drawn",
-      );
-    }
     set.PointSystem = {
       Win: input.PointSystem.Win,
       Draw: input.PointSystem.Draw,
     };
     set.pointsystem = set.PointSystem;
   }
-
   if (input.OwnerCanSelectQualifiers !== undefined) {
-    if (current.TournamentMode !== "GROUPS") {
-      throw new ServiceError(
-        "Qualifier picks only apply to group tournaments",
-      );
-    }
-    if (knockoutDrawn) {
-      throw new ServiceError(
-        "Qualifier rule can't be changed after the knockout is drawn",
-      );
-    }
     set.OwnerCanSelectQualifiers = input.OwnerCanSelectQualifiers;
     set.ownercanselectqualifiers = input.OwnerCanSelectQualifiers;
   }
-
-  const isKnockoutMode =
-    current.TournamentMode === "MULTIPLAYER" ||
-    current.TournamentMode === "GROUPS";
   if (input.KnockoutFormat !== undefined) {
-    if (!isKnockoutMode) {
-      throw new ServiceError("Knockout format only applies to knockout events");
-    }
-    if (knockoutDrawn || (current.TournamentMode === "MULTIPLAYER" && fixturesDrawn)) {
-      throw new ServiceError(
-        "Knockout format can't be changed after knockout fixtures are drawn",
-      );
-    }
     set.KnockoutFormat = input.KnockoutFormat;
     set.knockoutformat = input.KnockoutFormat;
+    if (input.KnockoutFormat === "SINGLE") {
+      set.KnockoutFinalsSeries = false;
+      set.knockoutfinalsseries = false;
+    }
+  }
+  if (input.KnockoutFinalsSeries !== undefined) {
+    const format = (input.KnockoutFormat ||
+      set.KnockoutFormat ||
+      current.KnockoutFormat ||
+      "SINGLE") as string;
+    set.KnockoutFinalsSeries =
+      format !== "SINGLE" && Boolean(input.KnockoutFinalsSeries);
+    set.knockoutfinalsseries = set.KnockoutFinalsSeries;
   }
   if (input.ThirdPlace !== undefined) {
-    if (!isKnockoutMode) {
-      throw new ServiceError("Third place only applies to knockout events");
-    }
-    if (knockoutDrawn || (current.TournamentMode === "MULTIPLAYER" && fixturesDrawn)) {
-      throw new ServiceError(
-        "Third place can't be changed after knockout fixtures are drawn",
-      );
-    }
     set.ThirdPlace = input.ThirdPlace;
     set.thirdplace = input.ThirdPlace;
   }
   if (input.TieBreaker !== undefined) {
-    if (
-      current.TournamentMode !== "LEAGUE" &&
-      current.TournamentMode !== "GROUPS"
-    ) {
-      throw new ServiceError("Tie-breakers only apply to league and groups");
-    }
-    if (current.TournamentMode === "LEAGUE" && fixturesDrawn) {
-      throw new ServiceError(
-        "Tie-breaker can't be changed after league fixtures are drawn",
-      );
-    }
-    if (current.TournamentMode === "GROUPS" && knockoutDrawn) {
-      throw new ServiceError(
-        "Tie-breaker can't be changed after the knockout is drawn",
-      );
-    }
     set.TieBreaker = input.TieBreaker;
     set.tiebreaker = input.TieBreaker;
   }
-  if (
-    input.BrLobbyCount !== undefined ||
-    input.BrKillPoints !== undefined ||
-    input.BrFirstBloodPoints !== undefined ||
-    input.BrPlacementPoints !== undefined
-  ) {
-    if (current.TournamentMode !== "BATTLEROYALE") {
-      throw new ServiceError("Battle royale scoring only applies to BR events");
-    }
-    if (fixturesDrawn) {
-      throw new ServiceError(
-        "Battle royale scoring can't be changed after lobbies are drawn",
-      );
-    }
-    if (input.BrLobbyCount !== undefined) {
-      set.BrLobbyCount = input.BrLobbyCount;
-      set.brlobbycount = input.BrLobbyCount;
-    }
-    if (input.BrKillPoints !== undefined) {
-      set.BrKillPoints = input.BrKillPoints;
-      set.brkillpoints = input.BrKillPoints;
-    }
-    if (input.BrFirstBloodPoints !== undefined) {
-      set.BrFirstBloodPoints = input.BrFirstBloodPoints;
-      set.brfirstbloodpoints = input.BrFirstBloodPoints;
-    }
-    if (input.BrPlacementPoints !== undefined) {
-      set.BrPlacementPoints = input.BrPlacementPoints;
-      set.brplacementpoints = input.BrPlacementPoints;
-    }
+  if (input.BrLobbyCount !== undefined) {
+    set.BrLobbyCount = input.BrLobbyCount;
+    set.brlobbycount = input.BrLobbyCount;
+  }
+  if (input.BrKillPoints !== undefined) {
+    set.BrKillPoints = input.BrKillPoints;
+    set.brkillpoints = input.BrKillPoints;
+  }
+  if (input.BrFirstBloodPoints !== undefined) {
+    set.BrFirstBloodPoints = input.BrFirstBloodPoints;
+    set.brfirstbloodpoints = input.BrFirstBloodPoints;
+  }
+  if (input.BrPlacementPoints !== undefined) {
+    set.BrPlacementPoints = input.BrPlacementPoints;
+    set.brplacementpoints = input.BrPlacementPoints;
   }
   if (input.RegistrationDeadline !== undefined) {
-    rejectAfterStart("Registration deadline");
     set.RegistrationDeadline = input.RegistrationDeadline;
     set.registrationdeadline = input.RegistrationDeadline;
   }
   if (input.CheckInRequired !== undefined) {
-    rejectAfterStart("Check-in");
     set.CheckInRequired = input.CheckInRequired;
     set.checkinrequired = input.CheckInRequired;
   }
   if (input.CheckInOpens !== undefined) {
-    rejectAfterStart("Check-in");
     set.CheckInOpens = input.CheckInOpens;
     set.checkinopens = input.CheckInOpens;
   }
   if (input.CheckInCloses !== undefined) {
-    rejectAfterStart("Check-in");
     set.CheckInCloses = input.CheckInCloses;
     set.checkincloses = input.CheckInCloses;
   }
   if (input.FirstMatchAt !== undefined) {
-    if (fixturesDrawn) {
-      throw new ServiceError(
-        "Match schedule can't be changed after fixtures are drawn",
-      );
-    }
     set.FirstMatchAt = input.FirstMatchAt;
     set.firstmatchat = input.FirstMatchAt;
   }
   if (input.MatchIntervalMinutes !== undefined) {
-    if (fixturesDrawn) {
-      throw new ServiceError(
-        "Match interval can't be changed after fixtures are drawn",
-      );
-    }
     set.MatchIntervalMinutes = input.MatchIntervalMinutes;
     set.matchintervalminutes = input.MatchIntervalMinutes;
   }
-
   if (input.icon !== undefined) {
     set.icon = input.icon;
   }
 
+  const col = await tournaments();
+  const unset = extra?.clearPending
+    ? { PendingSettingChange: "", pendingsettingchange: "" }
+    : undefined;
   const updated = await col.findOneAndUpdate(
     { _id: found._id },
-    { $set: set } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    {
+      $set: set,
+      ...(unset ? { $unset: unset } : {}),
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
     { returnDocument: "after" },
   );
   if (!updated) throw new ServiceError("Tournament not found");
@@ -1879,7 +2030,264 @@ export async function editTournamentSettings(
       } as never,
     );
   }
+  void actorUid;
   return serializeTournament(updated);
+}
+
+async function validateSettingsInput(
+  found: TournamentDoc,
+  current: Tournament,
+  input: EditTournamentInput,
+): Promise<void> {
+  const ids = relatedIdsFromDoc(found);
+
+  if (input.TournamentSize !== undefined) {
+    const registeredCount = await (await registrations()).countDocuments(
+      asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)),
+    );
+    if (input.TournamentSize < registeredCount) {
+      throw new ServiceError(
+        `Size can't be less than the ${registeredCount} team${
+          registeredCount === 1 ? "" : "s"
+        } already registered`,
+      );
+    }
+  }
+
+  if (input.ReturnLeg !== undefined) {
+    if (
+      current.TournamentMode !== "LEAGUE" &&
+      current.TournamentMode !== "GROUPS"
+    ) {
+      throw new ServiceError("Return leg only applies to league and groups");
+    }
+  }
+  if (input.AdvancePerGroup !== undefined) {
+    if (current.TournamentMode !== "GROUPS") {
+      throw new ServiceError("Advance per group only applies to groups");
+    }
+  }
+  if (input.GroupCount !== undefined) {
+    if (current.TournamentMode !== "GROUPS") {
+      throw new ServiceError("Group count only applies to groups");
+    }
+  }
+  if (input.PointSystem !== undefined) {
+    if (
+      current.TournamentMode !== "LEAGUE" &&
+      current.TournamentMode !== "GROUPS"
+    ) {
+      throw new ServiceError("Point system only applies to league and groups");
+    }
+  }
+  if (input.OwnerCanSelectQualifiers !== undefined) {
+    if (current.TournamentMode !== "GROUPS") {
+      throw new ServiceError(
+        "Qualifier picks only apply to group tournaments",
+      );
+    }
+  }
+  const isKnockoutMode =
+    current.TournamentMode === "MULTIPLAYER" ||
+    current.TournamentMode === "GROUPS";
+  if (input.KnockoutFormat !== undefined && !isKnockoutMode) {
+    throw new ServiceError("Knockout format only applies to knockout events");
+  }
+  if (input.KnockoutFinalsSeries !== undefined && !isKnockoutMode) {
+    throw new ServiceError("Knockout format only applies to knockout events");
+  }
+  if (input.ThirdPlace !== undefined && !isKnockoutMode) {
+    throw new ServiceError("Third place only applies to knockout events");
+  }
+  if (input.TieBreaker !== undefined) {
+    if (
+      current.TournamentMode !== "LEAGUE" &&
+      current.TournamentMode !== "GROUPS"
+    ) {
+      throw new ServiceError("Tie-breakers only apply to league and groups");
+    }
+  }
+  if (
+    input.BrLobbyCount !== undefined ||
+    input.BrKillPoints !== undefined ||
+    input.BrFirstBloodPoints !== undefined ||
+    input.BrPlacementPoints !== undefined
+  ) {
+    if (current.TournamentMode !== "BATTLEROYALE") {
+      throw new ServiceError("Battle royale scoring only applies to BR events");
+    }
+  }
+}
+
+async function rosterPlayersForDoc(found: TournamentDoc): Promise<Player[]> {
+  const ids = relatedIdsFromDoc(found);
+  const docs = await (await registrations())
+    .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
+    .toArray();
+  const byId = new Map<string, Player>();
+  for (const doc of docs) {
+    const reg = serializeRegistration(doc);
+    for (const player of reg.Players ?? []) {
+      if (player.User_id) byId.set(player.User_id, player);
+    }
+  }
+  return [...byId.values()];
+}
+
+async function tournamentAudience(
+  found: TournamentDoc,
+  current: Tournament,
+): Promise<Player[]> {
+  const roster = await rosterPlayersForDoc(found);
+  const byId = new Map(roster.map((p) => [p.User_id, p]));
+  const extraIds = [
+    current.User_id,
+    ...(current.Managers ?? []),
+  ].filter((id) => id && !byId.has(id));
+  for (const id of extraIds) {
+    const user = await getUserById(id);
+    if (!user) continue;
+    byId.set(id, {
+      UserName: user.user_name || user.first_name,
+      GameUserName: "",
+      User_id: user.user_id,
+      Email: user.email,
+      Icon: user.icon || "",
+      Verified: Boolean(user.verified),
+    });
+  }
+  return [...byId.values()];
+}
+
+async function notifyRoster(
+  players: Player[],
+  message: string,
+  kind: "ANNOUNCEMENT" | "SETTING_CHANGE",
+  tournamentId: string,
+  email: (name: string) => { subject: string; html: string },
+): Promise<void> {
+  try {
+    await createNotifications(
+      players.map((p) => p.User_id),
+      message,
+      { kind, tournament_id: tournamentId },
+    );
+    for (const player of players) {
+      if (player.Email) {
+        void sendEmail(player.Email, email(player.UserName || "there"));
+      }
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function notifyOwnerSettingChangeReady(
+  found: TournamentDoc,
+  tournamentName: string,
+  ownerId: string,
+): Promise<void> {
+  try {
+    await createNotifications(
+      [ownerId],
+      `Everyone accepted the setting change in ${tournamentName}. You can apply it now.`,
+      { kind: "SETTING_CHANGE", tournament_id: serializeTournament(found).TournamentId },
+    );
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+const MAX_ANNOUNCEMENTS = 50;
+
+export async function addTournamentAnnouncement(
+  actorUid: string,
+  tournamentId: string,
+  body: string,
+): Promise<TournamentAnnouncement[]> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canManageTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to post announcements");
+  }
+  const tournament = serializeTournament(found);
+  if (tournamentBrowsePhase(tournament) === "ENDED") {
+    throw new ServiceError(
+      "This tournament is over. Announcements are closed.",
+    );
+  }
+
+  const now = new Date().toISOString();
+  const announcement: TournamentAnnouncement = {
+    Id: new ObjectId().toHexString(),
+    Body: body.trim(),
+    CreatedAt: now,
+    AuthorId: actorUid,
+  };
+
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id },
+    {
+      $push: {
+        Announcements: {
+          $each: [announcement],
+          $position: 0,
+          $slice: MAX_ANNOUNCEMENTS,
+        },
+      },
+      $set: { Updated_at: now, updated_at: now },
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Tournament not found");
+  const posted = serializeTournament(updated).Announcements;
+  const preview =
+    announcement.Body.length > 180
+      ? `${announcement.Body.slice(0, 177)}…`
+      : announcement.Body;
+  const audience = (await tournamentAudience(found, tournament)).filter(
+    (player) => player.User_id !== actorUid,
+  );
+  void notifyRoster(
+    audience,
+    `${tournament.Name}: ${preview}`,
+    "ANNOUNCEMENT",
+    tournament.TournamentId,
+    (name) =>
+      announcementEmail(
+        name,
+        tournament.Name,
+        tournament.TournamentId,
+        announcement.Body,
+      ),
+  );
+  return posted;
+}
+
+export async function removeTournamentAnnouncement(
+  actorUid: string,
+  tournamentId: string,
+  announcementId: string,
+): Promise<TournamentAnnouncement[]> {
+  const col = await tournaments();
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await canManageTournament(actorUid, found))) {
+    throw new ServiceError("You are not allowed to remove announcements");
+  }
+
+  const now = new Date().toISOString();
+  const updated = await col.findOneAndUpdate(
+    { _id: found._id },
+    {
+      $pull: { Announcements: { Id: announcementId } },
+      $set: { Updated_at: now, updated_at: now },
+    } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Tournament not found");
+  return serializeTournament(updated).Announcements;
 }
 
 export async function groupTournament(
@@ -1982,7 +2390,7 @@ export async function setTournamentGroups(
     throw new ServiceError("This tournament has no groups yet");
   }
 
-  // Once fixtures exist, the groups are locked in — moving teams would
+  // Once fixtures exist, the groups are locked in - moving teams would
   // desync them from the drawn matches.
   const ids = relatedIdsFromDoc(tournament);
   const drawCount = await (await draws()).countDocuments(
@@ -2091,6 +2499,46 @@ export async function checkInForTournament(
   );
   if (!updated) throw new ServiceError("Registration not found");
   return serializeRegistration(updated);
+}
+
+/** Drop invite access so a removed player can be invited again. */
+async function revokeInviteAccess(
+  found: TournamentDoc,
+  userIds: string[],
+  registerId = "",
+): Promise<void> {
+  const unique = [...new Set(userIds.filter((id) => id.length > 0))];
+  const now = new Date().toISOString();
+  const tournamentIds = relatedIdsFromDoc(found);
+  const clauses: Record<string, unknown>[] = [];
+  if (unique.length > 0) {
+    clauses.push({
+      tournament_id: { $in: tournamentIds },
+      $or: unique.flatMap((uid) => [{ invitee_id: uid }, { user_id: uid }]),
+    });
+  }
+  if (registerId) {
+    clauses.push({ register_id: registerId });
+  }
+  if (clauses.length > 0) {
+    await (
+      await invites()
+    ).updateMany(
+      (clauses.length === 1 ? clauses[0] : { $or: clauses }) as never,
+      { $set: { status: "DECLINED", UpdatedAt: now } },
+    );
+  }
+  if (unique.length === 0) return;
+  await (await tournaments()).updateOne(
+    { _id: found._id },
+    {
+      $pull: {
+        AcceptedInvites: { $in: unique },
+        acceptedinvites: { $in: unique },
+      },
+      $set: { Updated_at: now, updated_at: now },
+    } as never,
+  );
 }
 
 export async function relatedTournamentIds(id: string): Promise<string[]> {

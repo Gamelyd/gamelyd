@@ -17,12 +17,12 @@ const STEPS = [
   {
     n: "01",
     title: "Lock the lobby",
-    body: "Pick a title, format, roster size, and date. Public cups show on the list. Private ones stay invite-only.",
+    body: "Pick a title, format, roster size, and date. Invite-only is the default: everyone can see the event, but they need an invite to register.",
   },
   {
     n: "02",
     title: "Fill the roster",
-    body: "Players register as solo, duo, or squad. The event page is the source of truth. No second chat for who is in.",
+    body: "Players register as captain, then invite teammates. Teammates are not on the roster until they accept. A player can only be on one team.",
   },
   {
     n: "03",
@@ -95,10 +95,11 @@ export default function AboutPage() {
               Find a lobby. Show up. Follow the tree.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-body">
-              Browse public events by format. Open a cup and you see the roster,
-              group tables, fixtures, and knockout. Register with the team size
-              the host set. After it starts, results land on that same page.
-              You do not need a separate results thread.
+              Browse events by format. Open a cup and you see the roster,
+              group tables, fixtures, and knockout. Invite-only events still
+              show; you need an invite to register. After it starts, results
+              land on that same page. You do not need a separate results
+              thread.
             </p>
           </article>
           <article className="arena-panel arena-hud-corners p-5 sm:p-6">
@@ -109,9 +110,10 @@ export default function AboutPage() {
               Run the night without a side spreadsheet
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-body">
-              Lock the game, format, and rules, then open registration. Clubs
+              Lock the game, format, and rules, then share the page. Clubs
               can host under an organization so managers share the event.
-              Co-managers can record scores. Visibility stays public or private.
+              Co-managers can record scores. Invite-only is the default:
+              everyone can see the event, but they need an invite to register.
               Once you draw, the fixtures stay put until the last match is
               played.
             </p>
@@ -166,8 +168,8 @@ export default function AboutPage() {
             ))}
           </div>
           <p className="mt-4 text-sm text-body">
-            Rosters can be solo, duo, or squad. Events can be free or sponsored.
-            Draws can be automatic or kept in registration order.
+            Rosters can be solo, duo, or squad. Events can be free, paid, or
+            sponsored. Draws can be automatic or kept in registration order.
           </p>
         </div>
         </Reveal>

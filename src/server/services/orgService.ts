@@ -59,6 +59,7 @@ export async function createOrg(
     created_at: now,
     updated_at: now,
     isDeleted: false,
+    verified: false,
   };
   await col.insertOne(doc);
 
@@ -219,6 +220,7 @@ export async function listMembers(
       last_name: u?.last_name ?? "",
       user_name: u?.user_name ?? "",
       email: u?.email ?? "",
+      verified: Boolean(u?.verified),
     };
   });
 }
@@ -384,6 +386,25 @@ export async function adminRemoveMember(
 
   const memberCol = await orgMembers();
   await memberCol.deleteOne({ org_id: orgId, user_id: targetUid });
+}
+
+export async function setOrgVerified(
+  orgId: string,
+  verified: boolean,
+): Promise<Org> {
+  const col = await orgs();
+  const updated = await col.findOneAndUpdate(
+    { org_id: orgId },
+    { $set: { verified, updated_at: new Date().toISOString() } },
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Organization not found");
+  const now = new Date().toISOString();
+  const tCol = await tournaments();
+  await tCol.updateMany(asDocFilter<TournamentDoc>(byOrgId(orgId)), {
+    $set: { OrgVerified: verified, Updated_at: now },
+  });
+  return serializeOrg(updated);
 }
 
 export async function toggleDeleteOrg(orgId: string): Promise<boolean> {

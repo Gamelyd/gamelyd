@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import type { Game } from "@/lib/schemas/game";
 import type { Platform } from "@/lib/schemas/platform";
 import { IconPicker } from "@/components/ui/IconPicker";
+import { Loader } from "@/components/ui/Loader";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
@@ -156,7 +157,7 @@ export default function AdminGamesPage() {
       ) : null}
 
       {loading && gamesList.length === 0 ? (
-        <p className="text-body">Loading…</p>
+        <Loader label="Loading games" />
       ) : gamesList.length === 0 ? (
         <div className="rounded-2xl border border-surface-2 bg-surface p-10 text-center">
           <p className="text-body">

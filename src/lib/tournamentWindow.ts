@@ -33,8 +33,13 @@ export function registrationDeadlinePassed(
 export function registrationOpen(tournament: {
   Start: boolean;
   RegistrationDeadline?: string;
+  Payment?: string;
+  PurseFunded?: boolean;
 }): boolean {
   if (tournament.Start) return false;
+  if (tournament.Payment === "SPONSORED" && tournament.PurseFunded === false) {
+    return false;
+  }
   return !registrationDeadlinePassed(tournament.RegistrationDeadline);
 }
 

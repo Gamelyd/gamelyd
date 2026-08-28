@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { Loader } from "@/components/ui/Loader";
 import { useAuth } from "@/context/AuthContext";
 
 function AuthPanel() {
@@ -29,7 +30,7 @@ function AuthPanel() {
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Loader variant="page" label="Loading account" />}>
       <AuthPanel />
     </Suspense>
   );

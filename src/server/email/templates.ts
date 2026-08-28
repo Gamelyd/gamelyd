@@ -26,6 +26,14 @@ function button(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;margin-top:18px;background:${BRAND};color:#04201e;font-weight:700;padding:12px 22px;border-radius:8px;text-decoration:none">${label}</a>`;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export interface EmailContent {
   subject: string;
   html: string;
@@ -97,11 +105,27 @@ export function tournamentInviteEmail(
   tournamentName: string,
 ): EmailContent {
   return {
-    subject: "You have been Invited to a tournament",
+    subject: `You are invited to ${tournamentName}`,
     html: layout(
       `${heading(`Hi ${name},`)}
-       <p>You've been invited to join <strong>${tournamentName}</strong>.</p>
-       ${button(`${env.appUrl}/tournament/${tournamentId}`, "View Invite")}`,
+       <p>You have been invited to join <strong>${tournamentName}</strong> on Gamelyd. Accept the invite in the app, then register your team.</p>
+       ${button(`${env.appUrl}/notifications`, "View invite")}`,
+    ),
+  };
+}
+
+export function teamInviteEmail(
+  name: string,
+  tournamentId: string,
+  tournamentName: string,
+  teamName: string,
+): EmailContent {
+  return {
+    subject: `Join ${teamName} in ${tournamentName}`,
+    html: layout(
+      `${heading(`Hi ${name},`)}
+       <p>You have been invited to join team <strong>${teamName}</strong> in <strong>${tournamentName}</strong>. You are not on the roster until you accept.</p>
+       ${button(`${env.appUrl}/notifications`, "Accept invite")}`,
     ),
   };
 }
@@ -134,6 +158,73 @@ export function addLinkEmail(
       `${heading(`Hi ${name},`)}
        <p>The link to join your match in <strong>${tournamentName}</strong> is now available.</p>
        ${button(`${env.appUrl}/tournament/${tournamentId}`, "Join Match")}`,
+    ),
+  };
+}
+
+export function drawMadeEmail(
+  name: string,
+  tournamentName: string,
+  tournamentId: string,
+  detail: string,
+): EmailContent {
+  return {
+    subject: `Draw is out: ${tournamentName}`,
+    html: layout(
+      `${heading(`Hi ${name},`)}
+       <p>${detail}</p>
+       ${button(`${env.appUrl}/tournament/${tournamentId}`, "View fixtures")}`,
+    ),
+  };
+}
+
+export function scorePostedEmail(
+  name: string,
+  tournamentName: string,
+  tournamentId: string,
+  detail: string,
+): EmailContent {
+  return {
+    subject: `Score posted in ${tournamentName}`,
+    html: layout(
+      `${heading(`Hi ${name},`)}
+       <p>${detail}</p>
+       ${button(`${env.appUrl}/tournament/${tournamentId}`, "View result")}`,
+    ),
+  };
+}
+
+export function announcementEmail(
+  name: string,
+  tournamentName: string,
+  tournamentId: string,
+  body: string,
+): EmailContent {
+  return {
+    subject: `Update in ${tournamentName}`,
+    html: layout(
+      `${heading(`Hi ${name},`)}
+       <p>New announcement in <strong>${tournamentName}</strong>:</p>
+       <p>${escapeHtml(body)}</p>
+       ${button(`${env.appUrl}/tournament/${tournamentId}`, "Open tournament")}`,
+    ),
+  };
+}
+
+export function settingChangeEmail(
+  name: string,
+  tournamentName: string,
+  tournamentId: string,
+  summary: string,
+): EmailContent {
+  return {
+    subject: `Setting change in ${tournamentName}`,
+    html: layout(
+      `${heading(`Hi ${name},`)}
+       <p>The host wants to change how <strong>${tournamentName}</strong> runs:</p>
+       <p><strong>${escapeHtml(summary)}</strong></p>
+       <p>This only applies after everyone in the event accepts.</p>
+       ${button(`${env.appUrl}/tournament/${tournamentId}`, "Review and accept")}`,
     ),
   };
 }

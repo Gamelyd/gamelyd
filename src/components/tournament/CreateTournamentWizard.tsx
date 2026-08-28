@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/Input";
+import { CatalogImage } from "@/components/ui/CatalogImage";
 import { TextArea } from "@/components/ui/TextArea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +26,7 @@ import {
   type SaveTournamentInput,
 } from "@/lib/schemas/tournament";
 import type {
+  Currency,
   KnockoutFormat,
   Payment,
   Shuffle,
@@ -33,6 +35,10 @@ import type {
   TournamentMode,
   TournamentType,
 } from "@/lib/schemas/common";
+import { CURRENCY_OPTIONS } from "@/lib/currency";
+import { feePercent } from "@/lib/fees";
+import { FeeSummary } from "@/components/tournament/FeeSummary";
+import { Loader } from "@/components/ui/Loader";
 
 type Step = "game" | "format" | "rules" | "brief";
 
@@ -105,8 +111,9 @@ export function CreateTournamentWizard() {
   const [platformsLoaded, setPlatformsLoaded] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
-  const [type, setType] = useState<TournamentType>("PUBLIC");
+  const [type, setType] = useState<TournamentType>("PRIVATE");
   const [payment, setPayment] = useState<Payment>("FREE");
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [mode, setMode] = useState<TournamentMode>("MULTIPLAYER");
   const [team, setTeam] = useState<TeamSize>("SINGLE");
   const [shuffle, setShuffle] = useState<Shuffle>("AUTOMATIC");
@@ -118,6 +125,7 @@ export function CreateTournamentWizard() {
   const [pointsDraw, setPointsDraw] = useState(1);
   const [knockoutFormat, setKnockoutFormat] =
     useState<KnockoutFormat>("SINGLE");
+  const [knockoutFinalsSeries, setKnockoutFinalsSeries] = useState(false);
   const [thirdPlace, setThirdPlace] = useState(false);
   const [tieBreaker, setTieBreaker] = useState<TieBreaker>("GOAL_DIFF");
   const [brLobbies, setBrLobbies] = useState(1);
@@ -130,9 +138,9 @@ export function CreateTournamentWizard() {
   const [firstMatchAt, setFirstMatchAt] = useState("");
   const [matchInterval, setMatchInterval] = useState(0);
   const [prizes, setPrizes] = useState<PrizePosition[]>([
-    { Position: 1, Amount: 0 },
-    { Position: 2, Amount: 0 },
-    { Position: 3, Amount: 0 },
+    { Position: 1, Amount: 0, Share: 70 },
+    { Position: 2, Amount: 0, Share: 20 },
+    { Position: 3, Amount: 0, Share: 10 },
   ]);
 
   const [details, setDetails] = useState({
@@ -181,6 +189,7 @@ export function CreateTournamentWizard() {
   )?.game_id;
   const { icons: covers, loading: coversLoading } = useIcons("tournament", {
     gameId: selectedGameId,
+    taggedOnly: true,
   });
 
   useEffect(() => {
@@ -237,6 +246,7 @@ export function CreateTournamentWizard() {
     const payload: SaveTournamentInput = {
       TournamentType: type,
       Payment: payment,
+      Currency: payment === "FREE" ? "USD" : currency,
       TournamentMode: mode,
       Team: team,
       Shuffle: shuffle,
@@ -252,7 +262,7 @@ export function CreateTournamentWizard() {
           ? prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
           : details.Amount,
       RegistrationAmount: payment === "PAID" ? details.RegistrationAmount : 0,
-      Prizes: payment === "SPONSORED" ? prizes : [],
+      Prizes: payment === "FREE" ? [] : prizes,
       Link: "",
       RefNumber: "",
       PaymentChannel: "",
@@ -267,6 +277,11 @@ export function CreateTournamentWizard() {
           : undefined,
       KnockoutFormat:
         mode === "MULTIPLAYER" || mode === "GROUPS" ? knockoutFormat : "SINGLE",
+      KnockoutFinalsSeries:
+        (mode === "MULTIPLAYER" || mode === "GROUPS") &&
+        knockoutFormat !== "SINGLE"
+          ? knockoutFinalsSeries
+          : false,
       ThirdPlace:
         mode === "MULTIPLAYER" || mode === "GROUPS" ? thirdPlace : false,
       TieBreaker:
@@ -291,8 +306,13 @@ export function CreateTournamentWizard() {
     const result = await saveTournamentAction(payload);
     setLoading(false);
     if (result.ok) {
+      if (result.data.checkoutUrl) {
+        toast.success("Redirecting to pay the prize pool");
+        window.location.href = result.data.checkoutUrl;
+        return;
+      }
       toast.success(result.message ?? "Tournament created");
-      router.push(`/tournament/${result.data.TournamentId}`);
+      router.push(`/tournament/${result.data.tournament.TournamentId}`);
     } else {
       toast.error(result.error);
     }
@@ -301,11 +321,30 @@ export function CreateTournamentWizard() {
   const selectedGame = gamesList.find((g) => g.name === details.GameName);
   const modeLabel = MODES.find((m) => m.value === mode)?.label ?? mode;
   const teamLabel = TEAM_SIZES.find((t) => t.value === team)?.label ?? team;
+  const heroSrc = details.GameName
+    ? details.icon || selectedGame?.image || FALLBACKS.tournament
+    : "";
+  const catalogReady = gamesLoaded && platformsLoaded;
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)]">
-      <section className="create-hud-head relative border-b border-primary/20 bg-primary-panel">
-        <div className="mx-auto max-w-6xl px-5 py-8">
+      <section className="create-hud-head relative overflow-hidden border-b border-primary/20 bg-primary-panel">
+        {heroSrc ? (
+          <>
+            <CatalogImage
+              key={heroSrc}
+              src={heroSrc}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              quality={90}
+              className="object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-black via-black/70 to-black/30" />
+          </>
+        ) : null}
+        <div className="relative z-1 mx-auto max-w-6xl px-5 py-8">
           <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-primary">
             Host terminal
           </p>
@@ -370,8 +409,10 @@ export function CreateTournamentWizard() {
       </section>
 
       <section className="relative mx-auto grid max-w-6xl gap-8 px-5 py-10 lg:grid-cols-[1fr_16rem]">
-        <div key={step} className="create-step min-w-0">
-          {step === "game" ? (
+        <div key={catalogReady ? step : "boot"} className="create-step min-w-0">
+          {!catalogReady ? (
+            <Loader label="Loading games" />
+          ) : step === "game" ? (
             <GameStep
               games={gamesList}
               loaded={gamesLoaded}
@@ -560,7 +601,10 @@ export function CreateTournamentWizard() {
                         key={value}
                         label={label}
                         active={knockoutFormat === value}
-                        onClick={() => setKnockoutFormat(value)}
+                        onClick={() => {
+                          setKnockoutFormat(value);
+                          if (value === "SINGLE") setKnockoutFinalsSeries(false);
+                        }}
                       />
                     ))}
                   </div>
@@ -576,6 +620,41 @@ export function CreateTournamentWizard() {
                       onClick={() => setThirdPlace(true)}
                     />
                   </div>
+                  {knockoutFormat !== "SINGLE" ? (
+                    <div className="mt-4">
+                      <p className="mb-3 text-sm leading-relaxed text-body">
+                        The final is one match by default
+                        {thirdPlace
+                          ? ", and 3rd place is always one match"
+                          : ""}
+                        . Include the final in{" "}
+                        {knockoutFormat === "TWO_LEG"
+                          ? "two-leg"
+                          : knockoutFormat === "BO3"
+                            ? "best-of-3"
+                            : "best-of-5"}{" "}
+                        fixtures?
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <ChoiceChip
+                          label="Final is one match"
+                          active={!knockoutFinalsSeries}
+                          onClick={() => setKnockoutFinalsSeries(false)}
+                        />
+                        <ChoiceChip
+                          label={
+                            knockoutFormat === "TWO_LEG"
+                              ? "Two-leg final"
+                              : knockoutFormat === "BO3"
+                                ? "Best-of-3 final"
+                                : "Best-of-5 final"
+                          }
+                          active={knockoutFinalsSeries}
+                          onClick={() => setKnockoutFinalsSeries(true)}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {mode === "BATTLEROYALE" ? (
@@ -669,20 +748,20 @@ export function CreateTournamentWizard() {
               />
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                  Visibility
+                  Who can register
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ChoiceTile
-                    title="Public"
-                    blurb="Listed for anyone to find and join."
-                    active={type === "PUBLIC"}
-                    onClick={() => setType("PUBLIC")}
-                  />
-                  <ChoiceTile
-                    title="Private"
-                    blurb="Invite-only. Stays off the public list."
+                    title="Invite only"
+                    blurb="Default. Listed for everyone. Players can register only after they accept your invite."
                     active={type === "PRIVATE"}
                     onClick={() => setType("PRIVATE")}
+                  />
+                  <ChoiceTile
+                    title="Anyone can join"
+                    blurb="Also listed for everyone. Anyone with an account can register, no invite needed."
+                    active={type === "PUBLIC"}
+                    onClick={() => setType("PUBLIC")}
                     delay={1}
                   />
                 </div>
@@ -691,7 +770,7 @@ export function CreateTournamentWizard() {
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   Entry
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <ChoiceTile
                     title="Free"
                     blurb="No prize purse on the listing."
@@ -699,22 +778,117 @@ export function CreateTournamentWizard() {
                     onClick={() => setPayment("FREE")}
                   />
                   <ChoiceTile
-                    title="Sponsored"
-                    blurb="Set finishing-place prize money."
-                    active={payment === "SPONSORED"}
-                    onClick={() => setPayment("SPONSORED")}
+                    title="Paid"
+                    blurb={`Players pay to join. ${feePercent()}% platform fee. Rest held for prizes.`}
+                    active={payment === "PAID"}
+                    onClick={() => setPayment("PAID")}
                     delay={1}
                   />
+                  <ChoiceTile
+                    title="Sponsored"
+                    blurb={`You fund the prize board plus ${feePercent()}% at launch.`}
+                    active={payment === "SPONSORED"}
+                    onClick={() => setPayment("SPONSORED")}
+                    delay={2}
+                  />
                 </div>
-                {/* Paid entry stays in the data model; create UI hides it for now. */}
               </div>
+              {payment === "PAID" || payment === "SPONSORED" ? (
+                <Select
+                  label="Currency"
+                  value={currency}
+                  options={CURRENCY_OPTIONS}
+                  onChange={(e) =>
+                    setCurrency(e.target.value as Currency)
+                  }
+                />
+              ) : null}
+              {payment === "PAID" ? (
+                <div className="flex flex-col gap-4">
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    label={`Entry fee (${currency})`}
+                    value={details.RegistrationAmount}
+                    onChange={(e) =>
+                      setDetails((prev) => ({
+                        ...prev,
+                        RegistrationAmount: Number(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                  <div className="rounded-2xl border border-primary/25 bg-surface p-5">
+                    <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
+                      Winner shares
+                    </h3>
+                    <p className="mb-4 text-sm text-body">
+                      Percent of the net pot after the platform fee. Champion
+                      is paid first; leftover stays owed to you until other
+                      places are assigned.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      {prizes.map((prize, index) => (
+                        <div
+                          key={`${prize.Position}-${index}`}
+                          className="grid grid-cols-[5rem_1fr_auto] gap-3"
+                        >
+                          <Input
+                            type="number"
+                            label={index === 0 ? "Place" : undefined}
+                            value={prize.Position}
+                            min={1}
+                            onChange={(e) => {
+                              const next = [...prizes];
+                              next[index] = {
+                                ...prize,
+                                Position: Number(e.target.value) || 1,
+                              };
+                              setPrizes(next);
+                            }}
+                          />
+                          <Input
+                            type="number"
+                            label={index === 0 ? "Share %" : undefined}
+                            value={prize.Share}
+                            min={0}
+                            max={100}
+                            onChange={(e) => {
+                              const next = [...prizes];
+                              next[index] = {
+                                ...prize,
+                                Share: Number(e.target.value) || 0,
+                              };
+                              setPrizes(next);
+                            }}
+                          />
+                          {prizes.length > 1 ? (
+                            <button
+                              type="button"
+                              className={`text-sm text-body hover:text-white ${index === 0 ? "mt-7" : ""}`}
+                              onClick={() =>
+                                setPrizes(prizes.filter((_, i) => i !== index))
+                              }
+                            >
+                              Remove
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               {payment === "SPONSORED" ? (
                 <div className="rounded-2xl border border-primary/25 bg-surface p-5">
                   <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
                     Prize board
                   </h3>
                   <p className="mb-4 text-sm text-body">
-                    Amount for each finishing place (₦).
+                    Amount winners receive ({currency}). The {feePercent()}%
+                    fee is in the summary below.
                   </p>
                   <div className="flex flex-col gap-3">
                     {prizes.map((prize, index) => (
@@ -781,6 +955,7 @@ export function CreateTournamentWizard() {
                           Position:
                             Math.max(...prizes.map((p) => p.Position), 0) + 1,
                           Amount: 0,
+                          Share: 0,
                         },
                       ])
                     }
@@ -788,6 +963,17 @@ export function CreateTournamentWizard() {
                     Add position
                   </Button>
                 </div>
+              ) : null}
+              {payment === "PAID" || payment === "SPONSORED" ? (
+                <FeeSummary
+                  kind={payment}
+                  currency={currency}
+                  entryFee={details.RegistrationAmount}
+                  prizeTotal={prizes.reduce(
+                    (sum, row) => sum + (row.Amount || 0),
+                    0,
+                  )}
+                />
               ) : null}
             </div>
           ) : null}
@@ -803,8 +989,12 @@ export function CreateTournamentWizard() {
                   details.GameName || "Game",
                   modeLabel,
                   teamLabel,
-                  type === "PUBLIC" ? "Public" : "Private",
-                  payment === "SPONSORED" ? "Sponsored" : "Free",
+                  type === "PUBLIC" ? "Anyone can join" : "Invite only",
+                  payment === "SPONSORED"
+                    ? `Sponsored · ${currency} · ${feePercent()}% fee`
+                    : payment === "PAID"
+                      ? `Paid · ${currency} · ${feePercent()}% fee`
+                      : "Free",
                 ].map((chip) => (
                   <li
                     key={chip}
@@ -842,7 +1032,7 @@ export function CreateTournamentWizard() {
                 required
               />
               <IconPicker
-                label="Cover art"
+                label="Head image"
                 icons={covers}
                 value={details.icon}
                 onChange={(url) => setDetails({ ...details, icon: url })}
@@ -853,6 +1043,9 @@ export function CreateTournamentWizard() {
                     : "Pick a game first to see matching covers."
                 }
               />
+              <p className="-mt-2 text-xs text-body">
+                This is the hero at the top of this page and on the event page.
+              </p>
               <div className="grid gap-5 sm:grid-cols-2">
                 <Input
                   type="number"
@@ -966,6 +1159,26 @@ export function CreateTournamentWizard() {
                 }
                 required
               />
+              {payment === "PAID" || payment === "SPONSORED" ? (
+                <FeeSummary
+                  kind={payment}
+                  currency={currency}
+                  entryFee={details.RegistrationAmount}
+                  prizeTotal={prizes.reduce(
+                    (sum, row) => sum + (row.Amount || 0),
+                    0,
+                  )}
+                />
+              ) : null}
+              <p className="text-xs text-body">
+                By launching you accept the{" "}
+                <Link href="/terms" className="text-primary hover:underline">
+                  Terms
+                </Link>
+                {payment === "FREE"
+                  ? "."
+                  : ` and the ${feePercent()}% platform fee on held funds.`}
+              </p>
               <div className="create-action-bar flex flex-wrap gap-3">
                 <Button type="button" variant="dark" onClick={goBack}>
                   Back
@@ -977,7 +1190,7 @@ export function CreateTournamentWizard() {
             </form>
           ) : null}
 
-          {step !== "brief" ? (
+          {catalogReady && step !== "brief" ? (
             <div className="create-action-bar flex flex-wrap gap-3">
               {step !== "game" ? (
                 <Button type="button" variant="dark" onClick={goBack}>
@@ -998,13 +1211,15 @@ export function CreateTournamentWizard() {
         <aside className="lg:sticky lg:top-24">
           <div className="overflow-hidden rounded-2xl border border-primary/25 bg-primary-panel">
             <div className="create-loadout-art relative h-36 bg-black">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <CatalogImage
                 src={
-                  selectedGame?.image || details.icon || FALLBACKS.tournament
+                  details.icon || selectedGame?.image || FALLBACKS.tournament
                 }
                 alt=""
-                className="h-full w-full object-cover opacity-80"
+                fill
+                sizes="256px"
+                quality={90}
+                className="object-cover opacity-80"
               />
               <div className="absolute inset-x-0 bottom-0 z-1 px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
@@ -1020,11 +1235,17 @@ export function CreateTournamentWizard() {
               <LoadoutRow label="Roster" value={teamLabel} />
               <LoadoutRow
                 label="Access"
-                value={type === "PUBLIC" ? "Public" : "Private"}
+                value={type === "PUBLIC" ? "Anyone can join" : "Invite only"}
               />
               <LoadoutRow
                 label="Stakes"
-                value={payment === "SPONSORED" ? "Sponsored" : "Free"}
+                value={
+                  payment === "SPONSORED"
+                    ? `Sponsored · ${feePercent()}% fee`
+                    : payment === "PAID"
+                      ? `Paid · ${feePercent()}% fee`
+                      : "Free"
+                }
               />
               <LoadoutRow
                 label="Seed"
@@ -1083,6 +1304,10 @@ export function CreateTournamentWizard() {
                         : knockoutFormat === "BO5"
                           ? "Bo5"
                           : "Single"
+                  }${
+                    knockoutFormat !== "SINGLE" && !knockoutFinalsSeries
+                      ? " · 1-match final"
+                      : ""
                   }${thirdPlace ? " + 3rd" : ""}`}
                 />
               ) : null}
@@ -1191,6 +1416,20 @@ function LoadoutRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const ARENA_PREVIEW = 6;
+
+function arenaGames(games: Game[], selected: string, query: string): Game[] {
+  const q = query.trim().toLowerCase();
+  if (q) {
+    return games.filter((game) => game.name.toLowerCase().includes(q));
+  }
+  const head = games.slice(0, ARENA_PREVIEW);
+  if (!selected || head.some((game) => game.name === selected)) return head;
+  const picked = games.find((game) => game.name === selected);
+  if (!picked) return head;
+  return [...head.slice(0, ARENA_PREVIEW - 1), picked];
+}
+
 function GameStep({
   games,
   loaded,
@@ -1207,9 +1446,8 @@ function GameStep({
   onPick: (game: Game) => void;
 }) {
   const [query, setQuery] = useState("");
-  const filtered = games.filter((game) =>
-    game.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const searching = query.trim().length > 0;
+  const shown = arenaGames(games, selected, query);
 
   return (
     <div>
@@ -1217,15 +1455,24 @@ function GameStep({
       {loaded && games.length > 0 ? (
         <div className="mt-6 max-w-md">
           <Input
-            placeholder="Search games by name"
+            placeholder="Search any game"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search games by name"
+            aria-label="Search any game"
           />
+          {searching || games.length > ARENA_PREVIEW ? (
+            <p className="mt-2 text-xs text-body">
+              {searching
+                ? shown.length === 1
+                  ? "1 match."
+                  : `${shown.length} matches.`
+                : `Showing ${shown.length} of ${games.length}. Search to find any game.`}
+            </p>
+          ) : null}
         </div>
       ) : null}
       {!loaded ? (
-        <p className="mt-6 text-sm text-body">Loading games…</p>
+        <Loader label="Loading games" />
       ) : games.length === 0 ? (
         <p className="mt-6 text-sm text-body">
           {isAdmin ? (
@@ -1240,11 +1487,11 @@ function GameStep({
             "No games are listed yet."
           )}
         </p>
-      ) : filtered.length === 0 ? (
+      ) : shown.length === 0 ? (
         <p className="mt-6 text-sm text-body">No games match that name.</p>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {filtered.map((game, i) => {
+          {shown.map((game, i) => {
             const on = selected === game.name;
             const art = game.image || iconForGame(game.name, covers);
             return (

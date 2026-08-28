@@ -97,7 +97,7 @@ async function main(): Promise<void> {
     const size = rosterSize(team);
 
     if (readBool(tournament, ["Start", "start"])) {
-      console.error(`"${name}" has already started — registration is closed.`);
+      console.error(`"${name}" has already started - registration is closed.`);
       process.exit(1);
     }
     if (readBool(tournament, ["IsDeleted", "isdeleted"])) {
@@ -226,7 +226,7 @@ async function main(): Promise<void> {
       const names = (d.Players as Document[])
         .map((p) => p.UserName)
         .join(", ");
-      console.log(`  • ${d.TeamName} — ${names}`);
+      console.log(`  • ${d.TeamName} - ${names}`);
     }
   } finally {
     await client.close();

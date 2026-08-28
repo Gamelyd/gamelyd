@@ -122,7 +122,7 @@ async function api<T>(
     json = JSON.parse(text) as Ok<T> | Fail;
   } catch {
     throw new Error(
-      `${path}: ${res.status} ${res.statusText} — expected JSON, got: ${text.slice(0, 240).replace(/\s+/g, " ")}`,
+      `${path}: ${res.status} ${res.statusText} - expected JSON, got: ${text.slice(0, 240).replace(/\s+/g, " ")}`,
     );
   }
   if (!json.ok) {
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
     loginJson = JSON.parse(loginText) as typeof loginJson;
   } catch {
     throw new Error(
-      `/api/auth/login: ${loginRes.status} — expected JSON, got: ${loginText.slice(0, 240).replace(/\s+/g, " ")}`,
+      `/api/auth/login: ${loginRes.status} - expected JSON, got: ${loginText.slice(0, 240).replace(/\s+/g, " ")}`,
     );
   }
   if (!loginJson.ok) {

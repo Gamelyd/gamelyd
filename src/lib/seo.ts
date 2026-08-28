@@ -6,7 +6,7 @@ import { publicAppUrl, absoluteImageUrl } from "@/lib/tournamentShare";
 export const SITE_NAME = "Gamelyd";
 
 const DEFAULT_DESCRIPTION =
-  "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
+  "Gamelyd is where you host and play game tournaments. Create a lobby, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
 
 const PAYMENT_LABEL: Record<string, string> = {
   ALL: "All",
@@ -93,7 +93,7 @@ export function browseTournamentsMeta(payment: string, format: string): {
     return {
       title: "Tournaments",
       description:
-        "Browse every tournament on Gamelyd. Join free or sponsored events across knockout, groups, league, and battle royale.",
+        "Browse every tournament on Gamelyd. Join free, paid, or sponsored events across knockout, groups, league, and battle royale.",
     };
   }
   if (payKey === "ALL") {

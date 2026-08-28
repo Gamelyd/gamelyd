@@ -8,6 +8,7 @@ import {
   BROWSE_STATUS_LABEL,
   tournamentBrowsePhase,
 } from "@/lib/tournamentStatus";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export function TournamentCard({ tournament }: { tournament: Tournament }) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
@@ -30,6 +31,11 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
 
       <div className="absolute left-3 top-3 z-2 flex flex-wrap gap-1.5">
         <Tag payment={tournament.Payment} className="rounded-md" />
+        {tournament.TournamentType === "PRIVATE" ? (
+          <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+            Invite only
+          </span>
+        ) : null}
         <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
           {BROWSE_STATUS_LABEL[phase]}
         </span>
@@ -46,7 +52,11 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
               className="rounded-full object-cover"
             />
           )}
-          <span className="max-w-[90px] truncate">{tournament.OrgName}</span>
+          <VerifiedName
+            name={tournament.OrgName}
+            verified={tournament.OrgVerified}
+            className="max-w-[90px] text-[11px]"
+          />
         </div>
       )}
 

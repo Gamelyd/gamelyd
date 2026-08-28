@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import type { Tournament, TournamentManager } from "@/lib/schemas/tournament";
+import { isSeriousSettingPatch } from "@/lib/settingChange";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { TextArea } from "@/components/ui/TextArea";
+import { Loader } from "@/components/ui/Loader";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/context/AuthContext";
 import { TournamentCoverPicker } from "@/components/tournament/TournamentCoverPicker";
+import { SettingChangePanel } from "@/components/tournament/SettingChangePanel";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import {
   addTournamentManagerAction,
   editTournamentSettingsAction,
@@ -21,8 +26,8 @@ export function EditTournamentSettings({
   tournament,
   started,
   registeredCount,
-  fixturesDrawn,
-  knockoutDrawn,
+  fixturesDrawn: _fixturesDrawn,
+  knockoutDrawn: _knockoutDrawn,
   onSaved,
 }: {
   tournament: Tournament;
@@ -33,38 +38,22 @@ export function EditTournamentSettings({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const isGroups = tournament.TournamentMode === "GROUPS";
   const isTable =
     isGroups || tournament.TournamentMode === "LEAGUE";
-  const groupsExist = (tournament.Groups ?? []).length > 0;
-  const canEditCore = !started;
-  const canEditReturnLeg = isTable && !fixturesDrawn;
-  const canEditGroupCount = isGroups && !groupsExist;
-  const canEditAdvance = isGroups && !knockoutDrawn;
-  const canEditPoints =
-    (isGroups && !knockoutDrawn) ||
-    (tournament.TournamentMode === "LEAGUE" && !fixturesDrawn);
-  const canEditQualifiers = isGroups && !knockoutDrawn;
+  const showCore = true;
+  const showReturnLeg = isTable;
+  const showGroupCount = isGroups;
+  const showAdvance = isGroups;
+  const showPoints = isTable;
+  const showQualifiers = isGroups;
   const isKnockoutMode =
     isGroups || tournament.TournamentMode === "MULTIPLAYER";
-  const canEditKnockout =
-    isKnockoutMode &&
-    !knockoutDrawn &&
-    (isGroups || !fixturesDrawn);
-  const canEditTieBreaker = canEditPoints;
-  const canEditBr =
-    tournament.TournamentMode === "BATTLEROYALE" && !fixturesDrawn;
-  const canEditSchedule = !fixturesDrawn;
-  const hasAnything =
-    canEditCore ||
-    canEditReturnLeg ||
-    canEditGroupCount ||
-    canEditAdvance ||
-    canEditPoints ||
-    canEditQualifiers ||
-    canEditKnockout ||
-    canEditBr ||
-    canEditSchedule;
+  const showKnockout = isKnockoutMode;
+  const showTieBreaker = isTable;
+  const showBr = tournament.TournamentMode === "BATTLEROYALE";
+  const showSchedule = true;
 
   type BusyField =
     | ""
@@ -80,6 +69,7 @@ export function EditTournamentSettings({
     | "points"
     | "qualifiers"
     | "knockout"
+    | "finals"
     | "third"
     | "tie"
     | "br"
@@ -113,6 +103,9 @@ export function EditTournamentSettings({
   const [knockoutFormat, setKnockoutFormat] = useState(
     tournament.KnockoutFormat || "SINGLE",
   );
+  const [knockoutFinalsSeries, setKnockoutFinalsSeries] = useState(
+    tournament.KnockoutFinalsSeries,
+  );
   const [thirdPlace, setThirdPlace] = useState(tournament.ThirdPlace);
   const [tieBreaker, setTieBreaker] = useState(
     tournament.TieBreaker || "GOAL_DIFF",
@@ -140,7 +133,11 @@ export function EditTournamentSettings({
   const [matchInterval, setMatchInterval] = useState(
     String(tournament.MatchIntervalMinutes || 0),
   );
-  const [confirmVisibility, setConfirmVisibility] = useState(false);
+  const [pendingSave, setPendingSave] = useState<{
+    field: BusyField;
+    patch: Record<string, unknown>;
+    revert: () => void;
+  } | null>(null);
 
   useEffect(() => {
     setShuffle(tournament.Shuffle);
@@ -156,6 +153,7 @@ export function EditTournamentSettings({
     setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
     setPickQualifiers(tournament.OwnerCanSelectQualifiers);
     setKnockoutFormat(tournament.KnockoutFormat || "SINGLE");
+    setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries);
     setThirdPlace(tournament.ThirdPlace);
     setTieBreaker(tournament.TieBreaker || "GOAL_DIFF");
     setBrLobbies(String(tournament.BrLobbyCount || 1));
@@ -187,46 +185,73 @@ export function EditTournamentSettings({
     return result.ok;
   };
 
+  const askToSave = (
+    field: BusyField,
+    patch: Record<string, unknown>,
+    revert: () => void,
+  ) => {
+    if (busyField || pendingSave) return;
+    setPendingSave({ field, patch, revert });
+  };
+
+  const confirmPending = async () => {
+    if (!pendingSave || busyField) return;
+    const { field, patch, revert } = pendingSave;
+    const ok = await save(field, patch);
+    if (!ok) revert();
+    setPendingSave(null);
+  };
+
+  const cancelPending = () => {
+    if (busyField) return;
+    pendingSave?.revert();
+    setPendingSave(null);
+  };
+
+  const locked = Boolean(busyField) || Boolean(pendingSave);
+
   const changeShuffle = (next: Tournament["Shuffle"]) => {
-    if (next === tournament.Shuffle || busyField) return;
+    if (next === tournament.Shuffle || locked) return;
     setShuffle(next);
-    void save("shuffle", { Shuffle: next }).then((ok) => {
-      if (!ok) setShuffle(tournament.Shuffle);
-    });
+    askToSave("shuffle", { Shuffle: next }, () =>
+      setShuffle(tournament.Shuffle),
+    );
   };
 
   const changeType = (next: Tournament["TournamentType"]) => {
-    if (next === tournament.TournamentType || busyField) return;
+    if (next === tournament.TournamentType || locked) return;
     setType(next);
-    setConfirmVisibility(true);
+    askToSave("type", { TournamentType: next }, () =>
+      setType(tournament.TournamentType),
+    );
   };
 
   const changeReturnLeg = (next: boolean) => {
-    if (next === tournament.ReturnLeg || busyField) return;
+    if (next === tournament.ReturnLeg || locked) return;
     setReturnLeg(next);
-    void save("returnLeg", { ReturnLeg: next }).then((ok) => {
-      if (!ok) setReturnLeg(tournament.ReturnLeg);
-    });
+    askToSave("returnLeg", { ReturnLeg: next }, () =>
+      setReturnLeg(tournament.ReturnLeg),
+    );
   };
 
   const changeGroupCount = (next: number) => {
-    if (next === (tournament.GroupCount || 0) || busyField) return;
+    if (next === (tournament.GroupCount || 0) || locked) return;
     setGroupCount(String(next));
-    void save("groups", { GroupCount: next }).then((ok) => {
-      if (!ok) setGroupCount(String(tournament.GroupCount || 0));
-    });
+    askToSave("groups", { GroupCount: next }, () =>
+      setGroupCount(String(tournament.GroupCount || 0)),
+    );
   };
 
   const changeQualifiers = (next: boolean) => {
-    if (next === tournament.OwnerCanSelectQualifiers || busyField) return;
+    if (next === tournament.OwnerCanSelectQualifiers || locked) return;
     setPickQualifiers(next);
-    void save("qualifiers", { OwnerCanSelectQualifiers: next }).then((ok) => {
-      if (!ok) setPickQualifiers(tournament.OwnerCanSelectQualifiers);
-    });
+    askToSave("qualifiers", { OwnerCanSelectQualifiers: next }, () =>
+      setPickQualifiers(tournament.OwnerCanSelectQualifiers),
+    );
   };
 
   const saveSize = () => {
-    if (busyField) return;
+    if (locked) return;
     if (size === String(tournament.TournamentSize)) return;
     const value = Number(size);
     if (!Number.isFinite(value) || value < 1) {
@@ -243,13 +268,13 @@ export function EditTournamentSettings({
       setSize(String(tournament.TournamentSize));
       return;
     }
-    void save("size", { TournamentSize: value }).then((ok) => {
-      if (!ok) setSize(String(tournament.TournamentSize));
-    });
+    askToSave("size", { TournamentSize: value }, () =>
+      setSize(String(tournament.TournamentSize)),
+    );
   };
 
   const saveName = () => {
-    if (busyField) return;
+    if (locked) return;
     const next = name.trim();
     if (next === tournament.Name) return;
     if (next.length < 2) {
@@ -257,26 +282,24 @@ export function EditTournamentSettings({
       setName(tournament.Name);
       return;
     }
-    void save("name", { Name: next }).then((ok) => {
-      if (!ok) setName(tournament.Name);
-    });
+    askToSave("name", { Name: next }, () => setName(tournament.Name));
   };
 
   const saveDate = () => {
-    if (busyField) return;
+    if (locked) return;
     if (date === dateInputValue(tournament.Date)) return;
     if (!date) {
       toast.error("Pick a date");
       setDate(dateInputValue(tournament.Date));
       return;
     }
-    void save("date", { Date: date }).then((ok) => {
-      if (!ok) setDate(dateInputValue(tournament.Date));
-    });
+    askToSave("date", { Date: date }, () =>
+      setDate(dateInputValue(tournament.Date)),
+    );
   };
 
   const saveNote = () => {
-    if (busyField) return;
+    if (locked) return;
     const next = note.trim();
     if (next === tournament.Note.trim()) return;
     if (next.length < 1) {
@@ -284,13 +307,11 @@ export function EditTournamentSettings({
       setNote(tournament.Note);
       return;
     }
-    void save("note", { Note: next }).then((ok) => {
-      if (!ok) setNote(tournament.Note);
-    });
+    askToSave("note", { Note: next }, () => setNote(tournament.Note));
   };
 
   const saveAdvance = () => {
-    if (busyField) return;
+    if (locked) return;
     const value = Number(advancePerGroup);
     if (value === (tournament.AdvancePerGroup || 2)) return;
     if (!Number.isInteger(value) || value < 1 || value > 8) {
@@ -298,13 +319,13 @@ export function EditTournamentSettings({
       setAdvancePerGroup(String(tournament.AdvancePerGroup || 2));
       return;
     }
-    void save("advance", { AdvancePerGroup: value }).then((ok) => {
-      if (!ok) setAdvancePerGroup(String(tournament.AdvancePerGroup || 2));
-    });
+    askToSave("advance", { AdvancePerGroup: value }, () =>
+      setAdvancePerGroup(String(tournament.AdvancePerGroup || 2)),
+    );
   };
 
   const savePoints = () => {
-    if (busyField) return;
+    if (locked) return;
     const win = Number(pointsWin);
     const draw = Number(pointsDraw);
     if (
@@ -324,26 +345,10 @@ export function EditTournamentSettings({
       setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
       return;
     }
-    void save("points", { PointSystem: { Win: win, Draw: draw } }).then(
-      (ok) => {
-        if (!ok) {
-          setPointsWin(String(tournament.PointSystem?.Win ?? 3));
-          setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
-        }
-      },
-    );
-  };
-
-  const saveVisibility = async () => {
-    setConfirmVisibility(false);
-    const ok = await save("type", { TournamentType: type });
-    if (!ok) setType(tournament.TournamentType);
-  };
-
-  const cancelVisibility = () => {
-    if (busyField === "type") return;
-    setConfirmVisibility(false);
-    setType(tournament.TournamentType);
+    askToSave("points", { PointSystem: { Win: win, Draw: draw } }, () => {
+      setPointsWin(String(tournament.PointSystem?.Win ?? 3));
+      setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
+    });
   };
 
   return (
@@ -352,10 +357,20 @@ export function EditTournamentSettings({
         <h3 className="mb-1 font-semibold text-white">Tournament settings</h3>
         <p className="text-sm text-body">
           {started
-            ? "Cover art can still be changed. Format rules that are locked stay as they are."
-            : "Editable until the matching stage is locked. Changes save automatically."}
+            ? "You can still edit anything. Rules that change how the event is played wait for every registered player to accept, then you apply them."
+            : "You'll be asked to confirm each change."}
         </p>
       </div>
+
+      {tournament.PendingSettingChange ? (
+        <SettingChangePanel
+          tournamentId={tournament.TournamentId}
+          change={tournament.PendingSettingChange}
+          currentUserId={user?.user_id}
+          canApply
+          onUpdated={() => onSaved()}
+        />
+      ) : null}
 
       <TournamentCoverPicker
         tournamentId={tournament.TournamentId}
@@ -364,18 +379,12 @@ export function EditTournamentSettings({
         onSaved={onSaved}
       />
 
-      {hasAnything ? null : (
-        <p className="text-sm text-body">
-          Other settings are locked now that the event is underway.
-        </p>
-      )}
-
-      {canEditCore ? (
+      {showCore ? (
         <>
           <Input
             label={busyField === "name" ? "Name (saving…)" : "Name"}
             value={name}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setName(e.target.value)}
             onBlur={saveName}
             onKeyDown={(e) => {
@@ -390,7 +399,7 @@ export function EditTournamentSettings({
             type="date"
             label={busyField === "date" ? "Date (saving…)" : "Date"}
             value={date}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setDate(e.target.value)}
             onBlur={saveDate}
           />
@@ -399,7 +408,7 @@ export function EditTournamentSettings({
             label={busyField === "note" ? "Briefing (saving…)" : "Briefing"}
             rows={3}
             value={note}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setNote(e.target.value)}
             onBlur={saveNote}
           />
@@ -409,7 +418,7 @@ export function EditTournamentSettings({
               busyField === "shuffle" ? "Draw order (saving…)" : "Draw order"
             }
             value={shuffle}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) =>
               changeShuffle(e.target.value as Tournament["Shuffle"])
             }
@@ -420,15 +429,19 @@ export function EditTournamentSettings({
           />
 
           <Select
-            label={busyField === "type" ? "Visibility (saving…)" : "Visibility"}
+            label={
+              busyField === "type"
+                ? "Who can register (saving…)"
+                : "Who can register"
+            }
             value={type}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) =>
               changeType(e.target.value as Tournament["TournamentType"])
             }
             options={[
-              { label: "Public", value: "PUBLIC" },
-              { label: "Private", value: "PRIVATE" },
+              { label: "Invite only", value: "PRIVATE" },
+              { label: "Anyone can join", value: "PUBLIC" },
             ]}
           />
 
@@ -441,7 +454,7 @@ export function EditTournamentSettings({
             type="number"
             min={Math.max(registeredCount, 1)}
             value={size}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setSize(e.target.value)}
             onBlur={saveSize}
             onKeyDown={(e) => {
@@ -454,13 +467,13 @@ export function EditTournamentSettings({
         </>
       ) : null}
 
-      {canEditReturnLeg ? (
+      {showReturnLeg ? (
         <Select
           label={
             busyField === "returnLeg" ? "Return leg (saving…)" : "Return leg"
           }
           value={returnLeg ? "true" : "false"}
-          disabled={Boolean(busyField)}
+          disabled={locked}
           onChange={(e) => changeReturnLeg(e.target.value === "true")}
           options={[
             { label: "Single round", value: "false" },
@@ -469,7 +482,7 @@ export function EditTournamentSettings({
         />
       ) : null}
 
-      {canEditPoints ? (
+      {showPoints ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             type="number"
@@ -477,7 +490,7 @@ export function EditTournamentSettings({
             max={20}
             label={busyField === "points" ? "Win points (saving…)" : "Win points"}
             value={pointsWin}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setPointsWin(e.target.value)}
             onBlur={savePoints}
             onKeyDown={(e) => {
@@ -495,7 +508,7 @@ export function EditTournamentSettings({
               busyField === "points" ? "Draw points (saving…)" : "Draw points"
             }
             value={pointsDraw}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setPointsDraw(e.target.value)}
             onBlur={savePoints}
             onKeyDown={(e) => {
@@ -508,7 +521,7 @@ export function EditTournamentSettings({
         </div>
       ) : null}
 
-      {canEditGroupCount ? (
+      {showGroupCount ? (
         <Select
           label={
             busyField === "groups"
@@ -516,7 +529,7 @@ export function EditTournamentSettings({
               : "Number of groups"
           }
           value={groupCount}
-          disabled={Boolean(busyField)}
+          disabled={locked}
           onChange={(e) => changeGroupCount(Number(e.target.value))}
           options={[
             { label: "Auto (about four teams each)", value: "0" },
@@ -528,7 +541,7 @@ export function EditTournamentSettings({
         />
       ) : null}
 
-      {canEditAdvance ? (
+      {showAdvance ? (
         <Input
           type="number"
           min={1}
@@ -539,7 +552,7 @@ export function EditTournamentSettings({
               : "Advance per group"
           }
           value={advancePerGroup}
-          disabled={Boolean(busyField)}
+          disabled={locked}
           onChange={(e) => setAdvancePerGroup(e.target.value)}
           onBlur={saveAdvance}
           onKeyDown={(e) => {
@@ -551,7 +564,7 @@ export function EditTournamentSettings({
         />
       ) : null}
 
-      {canEditQualifiers ? (
+      {showQualifiers ? (
         <Select
           label={
             busyField === "qualifiers"
@@ -559,7 +572,7 @@ export function EditTournamentSettings({
               : "Ties on the table"
           }
           value={pickQualifiers ? "true" : "false"}
-          disabled={Boolean(busyField)}
+          disabled={locked}
           onChange={(e) => changeQualifiers(e.target.value === "true")}
           options={[
             { label: "Table order decides", value: "false" },
@@ -568,18 +581,18 @@ export function EditTournamentSettings({
         />
       ) : null}
 
-      {canEditTieBreaker ? (
+      {showTieBreaker ? (
         <Select
           label={busyField === "tie" ? "Tie-break (saving…)" : "Table tie-break"}
           value={tieBreaker}
-          disabled={Boolean(busyField)}
+          disabled={locked}
           onChange={(e) => {
             const next = e.target.value as Tournament["TieBreaker"];
-            if (next === tournament.TieBreaker || busyField) return;
+            if (next === tournament.TieBreaker || locked) return;
             setTieBreaker(next);
-            void save("tie", { TieBreaker: next }).then((ok) => {
-              if (!ok) setTieBreaker(tournament.TieBreaker || "GOAL_DIFF");
-            });
+            askToSave("tie", { TieBreaker: next }, () =>
+              setTieBreaker(tournament.TieBreaker || "GOAL_DIFF"),
+            );
           }}
           options={[
             { label: "Goal difference", value: "GOAL_DIFF" },
@@ -588,7 +601,7 @@ export function EditTournamentSettings({
         />
       ) : null}
 
-      {canEditKnockout ? (
+      {showKnockout ? (
         <>
           <Select
             label={
@@ -597,16 +610,24 @@ export function EditTournamentSettings({
                 : "Knockout ties"
             }
             value={knockoutFormat}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => {
               const next = e.target.value as Tournament["KnockoutFormat"];
-              if (next === (tournament.KnockoutFormat || "SINGLE") || busyField)
+              if (next === (tournament.KnockoutFormat || "SINGLE") || locked)
                 return;
               setKnockoutFormat(next);
-              void save("knockout", { KnockoutFormat: next }).then((ok) => {
-                if (!ok)
+              if (next === "SINGLE") setKnockoutFinalsSeries(false);
+              askToSave(
+                "knockout",
+                {
+                  KnockoutFormat: next,
+                  ...(next === "SINGLE" ? { KnockoutFinalsSeries: false } : {}),
+                },
+                () => {
                   setKnockoutFormat(tournament.KnockoutFormat || "SINGLE");
-              });
+                  setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries);
+                },
+              );
             }}
             options={[
               { label: "Single match", value: "SINGLE" },
@@ -615,19 +636,50 @@ export function EditTournamentSettings({
               { label: "Best of 5", value: "BO5" },
             ]}
           />
+          {knockoutFormat !== "SINGLE" ? (
+            <Select
+              label={
+                busyField === "finals"
+                  ? "Final (saving…)"
+                  : "Final"
+              }
+              value={knockoutFinalsSeries ? "true" : "false"}
+              disabled={locked}
+              onChange={(e) => {
+                const next = e.target.value === "true";
+                if (next === tournament.KnockoutFinalsSeries || locked) return;
+                setKnockoutFinalsSeries(next);
+                askToSave("finals", { KnockoutFinalsSeries: next }, () =>
+                  setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries),
+                );
+              }}
+              options={[
+                { label: "One match", value: "false" },
+                {
+                  label:
+                    knockoutFormat === "TWO_LEG"
+                      ? "Two legs"
+                      : knockoutFormat === "BO3"
+                        ? "Best of 3"
+                        : "Best of 5",
+                  value: "true",
+                },
+              ]}
+            />
+          ) : null}
           <Select
             label={
               busyField === "third" ? "Third place (saving…)" : "Third place"
             }
             value={thirdPlace ? "true" : "false"}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => {
               const next = e.target.value === "true";
-              if (next === tournament.ThirdPlace || busyField) return;
+              if (next === tournament.ThirdPlace || locked) return;
               setThirdPlace(next);
-              void save("third", { ThirdPlace: next }).then((ok) => {
-                if (!ok) setThirdPlace(tournament.ThirdPlace);
-              });
+              askToSave("third", { ThirdPlace: next }, () =>
+                setThirdPlace(tournament.ThirdPlace),
+              );
             }}
             options={[
               { label: "No 3rd place match", value: "false" },
@@ -637,7 +689,7 @@ export function EditTournamentSettings({
         </>
       ) : null}
 
-      {canEditBr ? (
+      {showBr ? (
         <>
           <Input
             type="number"
@@ -645,14 +697,14 @@ export function EditTournamentSettings({
             max={20}
             label={busyField === "br" ? "Lobbies (saving…)" : "Lobbies"}
             value={brLobbies}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setBrLobbies(e.target.value)}
             onBlur={() => {
               const value = Math.min(20, Math.max(1, Number(brLobbies) || 1));
-              if (value === (tournament.BrLobbyCount || 1)) return;
-              void save("br", { BrLobbyCount: value }).then((ok) => {
-                if (!ok) setBrLobbies(String(tournament.BrLobbyCount || 1));
-              });
+              if (value === (tournament.BrLobbyCount || 1) || locked) return;
+              askToSave("br", { BrLobbyCount: value }, () =>
+                setBrLobbies(String(tournament.BrLobbyCount || 1)),
+              );
             }}
           />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -661,12 +713,14 @@ export function EditTournamentSettings({
               min={0}
               label="Points per kill"
               value={brKillPoints}
-              disabled={Boolean(busyField)}
+              disabled={locked}
               onChange={(e) => setBrKillPoints(e.target.value)}
               onBlur={() => {
                 const value = Math.max(0, Number(brKillPoints) || 0);
-                if (value === (tournament.BrKillPoints ?? 1)) return;
-                void save("br", { BrKillPoints: value });
+                if (value === (tournament.BrKillPoints ?? 1) || locked) return;
+                askToSave("br", { BrKillPoints: value }, () =>
+                  setBrKillPoints(String(tournament.BrKillPoints ?? 1)),
+                );
               }}
             />
             <Input
@@ -674,32 +728,42 @@ export function EditTournamentSettings({
               min={0}
               label="First blood points"
               value={brFirstBlood}
-              disabled={Boolean(busyField)}
+              disabled={locked}
               onChange={(e) => setBrFirstBlood(e.target.value)}
               onBlur={() => {
                 const value = Math.max(0, Number(brFirstBlood) || 0);
-                if (value === (tournament.BrFirstBloodPoints ?? 0)) return;
-                void save("br", { BrFirstBloodPoints: value });
+                if (value === (tournament.BrFirstBloodPoints ?? 0) || locked)
+                  return;
+                askToSave("br", { BrFirstBloodPoints: value }, () =>
+                  setBrFirstBlood(String(tournament.BrFirstBloodPoints ?? 0)),
+                );
               }}
             />
           </div>
           <Input
             label="Placement points (1st, 2nd, …)"
             value={brPlacement}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setBrPlacement(e.target.value)}
             onBlur={() => {
+              if (locked) return;
               const pts = brPlacement
                 .split(/[,\s]+/)
                 .map((n) => Number(n))
                 .filter((n) => Number.isFinite(n));
-              void save("br", { BrPlacementPoints: pts });
+              const current = tournament.BrPlacementPoints ?? [
+                12, 9, 7, 5, 4, 3, 2, 1,
+              ];
+              if (pts.join(",") === current.join(",")) return;
+              askToSave("br", { BrPlacementPoints: pts }, () =>
+                setBrPlacement(current.join(",")),
+              );
             }}
           />
         </>
       ) : null}
 
-      {canEditCore ? (
+      {showCore ? (
         <>
           <Input
             type="date"
@@ -709,28 +773,33 @@ export function EditTournamentSettings({
                 : "Registration closes"
             }
             value={deadline}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setDeadline(e.target.value)}
             onBlur={() => {
               if (
+                locked ||
                 deadline ===
-                dateInputValue(tournament.RegistrationDeadline || "")
+                  dateInputValue(tournament.RegistrationDeadline || "")
               )
                 return;
-              void save("deadline", { RegistrationDeadline: deadline });
+              askToSave("deadline", { RegistrationDeadline: deadline }, () =>
+                setDeadline(
+                  dateInputValue(tournament.RegistrationDeadline || ""),
+                ),
+              );
             }}
           />
           <Select
             label={busyField === "checkin" ? "Check-in (saving…)" : "Check-in"}
             value={checkInRequired ? "true" : "false"}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => {
               const next = e.target.value === "true";
-              if (next === tournament.CheckInRequired || busyField) return;
+              if (next === tournament.CheckInRequired || locked) return;
               setCheckInRequired(next);
-              void save("checkin", { CheckInRequired: next }).then((ok) => {
-                if (!ok) setCheckInRequired(tournament.CheckInRequired);
-              });
+              askToSave("checkin", { CheckInRequired: next }, () =>
+                setCheckInRequired(tournament.CheckInRequired),
+              );
             }}
             options={[
               { label: "No check-in", value: "false" },
@@ -742,22 +811,27 @@ export function EditTournamentSettings({
               type="date"
               label="Check-in closes"
               value={checkInCloses}
-              disabled={Boolean(busyField)}
+              disabled={locked}
               onChange={(e) => setCheckInCloses(e.target.value)}
               onBlur={() => {
                 if (
+                  locked ||
                   checkInCloses ===
-                  dateInputValue(tournament.CheckInCloses || "")
+                    dateInputValue(tournament.CheckInCloses || "")
                 )
                   return;
-                void save("checkin", { CheckInCloses: checkInCloses });
+                askToSave("checkin", { CheckInCloses: checkInCloses }, () =>
+                  setCheckInCloses(
+                    dateInputValue(tournament.CheckInCloses || ""),
+                  ),
+                );
               }}
             />
           ) : null}
         </>
       ) : null}
 
-      {canEditSchedule ? (
+      {showSchedule ? (
         <>
           <Input
             type="datetime-local"
@@ -765,11 +839,14 @@ export function EditTournamentSettings({
               busyField === "schedule" ? "First match (saving…)" : "First match"
             }
             value={firstMatchAt}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setFirstMatchAt(e.target.value)}
             onBlur={() => {
-              if (firstMatchAt === (tournament.FirstMatchAt || "")) return;
-              void save("schedule", { FirstMatchAt: firstMatchAt });
+              if (locked || firstMatchAt === (tournament.FirstMatchAt || ""))
+                return;
+              askToSave("schedule", { FirstMatchAt: firstMatchAt }, () =>
+                setFirstMatchAt(tournament.FirstMatchAt || ""),
+              );
             }}
           />
           <Input
@@ -777,30 +854,41 @@ export function EditTournamentSettings({
             min={0}
             label="Minutes between matches"
             value={matchInterval}
-            disabled={Boolean(busyField)}
+            disabled={locked}
             onChange={(e) => setMatchInterval(e.target.value)}
             onBlur={() => {
               const value = Math.max(0, Number(matchInterval) || 0);
-              if (value === (tournament.MatchIntervalMinutes || 0)) return;
-              void save("schedule", { MatchIntervalMinutes: value });
+              if (value === (tournament.MatchIntervalMinutes || 0) || locked)
+                return;
+              askToSave("schedule", { MatchIntervalMinutes: value }, () =>
+                setMatchInterval(String(tournament.MatchIntervalMinutes || 0)),
+              );
             }}
           />
         </>
       ) : null}
 
       <Confirm
-        open={confirmVisibility}
-        title="Change visibility?"
-        message={
-          type === "PRIVATE"
-            ? "Making this tournament private will hide it from public listings and search. Only people with the link can find it."
-            : "Making this tournament public will list it in browse and search so anyone can find and join it."
+        open={Boolean(pendingSave)}
+        title={
+          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+            ? "Ask everyone to accept?"
+            : "Update this tournament?"
         }
-        confirmLabel="Yes, change"
+        message={
+          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+            ? "This changes how the tournament runs. It will not apply until every registered player accepts. Then you can apply it."
+            : "Are you sure you want to update this?"
+        }
+        confirmLabel={
+          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+            ? "Ask everyone"
+            : "Yes, update"
+        }
         confirmVariant="default"
-        loading={busyField === "type"}
-        onConfirm={() => void saveVisibility()}
-        onCancel={cancelVisibility}
+        loading={Boolean(busyField)}
+        onConfirm={() => void confirmPending()}
+        onCancel={cancelPending}
       />
     </div>
   );
@@ -901,7 +989,7 @@ export function ManagerSettings({
           Host this tournament under an organization to add managers.
         </p>
       ) : loading ? (
-        <p className="text-sm text-body">Loading…</p>
+        <Loader variant="compact" />
       ) : (
         <div className="flex flex-col gap-6">
           <div>
@@ -921,9 +1009,11 @@ export function ManagerSettings({
                     className="flex items-center justify-between gap-3 rounded-lg border border-surface-2 px-3 py-2"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm text-white">
-                        {managerName(m)}
-                      </span>
+                      <VerifiedName
+                        name={managerName(m)}
+                        verified={m.verified}
+                        className="text-sm text-white"
+                      />
                       {m.user_name ? (
                         <span className="block truncate text-xs text-body">
                           @{m.user_name}
@@ -959,9 +1049,11 @@ export function ManagerSettings({
                     className="flex items-center justify-between gap-3 rounded-lg border border-surface-2 px-3 py-2"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm text-white">
-                        {managerName(c)}
-                      </span>
+                      <VerifiedName
+                        name={managerName(c)}
+                        verified={c.verified}
+                        className="text-sm text-white"
+                      />
                       {c.user_name ? (
                         <span className="block truncate text-xs text-body">
                           @{c.user_name}

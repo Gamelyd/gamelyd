@@ -4,7 +4,7 @@ import { Reveal } from "@/components/ui/Reveal";
 
 export interface LegalSection {
   heading: string;
-  body: string;
+  body: string | string[];
 }
 
 export function LegalPage({
@@ -33,7 +33,11 @@ export function LegalPage({
                 <h2 className="font-display text-xl text-white">
                   {i + 1}. {s.heading}
                 </h2>
-                <p className="mt-2 text-body">{s.body}</p>
+                {(Array.isArray(s.body) ? s.body : [s.body]).map((p, j) => (
+                  <p key={j} className="mt-2 text-sm leading-relaxed text-body">
+                    {p}
+                  </p>
+                ))}
               </div>
             ))}
           </div>

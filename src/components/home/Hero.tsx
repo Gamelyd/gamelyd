@@ -49,7 +49,7 @@ export function Hero({ banner }: { banner: Tournament[] }) {
             <p className="mt-4 max-w-xl text-base text-body sm:text-lg">
               Create a tournament, register teams, draw fixtures, and keep
               scores in one place: leagues, groups, knockouts, and battle
-              royale lobbies.
+              royale lobbies. Paid pots stay held until the event ends.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/tournament/all/ALL/ALL">

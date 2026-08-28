@@ -15,6 +15,8 @@ import {
 import { TournamentStageControls } from "@/components/tournament/TournamentStageControls";
 import { SelectQualifiers } from "@/components/tournament/SelectQualifiers";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
+import { TournamentAnnouncements } from "@/components/tournament/TournamentAnnouncements";
+import { HostInvitePanel } from "@/components/tournament/HostInvitePanel";
 import { deleteTournamentAction } from "@/server/actions/tournamentActions";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
@@ -45,6 +47,9 @@ export function TournamentManageView({
   );
   const [disqualifiedTeams, setDisqualifiedTeams] = useState(
     tournament.DisqualifiedTeams ?? [],
+  );
+  const [announcements, setAnnouncements] = useState(
+    tournament.Announcements ?? [],
   );
   const [draws, setDraws] = useState(initialDraws);
   const [busy, setBusy] = useState(false);
@@ -110,6 +115,39 @@ export function TournamentManageView({
       </div>
 
       <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="mb-1 text-lg font-semibold text-white">
+            Announcements
+          </h2>
+          <p className="mb-4 text-sm text-body">
+            Posts show on the tournament page and notify everyone in this event.
+          </p>
+          <TournamentAnnouncements
+            tournamentId={tournament.TournamentId}
+            announcements={announcements}
+            canPost={
+              canAdminister &&
+              !tournament.Winner?.TeamName?.trim()
+            }
+            closed={Boolean(tournament.Winner?.TeamName?.trim())}
+            onChange={setAnnouncements}
+          />
+        </div>
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-white">
+            Invite players
+          </h2>
+          <HostInvitePanel
+            tournamentId={tournament.TournamentId}
+            tournamentType={tournament.TournamentType}
+            started={tournament.Start}
+            registeredCount={participants.length}
+            tournamentSize={tournament.TournamentSize}
+            excludeIds={participants.flatMap((p) =>
+              (p.Players ?? []).map((pl) => pl.User_id),
+            )}
+          />
+        </div>
         <TournamentStageControls
           key={disqualifiedTeams.join("|")}
           tournament={tournament}
@@ -146,7 +184,7 @@ export function TournamentManageView({
             </h2>
             <p className="mb-4 text-sm text-body">
               {tournament.Start
-                ? "They lose every remaining match 3–0. In knockout, their opponent goes through."
+                ? "They lose every remaining match 3-0. In knockout, their opponent goes through."
                 : "Take a team off the roster before the tournament starts."}
             </p>
             <DisqualifyTeams
@@ -204,7 +242,8 @@ export function TournamentManageView({
             </h2>
             <p className="mb-4 text-sm text-body">
               Add a new team, or add players to a team that still has
-              roster spots. Squads take up to four, duos two, solo one.
+              roster spots. They join the roster immediately, without an
+              invite. Squads take up to four, duos two, solo one.
             </p>
             {canAdd ? (
               <AddParticipants

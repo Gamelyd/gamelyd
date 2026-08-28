@@ -10,6 +10,7 @@ import {
   EmptyTournaments,
 } from "@/components/tournament/TournamentCard";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export function DashboardView({
   profile,
@@ -34,9 +35,12 @@ export function DashboardView({
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
                 Dashboard
               </p>
-              <h1 className="mt-1 font-display text-4xl text-white">
-                {profile.first_name} {profile.last_name}
-              </h1>
+              <VerifiedName
+                as="h1"
+                name={`${profile.first_name} ${profile.last_name}`.trim()}
+                verified={profile.verified}
+                className="mt-1 font-display text-4xl text-white"
+              />
               <p className="text-body">@{profile.user_name}</p>
             </div>
           </div>

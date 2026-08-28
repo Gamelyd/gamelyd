@@ -1,6 +1,7 @@
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
 
 export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
   if (standings.length === 0) {
@@ -50,7 +51,11 @@ export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
                       height={28}
                       className="h-7 w-7 rounded-full object-cover"
                     />
-                    <span className="font-medium text-white">{row.TeamName}</span>
+                    <VerifiedName
+                      name={row.TeamName}
+                      verified={isSoloVerified(row.Players)}
+                      className="font-medium text-white"
+                    />
                   </div>
                 </td>
                 <td className="px-3 py-3 text-center text-body">{row.Played}</td>

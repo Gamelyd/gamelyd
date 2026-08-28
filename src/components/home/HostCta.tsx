@@ -17,7 +17,7 @@ export function HostCta() {
                   <>
                     <p>
                       Pick a game from the catalogue, choose knockout, groups,
-                      league, or battle royale, then open registration. Players
+                      league, or battle royale, then share the page. Players
                       use one URL for the roster, fixtures, tables, and the
                       bracket.
                     </p>
@@ -40,7 +40,7 @@ export function HostCta() {
             </div>
             <ul className="grid max-w-md gap-3 text-sm">
               {[
-                ["Access", "Public or private listing"],
+                ["Access", "Invite only or open join"],
                 ["Roster", "Solo, duo, and squad"],
                 ["Seed", "Automatic or manual"],
                 ["Draw", "Group tables and knockout tree"],

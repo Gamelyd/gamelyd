@@ -13,11 +13,17 @@ import {
   updateBrDrawAction,
 } from "@/server/actions/drawActions";
 import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
+import {
+  isSoloVerified,
+  PlayerNameList,
+  VerifiedName,
+} from "@/components/ui/VerifiedName";
 import { leagueMatchdayLabel } from "@/lib/leagueStandings";
 import { isKnockoutBye } from "@/lib/knockoutSeed";
 import {
   lastPlayedInTie,
   legCaption,
+  formatForSeriesGames,
   tieNeedsHostPick,
 } from "@/lib/knockoutSeries";
 import type { KnockoutFormat } from "@/lib/schemas/common";
@@ -94,14 +100,15 @@ function MpFixture({
   const [saving, setSaving] = useState(false);
 
   const autoBye = isKnockoutBye(draw);
-  const seriesLabel = legCaption(draw, knockoutFormat);
   const tieGames = seriesGames?.length ? seriesGames : [draw];
+  const seriesFormat = formatForSeriesGames(tieGames, knockoutFormat);
+  const seriesLabel = legCaption(draw, seriesFormat);
   const pickSurface = lastPlayedInTie(tieGames);
   const needsWinner =
     Boolean(hostPicksLevel) &&
     !autoBye &&
     pickSurface?.DrawId === draw.DrawId &&
-    tieNeedsHostPick(tieGames, knockoutFormat);
+    tieNeedsHostPick(tieGames, seriesFormat);
 
   const pickWinner = async (side: "Team1" | "Team2") => {
     setSaving(true);
@@ -237,7 +244,7 @@ function MpFixture({
       {canManage && needsWinner ? (
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <p className="w-full text-center text-xs text-body">
-            {knockoutFormat === "TWO_LEG"
+            {seriesFormat === "TWO_LEG"
               ? "Level on aggregate. Pick who goes through"
               : "Level score. Pick who goes through"}
           </p>
@@ -456,16 +463,16 @@ function TeamFace({
     >
       {side === "left" ? (
         <>
-          <span className="min-w-0 truncate font-display text-[20px] leading-none text-surface-3">
-            {name}
+          <span className="inline-flex min-w-0 items-center gap-1 truncate font-display text-[20px] leading-none text-surface-3">
+            <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
           </span>
           {showScore ? scoreControl : null}
         </>
       ) : (
         <>
           {showScore ? scoreControl : null}
-          <span className="min-w-0 truncate text-right font-display text-[20px] leading-none text-surface-3">
-            {name}
+          <span className="inline-flex min-w-0 items-center justify-end gap-1 truncate text-right font-display text-[20px] leading-none text-surface-3">
+            <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
           </span>
         </>
       )}
@@ -619,8 +626,7 @@ function BrFixture({
                   {team.TeamName}
                 </p>
                 <p className="mt-1 text-xs text-body">
-                  {team.Players.map((p) => p.UserName).filter(Boolean).join(" · ") ||
-                    "No players listed"}
+                  <PlayerNameList players={team.Players} />
                   {!open && team.Kills
                     ? ` · ${team.Kills} kill${team.Kills === 1 ? "" : "s"}`
                     : ""}

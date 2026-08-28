@@ -116,7 +116,7 @@ export async function resetPasswordAction(
 /**
  * Keep the access cookie alive from the httpOnly refresh cookie. Returns the
  * current user. Cookies are cleared only when the refresh token is gone or
- * actually invalid — not on a failed cookie write.
+ * actually invalid - not on a failed cookie write.
  */
 export async function refreshSessionAction(): Promise<
   ActionResult<User | null>

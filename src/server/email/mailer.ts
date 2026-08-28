@@ -20,7 +20,7 @@ function getTransporter(): Transporter {
 }
 
 /**
- * Sends an email but never throws into request handling — email delivery is a
+ * Sends an email but never throws into request handling - email delivery is a
  * side effect and must not fail the primary action. Failures are logged.
  */
 export async function sendEmail(

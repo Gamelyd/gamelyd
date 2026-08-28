@@ -7,15 +7,21 @@ import { listIconsAction } from "@/server/actions/iconActions";
 
 export function useIcons(
   kind: IconKind,
-  opts?: { gameId?: string; search?: string },
+  opts?: { gameId?: string; search?: string; taggedOnly?: boolean },
 ): { icons: AppIcon[]; loading: boolean } {
   const [icons, setIcons] = useState<AppIcon[]>([]);
   const [loading, setLoading] = useState(true);
   const gameId = opts?.gameId ?? "";
   const search = opts?.search ?? "";
+  const taggedOnly = Boolean(opts?.taggedOnly);
 
   useEffect(() => {
     let active = true;
+    if (taggedOnly && !gameId) {
+      setIcons([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     void listIconsAction({
       kind,
@@ -29,7 +35,7 @@ export function useIcons(
     return () => {
       active = false;
     };
-  }, [kind, gameId, search]);
+  }, [kind, gameId, search, taggedOnly]);
 
   return { icons, loading };
 }

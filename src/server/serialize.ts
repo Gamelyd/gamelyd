@@ -37,7 +37,11 @@ import type {
   TournamentMode,
   TournamentType,
   UserType,
+  NotificationKind,
+  OrgInviteStatus,
+  TournamentInviteKind,
 } from "@/lib/schemas/common";
+import { parseCurrency } from "@/lib/currency";
 import {
   asRecord,
   readArray,
@@ -73,6 +77,7 @@ export function serializeUser(doc: UserDoc): User {
     isDeleted: readBool(raw, ["isDeleted", "IsDeleted"]),
     isSuspended: readBool(raw, ["isSuspended", "IsSuspended"]),
     emailVerified: readBool(raw, ["emailVerified", "EmailVerified"]),
+    verified: readBool(raw, ["verified", "Verified"]),
     twitter: readString(raw, ["twitter", "Twitter"]),
     instagram: readString(raw, ["instagram", "Instagram"]),
     linkedin: readString(raw, ["linkedin", "Linkedin"]),
@@ -115,6 +120,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       "PUBLIC",
     ) as TournamentType,
     Payment: readString(raw, ["Payment", "payment"], "FREE") as Payment,
+    Currency: parseCurrency(readString(raw, ["Currency", "currency"], "USD")),
     TournamentMode: normalizeMode(
       readString(raw, ["TournamentMode", "tournamentmode"], "MULTIPLAYER"),
     ),
@@ -128,6 +134,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     OrgId: readString(raw, ["OrgId", "orgid"]),
     OrgName: readString(raw, ["OrgName", "orgname"]),
     OrgIcon: readString(raw, ["OrgIcon", "orgicon"]),
+    OrgVerified: readBool(raw, ["OrgVerified", "orgverified"]),
     Active: readBool(raw, ["Active", "active"]),
     IsDeleted: readBool(raw, ["IsDeleted", "isdeleted"]),
     IsSuspended: readBool(raw, ["IsSuspended", "issuspended"]),
@@ -144,6 +151,12 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       "registrationamount",
     ]),
     Note: readString(raw, ["Note", "note"]),
+    Announcements: serializeAnnouncements(
+      raw.Announcements ?? raw.announcements,
+    ),
+    PendingSettingChange: serializePendingSettingChange(
+      raw.PendingSettingChange ?? raw.pendingsettingchange,
+    ),
     AcceptedInvites: readArray(raw, [
       "AcceptedInvites",
       "acceptedinvites",
@@ -186,6 +199,10 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       ["KnockoutFormat", "knockoutformat"],
       "SINGLE",
     ) || "SINGLE") as Tournament["KnockoutFormat"],
+    KnockoutFinalsSeries: readBool(raw, [
+      "KnockoutFinalsSeries",
+      "knockoutfinalsseries",
+    ]),
     ThirdPlace: readBool(raw, ["ThirdPlace", "thirdplace"]),
     TieBreaker: (readString(
       raw,
@@ -213,7 +230,28 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       "MatchIntervalMinutes",
       "matchintervalminutes",
     ]),
+    PlatformFeeBps: readNumber(raw, ["PlatformFeeBps", "platformfeebps"], 1000) || 1000,
+    PurseFunded: purseFunded(raw),
+    PotNet: readNumber(raw, ["PotNet", "potnet"]),
+    FeeCollected: readNumber(raw, ["FeeCollected", "feecollected"]),
+    SettlementStatus: settlementStatus(raw),
   };
+}
+
+function purseFunded(raw: Record<string, unknown>): boolean {
+  for (const key of ["PurseFunded", "pursefunded"]) {
+    const value = raw[key];
+    if (typeof value === "boolean") return value;
+  }
+  return true;
+}
+
+function settlementStatus(
+  raw: Record<string, unknown>,
+): Tournament["SettlementStatus"] {
+  const value = readString(raw, ["SettlementStatus", "settlementstatus"], "NONE");
+  if (value === "OPEN" || value === "SETTLED") return value;
+  return "NONE";
 }
 
 function ownerCanReshuffleGroups(raw: Record<string, unknown>): boolean {
@@ -222,6 +260,63 @@ function ownerCanReshuffleGroups(raw: Record<string, unknown>): boolean {
     if (typeof value === "boolean") return value;
   }
   return true;
+}
+
+function serializeAnnouncements(
+  raw: unknown,
+): Tournament["Announcements"] {
+  if (!Array.isArray(raw)) return [];
+  const out: Tournament["Announcements"] = [];
+  for (const item of raw) {
+    const row = asRecord(item);
+    const Id = readString(row, ["Id", "id"]);
+    const Body = readString(row, ["Body", "body"]).trim();
+    if (!Id || !Body) continue;
+    out.push({
+      Id,
+      Body: Body.slice(0, 2000),
+      CreatedAt: readDate(row, ["CreatedAt", "createdat", "Created_at"]),
+      AuthorId: readString(row, ["AuthorId", "authorid"]),
+    });
+  }
+  out.sort((a, b) => {
+    const aTime = Date.parse(a.CreatedAt);
+    const bTime = Date.parse(b.CreatedAt);
+    if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
+    if (Number.isNaN(aTime)) return 1;
+    if (Number.isNaN(bTime)) return -1;
+    return bTime - aTime;
+  });
+  return out;
+}
+
+function serializePendingSettingChange(
+  raw: unknown,
+): Tournament["PendingSettingChange"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const row = asRecord(raw);
+  const Id = readString(row, ["Id", "id"]);
+  if (!Id) return undefined;
+  const patchRaw = row.Patch ?? row.patch;
+  const Patch =
+    patchRaw && typeof patchRaw === "object" && !Array.isArray(patchRaw)
+      ? (patchRaw as Record<string, unknown>)
+      : {};
+  return {
+    Id,
+    ProposedBy: readString(row, ["ProposedBy", "proposedby"]),
+    CreatedAt: readDate(row, ["CreatedAt", "createdat"]),
+    Summary: readString(row, ["Summary", "summary"]),
+    Patch,
+    RequiredUserIds: (readArray(row, [
+      "RequiredUserIds",
+      "requireduserids",
+    ]) as string[]).filter((id) => typeof id === "string" && id.length > 0),
+    AcceptedUserIds: (readArray(row, [
+      "AcceptedUserIds",
+      "accepteduserids",
+    ]) as string[]).filter((id) => typeof id === "string" && id.length > 0),
+  };
 }
 
 function serializeQualifiers(raw: unknown): Tournament["Qualifiers"] {
@@ -252,6 +347,7 @@ function serializePrizes(raw: unknown): Tournament["Prizes"] {
       return {
         Position: readNumber(row, ["Position", "position"]),
         Amount: readNumber(row, ["Amount", "amount"]),
+        Share: readNumber(row, ["Share", "share"]),
       };
     })
     .filter((row) => row.Position > 0)
@@ -275,6 +371,7 @@ function serializePlayer(raw: unknown): Player {
     User_id: readString(p, ["User_id", "user_id"]),
     Email: readString(p, ["Email", "email"]),
     Icon: catalogUrl(readString(p, ["Icon", "icon"])),
+    Verified: readBool(p, ["Verified", "verified"]),
   };
 }
 
@@ -361,7 +458,28 @@ export function serializeRegistration(
 }
 
 export function serializeNotification(doc: NotificationDoc): Notification {
-  return { ...doc, _id: doc._id.toHexString() };
+  const raw = asRecord(doc);
+  const kindRaw = readString(raw, ["kind"], "GENERIC").toUpperCase();
+  const kind: NotificationKind =
+    kindRaw === "TOURNAMENT_INVITE" ||
+    kindRaw === "TEAM_INVITE" ||
+    kindRaw === "DRAW" ||
+    kindRaw === "SCORE" ||
+    kindRaw === "TIME" ||
+    kindRaw === "ANNOUNCEMENT" ||
+    kindRaw === "SETTING_CHANGE"
+      ? kindRaw
+      : "GENERIC";
+  return {
+    _id: doc._id.toHexString(),
+    user_id: readString(raw, ["user_id"]),
+    message: readString(raw, ["message"]),
+    timestamp: readString(raw, ["timestamp"]),
+    is_read: readBool(raw, ["is_read"]),
+    kind,
+    invite_id: readString(raw, ["invite_id"]),
+    tournament_id: readString(raw, ["tournament_id"]),
+  };
 }
 
 export function serializeContact(doc: ContactUsDoc): ContactUs {
@@ -373,11 +491,40 @@ export function serializeReport(doc: ReportAbuseDoc): ReportAbuse {
 }
 
 export function serializeInvite(doc: InviteTournamentDoc): InviteTournament {
-  return { ...doc, _id: doc._id.toHexString() };
+  const raw = asRecord(doc);
+  const kindRaw = readString(raw, ["kind"], "TOURNAMENT").toUpperCase();
+  const kind: TournamentInviteKind = kindRaw === "TEAM" ? "TEAM" : "TOURNAMENT";
+  const statusRaw = readString(raw, ["status"], "PENDING").toUpperCase();
+  const status: OrgInviteStatus =
+    statusRaw === "ACCEPTED" || statusRaw === "DECLINED"
+      ? statusRaw
+      : "PENDING";
+  const invitee =
+    readString(raw, ["invitee_id"]) || readString(raw, ["user_id"]);
+  return {
+    _id: doc._id.toHexString(),
+    invite_id: readString(raw, ["invite_id"]) || doc._id.toHexString(),
+    kind,
+    tournament_id: readString(raw, ["tournament_id"]),
+    tournament_name: readString(raw, ["tournament_name"]),
+    team_name: readString(raw, ["team_name"]),
+    register_id: readString(raw, ["register_id"]),
+    inviter_id: readString(raw, ["inviter_id"]),
+    inviter_name: "",
+    invitee_id: invitee,
+    invitee_name: "",
+    status,
+    CreatedAt: readString(raw, ["CreatedAt", "created_at"]),
+    UpdatedAt: readString(raw, ["UpdatedAt", "updated_at"]),
+  };
 }
 
 export function serializeOrg(doc: OrgDoc): Org {
-  return { ...doc, _id: doc._id.toHexString() };
+  return {
+    ...doc,
+    _id: doc._id.toHexString(),
+    verified: Boolean(doc.verified),
+  };
 }
 
 export function serializeOrgMember(doc: OrgMemberDoc): OrgMember {

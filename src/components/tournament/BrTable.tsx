@@ -1,4 +1,5 @@
 import type { BrStanding } from "@/lib/brStandings";
+import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
 
 export function BrTable({ standings }: { standings: BrStanding[] }) {
   if (standings.length === 0) {
@@ -28,7 +29,12 @@ export function BrTable({ standings }: { standings: BrStanding[] }) {
               className="border-b border-surface-2 last:border-0"
             >
               <td className="px-4 py-3 font-medium text-white">{index + 1}</td>
-              <td className="px-4 py-3 font-medium text-white">{row.TeamName}</td>
+              <td className="px-4 py-3 font-medium text-white">
+                <VerifiedName
+                  name={row.TeamName}
+                  verified={isSoloVerified(row.Players)}
+                />
+              </td>
               <td className="px-3 py-3 text-center text-body">
                 {row.PlacementPoints}
               </td>

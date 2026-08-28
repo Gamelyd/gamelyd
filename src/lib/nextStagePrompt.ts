@@ -3,6 +3,7 @@ import type { TournamentMode } from "@/lib/schemas/common";
 import type { KnockoutFormat } from "@/lib/schemas/common";
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import {
+  formatForSeriesGames,
   groupKnockoutTies,
   isKnockoutTieSettled,
   knockoutRoundHasOpenTie,
@@ -23,7 +24,7 @@ export type NextStagePrompt = {
   confirmLabel: string;
 };
 
-/** After a newly recorded score, what the manager should do next — if anything. */
+/** After a newly recorded score, what the manager should do next - if anything. */
 export function nextStageAfterScore({
   mode,
   draws,
@@ -63,7 +64,7 @@ export function nextStageAfterScore({
       kind: "advance",
       title: "Start knockout?",
       message:
-        "Every group match is in. Draw the knockout bracket from the teams that qualified.",
+        "Are you sure all scores have been recorded? This cannot be undone. The knockout bracket will be drawn from the teams that qualified.",
       confirmLabel: "Start knockout",
     };
   }
@@ -73,13 +74,29 @@ export function nextStageAfterScore({
   const stage = scored.Stage;
   const ties = tiesAtStage(groupKnockoutTies(draws, false), stage);
   if (ties.length === 0) return null;
-  if (ties.some((tie) => !isKnockoutTieSettled(tie.games, knockoutFormat))) {
+  if (
+    ties.some(
+      (tie) =>
+        !isKnockoutTieSettled(
+          tie.games,
+          formatForSeriesGames(tie.games, knockoutFormat),
+        ),
+    )
+  ) {
     return null;
   }
   if (ties.length === 1) return null;
   if (draws.some((d) => isKnockoutDraw(d) && d.Stage > stage)) return null;
   if (knockoutRoundHasOpenTie(draws, stage, knockoutFormat)) return null;
-  if (ties.some((tie) => !knockoutTieWinner(tie.games, knockoutFormat))) {
+  if (
+    ties.some(
+      (tie) =>
+        !knockoutTieWinner(
+          tie.games,
+          formatForSeriesGames(tie.games, knockoutFormat),
+        ),
+    )
+  ) {
     return null;
   }
 
@@ -88,7 +105,7 @@ export function nextStageAfterScore({
       kind: "knockoutNext",
       title: "Draw next knockout round?",
       message:
-        "This knockout round is complete. Pair the winners into the next round.",
+        "Are you sure all scores have been recorded? This cannot be undone. Winners will be paired into the next round.",
       confirmLabel: "Draw next round",
     };
   }
@@ -97,7 +114,7 @@ export function nextStageAfterScore({
     kind: "nextStage",
     title: "Draw next stage?",
     message:
-      "This round is complete. Generate the next round of fixtures from the winners.",
+      "Are you sure all scores have been recorded? This cannot be undone. The next round will be generated from the winners.",
     confirmLabel: "Draw next stage",
   };
 }

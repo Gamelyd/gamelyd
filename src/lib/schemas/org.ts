@@ -17,6 +17,7 @@ export const orgSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   isDeleted: z.boolean().default(false),
+  verified: z.boolean().default(false),
 });
 export type Org = z.infer<typeof orgSchema>;
 
@@ -41,6 +42,7 @@ export const orgMemberWithUserSchema = orgMemberSchema.extend({
   last_name: z.string(),
   user_name: z.string(),
   email: z.string(),
+  verified: z.boolean().default(false),
 });
 export type OrgMemberWithUser = z.infer<typeof orgMemberWithUserSchema>;
 

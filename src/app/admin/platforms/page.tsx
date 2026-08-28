@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
+import { Loader } from "@/components/ui/Loader";
 import type { Platform } from "@/lib/schemas/platform";
 import {
   adminListPlatformsAction,
@@ -112,7 +113,7 @@ export default function AdminPlatformsPage() {
       </div>
 
       {loading && items.length === 0 ? (
-        <p className="text-body">Loading…</p>
+        <Loader label="Loading platforms" />
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-surface-2 bg-surface p-10 text-center">
           <p className="text-body">

@@ -30,6 +30,46 @@ export function knockoutFormatLabel(format: KnockoutFormat | undefined): string 
   return "Single match";
 }
 
+export function knockoutRulesSummary(opts: {
+  format: KnockoutFormat | undefined;
+  finalsUseSeries?: boolean;
+  thirdPlace?: boolean;
+}): string {
+  const base = knockoutFormatLabel(opts.format);
+  const third = opts.thirdPlace ? " · 3rd place" : "";
+  if (!opts.format || opts.format === "SINGLE") return `${base}${third}`;
+  const finalBit = opts.finalsUseSeries
+    ? "including the final"
+    : "final is one match";
+  return `${base}, ${finalBit}${third}`;
+}
+
+/**
+ * Final and 3rd place are one match unless the host opted the final into the
+ * same two-leg / best-of format as earlier rounds.
+ */
+export function knockoutFormatForRound(
+  tournamentFormat: KnockoutFormat | undefined,
+  options: {
+    finalsUseSeries?: boolean;
+    isFinal?: boolean;
+    isThirdPlace?: boolean;
+  } = {},
+): KnockoutFormat {
+  if (options.isThirdPlace) return "SINGLE";
+  if (options.isFinal && !options.finalsUseSeries) return "SINGLE";
+  return tournamentFormat || "SINGLE";
+}
+
+/** A series with only one fixture is always a single match. */
+export function formatForSeriesGames(
+  games: Draw[],
+  tournamentFormat: KnockoutFormat | undefined,
+): KnockoutFormat {
+  if (games.length <= 1) return "SINGLE";
+  return tournamentFormat || "SINGLE";
+}
+
 export function seriesKey(draw: Draw): string {
   return draw.SeriesId?.trim() || draw.DrawId;
 }
@@ -202,7 +242,7 @@ export function knockoutRoundsForBracket(
   const byStage = new Map<number, Draw[]>();
   for (const tie of ties) {
     const list = byStage.get(tie.stage) ?? [];
-    list.push(displayDrawForTie(tie, format));
+    list.push(displayDrawForTie(tie, formatForSeriesGames(tie.games, format)));
     byStage.set(tie.stage, list);
   }
   return [...byStage.entries()]
@@ -218,7 +258,12 @@ export function knockoutRoundComplete(
   const ties = tiesAtStage(groupKnockoutTies(draws, false), stage);
   return (
     ties.length > 0 &&
-    ties.every((tie) => isKnockoutTieSettled(tie.games, format))
+    ties.every((tie) =>
+      isKnockoutTieSettled(
+        tie.games,
+        formatForSeriesGames(tie.games, format),
+      ),
+    )
   );
 }
 
@@ -229,8 +274,9 @@ export function knockoutRoundHasOpenTie(
 ): boolean {
   const ties = tiesAtStage(groupKnockoutTies(draws, false), stage);
   return ties.some((tie) => {
-    if (!isKnockoutTieSettled(tie.games, format)) return false;
-    return !knockoutTieWinner(tie.games, format);
+    const seriesFormat = formatForSeriesGames(tie.games, format);
+    if (!isKnockoutTieSettled(tie.games, seriesFormat)) return false;
+    return !knockoutTieWinner(tie.games, seriesFormat);
   });
 }
 

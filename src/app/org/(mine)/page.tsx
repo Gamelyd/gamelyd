@@ -15,6 +15,7 @@ import {
   getMyOrgInvitesAction,
 } from "@/server/actions/orgActions";
 import type { OrgInvite } from "@/lib/schemas/org";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export default function OrgsIndexPage() {
   const { isAuthenticated, orgs, refreshOrgs } = useAuth();
@@ -140,9 +141,12 @@ export default function OrgsIndexPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-semibold text-white">
-                    {org.name}
-                  </p>
+                  <VerifiedName
+                    as="p"
+                    name={org.name}
+                    verified={org.verified}
+                    className="font-semibold text-white"
+                  />
                   <span className="text-xs text-primary">{org.role}</span>
                 </div>
               </Link>

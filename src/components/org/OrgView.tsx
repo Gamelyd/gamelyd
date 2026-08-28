@@ -25,6 +25,7 @@ import {
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import type { OrgRole } from "@/lib/schemas/common";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export function OrgView({
   org,
@@ -89,9 +90,12 @@ export function OrgView({
             )}
           </div>
           <div className="flex-1">
-            <h1 className="font-display text-4xl text-white md:text-5xl">
-              {current.name}
-            </h1>
+            <VerifiedName
+              as="h1"
+              name={current.name}
+              verified={current.verified}
+              className="font-display text-4xl text-white md:text-5xl"
+            />
             {current.description && (
               <p className="mt-2 max-w-2xl text-body">
                 {current.description}
@@ -145,9 +149,12 @@ export function OrgView({
                 className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary-panel p-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-white">
-                    {m.first_name} {m.last_name}
-                  </p>
+                  <VerifiedName
+                    as="p"
+                    name={`${m.first_name} ${m.last_name}`.trim()}
+                    verified={m.verified}
+                    className="text-sm font-medium text-white"
+                  />
                   <p className="truncate text-xs text-body">@{m.user_name}</p>
                 </div>
                 <div className="flex items-center gap-2">

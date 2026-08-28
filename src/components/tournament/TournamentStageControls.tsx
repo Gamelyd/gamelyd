@@ -28,10 +28,10 @@ import {
 } from "@/lib/groupQualifiers";
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import {
+  formatForSeriesGames,
   groupKnockoutTies,
   isKnockoutTieSettled,
-  knockoutTieWinner,
-  knockoutFormatLabel,
+  knockoutRulesSummary,
   tiesAtStage,
 } from "@/lib/knockoutSeries";
 
@@ -102,7 +102,10 @@ export function TournamentStageControls({
   const knockoutRoundComplete =
     latestKnockoutTies.length > 0 &&
     latestKnockoutTies.every((tie) =>
-      isKnockoutTieSettled(tie.games, format),
+      isKnockoutTieSettled(
+        tie.games,
+        formatForSeriesGames(tie.games, format),
+      ),
     );
   const knockoutDecided =
     knockoutRoundComplete && latestKnockoutTies.length === 1;
@@ -129,7 +132,7 @@ export function TournamentStageControls({
   );
 
   const requestDraw = () => {
-    setPending(draws.length === 0 && !started ? "start" : "nextStage");
+    setPending("start");
   };
 
   const handleDraw = async () => {
@@ -228,47 +231,10 @@ export function TournamentStageControls({
     );
 
   const requestAdvance = () => {
-    const remaining = groupDraws.filter((d) => !d.Played).length;
-    if (remaining > 0) {
-      toast.error(
-        `Record ${remaining} more group match${
-          remaining === 1 ? "" : "es"
-        } before advancing.`,
-      );
-      return;
-    }
-    if (manualQualifiers && !picksComplete) {
-      toast.error(
-        "Teams are level on points. Pick who goes through (and why) on the Groups tab first.",
-      );
-      return;
-    }
     setPending("advance");
   };
 
   const requestKnockoutNext = () => {
-    const remaining = latestKnockoutTies.filter(
-      (tie) => !isKnockoutTieSettled(tie.games, format),
-    ).length;
-    if (remaining > 0) {
-      toast.error(
-        `${remaining} tie${
-          remaining === 1 ? "" : "s"
-        } in this round still need a result.`,
-      );
-      return;
-    }
-    const open = latestKnockoutTies.filter(
-      (tie) => !knockoutTieWinner(tie.games, format),
-    ).length;
-    if (open > 0) {
-      toast.error(
-        `${open} tie${
-          open === 1 ? "" : "s"
-        } ended level. Set a winner before drawing the next round.`,
-      );
-      return;
-    }
     setPending("knockoutNext");
   };
 
@@ -283,7 +249,7 @@ export function TournamentStageControls({
     nextStage: {
       title: "Draw next stage?",
       message:
-        "This will generate the next round of fixtures. Existing results will stay as they are.",
+        "Are you sure all scores have been recorded? This cannot be undone. Winners of this round will be paired into the next fixtures.",
       confirmLabel: "Yes, draw",
       onConfirm: handleDraw,
     },
@@ -308,17 +274,17 @@ export function TournamentStageControls({
     advance: {
       title: "Advance to knockout?",
       message: manualQualifiers
-        ? "Qualifiers from the table (and any points-tie decisions) will be seeded into a knockout bracket. Group results are locked in once you advance."
-        : `The top ${advancePerGroup} team${
+        ? "Are you sure all scores have been recorded? This cannot be undone. Qualifiers from the table (and any points-tie decisions) will be seeded into a knockout bracket."
+        : `Are you sure all scores have been recorded? This cannot be undone. The top ${advancePerGroup} team${
             advancePerGroup === 1 ? "" : "s"
-          } from each group will be seeded into a knockout bracket. Group results are locked in once you advance.`,
+          } from each group will be seeded into a knockout bracket.`,
       confirmLabel: "Yes, advance",
       onConfirm: handleAdvance,
     },
     knockoutNext: {
       title: "Draw next knockout round?",
       message:
-        "Winners of the current round will be paired into the next round.",
+        "Are you sure all scores have been recorded? This cannot be undone. Winners of the current round will be paired into the next round.",
       confirmLabel: "Yes, draw",
       onConfirm: handleKnockoutNext,
     },
@@ -441,24 +407,73 @@ export function TournamentStageControls({
               </Button>
             </>
           )
+        ) : tournament.TournamentMode === "BATTLEROYALE" ? (
+          draws.length > 0 ? (
+            <>
+              <h2 className="mb-1 text-lg font-semibold text-white">
+                Lobbies drawn
+              </h2>
+              <p className="text-sm text-body">
+                Record lobby results from the Fixtures tab. You can&apos;t draw
+                again until this stage is complete, and this event has a single
+                lobby stage.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="mb-1 text-lg font-semibold text-white">
+                Draw fixtures
+              </h2>
+              <p className="mb-4 text-sm text-body">
+                {`Create ${tournament.BrLobbyCount || 1} lobby${
+                  (tournament.BrLobbyCount || 1) === 1 ? "" : "s"
+                }. Placement and kill points decide the table. Starting closes registration.`}
+              </p>
+              <Button loading={busy} onClick={requestDraw}>
+                Start tournament
+              </Button>
+            </>
+          )
+        ) : knockoutDecided ? (
+          <>
+            <h2 className="mb-1 text-lg font-semibold text-white">
+              Knockout complete
+            </h2>
+            <p className="text-sm text-body">
+              The final has been played. Record the final score from the
+              Fixtures tab if you haven&apos;t already.
+            </p>
+          </>
+        ) : draws.length > 0 ? (
+          <>
+            <h2 className="mb-1 text-lg font-semibold text-white">
+              Knockout stage
+            </h2>
+            <p className="mb-4 text-sm text-body">
+              {knockoutRoundComplete
+                ? "This round is complete. Draw the next round from the winners."
+                : "Finish every match in this round before drawing the next stage."}
+            </p>
+            <Button loading={busy} onClick={requestKnockoutNext}>
+              Draw next knockout round
+            </Button>
+          </>
         ) : (
           <>
             <h2 className="mb-1 text-lg font-semibold text-white">
               Draw fixtures
             </h2>
             <p className="mb-4 text-sm text-body">
-              {draws.length > 0
-                ? "Generate the next round of fixtures."
-                : tournament.TournamentMode === "BATTLEROYALE"
-                  ? `Create ${tournament.BrLobbyCount || 1} lobby${
-                      (tournament.BrLobbyCount || 1) === 1 ? "" : "s"
-                    }. Placement and kill points decide the table. Starting closes registration.`
-                  : `Generate ${tournament.Shuffle.toLowerCase()} fixtures (${knockoutFormatLabel(
-                      tournament.KnockoutFormat,
-                    )}${tournament.ThirdPlace ? ", plus a 3rd place match" : ""}). Starting closes registration.`}
+              {`Generate ${tournament.Shuffle.toLowerCase()} fixtures (${knockoutRulesSummary(
+                {
+                  format: tournament.KnockoutFormat,
+                  finalsUseSeries: tournament.KnockoutFinalsSeries,
+                  thirdPlace: tournament.ThirdPlace,
+                },
+              )}). Starting closes registration.`}
             </p>
             <Button loading={busy} onClick={requestDraw}>
-              {draws.length > 0 ? "Draw next stage" : "Start tournament"}
+              Start tournament
             </Button>
           </>
         )}

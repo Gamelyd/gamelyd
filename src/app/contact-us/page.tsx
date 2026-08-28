@@ -86,7 +86,7 @@ export default function ContactPage() {
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Support hours
             </h3>
-            <p className="mt-1">Monday – Friday, 9am – 6pm WAT</p>
+            <p className="mt-1">Monday - Friday, 9am - 6pm WAT</p>
           </div>
         </div>
           </div>

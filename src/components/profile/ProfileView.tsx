@@ -18,6 +18,7 @@ import {
   updateProfileAction,
 } from "@/server/actions/userActions";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import { FALLBACKS, playerIconFor } from "@/lib/icons";
@@ -87,9 +88,12 @@ export function ProfileView({
             )}
           </div>
           <div>
-            <h1 className="font-display text-4xl text-white">
-              {display.first_name} {display.last_name}
-            </h1>
+            <VerifiedName
+              as="h1"
+              name={`${display.first_name} ${display.last_name}`.trim()}
+              verified={display.verified}
+              className="font-display text-4xl text-white"
+            />
             <p className="text-body">@{display.user_name}</p>
           </div>
           {isOwn && (
@@ -159,7 +163,11 @@ export function ProfileView({
                   href={`/org/${org.org_id}`}
                   className="flex items-center justify-between rounded-xl border border-surface-2 bg-surface p-4 transition-colors hover:border-primary/40"
                 >
-                  <span className="font-semibold text-white">{org.name}</span>
+                  <VerifiedName
+                    name={org.name}
+                    verified={org.verified}
+                    className="font-semibold text-white"
+                  />
                   <span className="text-xs text-primary">{org.role}</span>
                 </Link>
               ))}

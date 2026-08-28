@@ -25,20 +25,31 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const styles: Record<ToastType, string> = {
-  success: "border-primary/60 bg-surface text-white",
-  error: "border-lose/60 bg-surface text-white",
-  info: "border-cyan/60 bg-surface text-white",
+  success: "border-primary bg-nav text-white",
+  error: "border-lose bg-nav text-white",
+  info: "border-yellow bg-nav text-white",
+};
+
+const accents: Record<ToastType, string> = {
+  success: "bg-primary",
+  error: "bg-lose",
+  info: "bg-yellow",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
+  const dismiss = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const push = useCallback((type: ToastType, message: string) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, type, message }]);
+    const ms = type === "error" && message.length > 80 ? 9000 : 5000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, ms);
   }, []);
 
   const value: ToastContextValue = {
@@ -50,13 +61,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
+      <div
+        className="pointer-events-none fixed top-20 right-4 z-200 flex w-[min(28rem,calc(100vw-2rem))] flex-col gap-2 sm:right-5"
+        aria-live="polite"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`min-w-[240px] max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${styles[t.type]}`}
+            className={`pointer-events-auto flex overflow-hidden rounded-xl border shadow-[0_12px_40px_-12px_rgba(0,0,0,0.85)] ${styles[t.type]}`}
           >
-            {t.message}
+            <span className={`w-1.5 shrink-0 ${accents[t.type]}`} />
+            <p className="min-w-0 flex-1 px-4 py-3 text-sm font-medium leading-snug whitespace-pre-wrap">
+              {t.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => dismiss(t.id)}
+              className="shrink-0 px-3 text-body hover:text-white"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>

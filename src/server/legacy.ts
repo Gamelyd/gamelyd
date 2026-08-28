@@ -26,7 +26,7 @@ export function byDrawId(id: string): Filter<Document> {
   return { $or: [{ DrawId: id }, { drawid: id }] };
 }
 
-/** Nested player user id — Go stored `players.user_id`. */
+/** Nested player user id - Go stored `players.user_id`. */
 export function byPlayerUserId(userId: string): Filter<Document> {
   return {
     $or: [{ "Players.User_id": userId }, { "players.user_id": userId }],

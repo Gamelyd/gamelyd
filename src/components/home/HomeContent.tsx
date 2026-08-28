@@ -39,7 +39,7 @@ export function HowItWorks() {
     {
       n: "02",
       title: "Players register",
-      body: "Solo, duo, or squad. Public events show on the tournament list. Private ones stay invite-only. Organizations can run events under one club name with extra managers.",
+      body: "Solo, duo, or squad. Every event shows on the tournament list. Invite-only means people still need an invite to register.",
     },
     {
       n: "03",
@@ -49,7 +49,7 @@ export function HowItWorks() {
     {
       n: "04",
       title: "Record results",
-      body: "Hosts enter scores from the fixtures tab. Tables and the knockout tree update from those results. Unplayed matches block the next draw so a round cannot skip ahead.",
+      body: "Hosts enter scores from the fixtures tab. Tables and the knockout tree update from those results. Unplayed matches block the next draw so a round cannot skip ahead. Keep screenshots of your games in case a result is disputed.",
     },
   ];
 
@@ -76,6 +76,50 @@ export function HowItWorks() {
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-body">
                   {step.body}
+                </p>
+              </article>
+            ))}
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+export function MoneyAndSafety() {
+  const items = [
+    {
+      title: "We hold the pot",
+      body: "Paid entries and sponsored prize boards stay with Gamelyd. We do not send that money to the host as people join. When the tournament finishes and has a champion, we settle what is owed to winners.",
+    },
+    {
+      title: "Skip untrusted events",
+      body: "Anyone can host. Read the host, the rules, and the prize board before you pay. If it feels off, do not join. Holding the pot does not mean we vouch for every lobby.",
+    },
+    {
+      title: "Keep proof of your games",
+      body: "Save screenshots, recordings, and match IDs of your wins. If a score is disputed, that proof is what you and the host use. Do not rely on a chat that can disappear.",
+    },
+  ];
+
+  return (
+    <section className="border-t border-primary/20">
+      <div className="mx-auto max-w-7xl px-5 py-16">
+        <Reveal>
+          <SectionHead
+            kicker="Money and play"
+            title="Held until the final. Play it straight."
+            description="Entry fees and prize deposits sit with us until the event ends. Join hosts you trust, and keep evidence of every match."
+          />
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {items.map((item) => (
+              <article
+                key={item.title}
+                className="arena-panel arena-hud-corners p-5 sm:p-6"
+              >
+                <h3 className="font-display text-xl text-white">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-body">
+                  {item.body}
                 </p>
               </article>
             ))}
@@ -140,8 +184,8 @@ export function Formats() {
             ))}
           </div>
           <p className="mt-6 text-sm text-body">
-            Rosters can be solo, duo, or squad. Events can be free or sponsored.
-            Draws can be automatic or kept in registration order.
+            Rosters can be solo, duo, or squad. Events can be free, paid, or
+            sponsored. Draws can be automatic or kept in registration order.
           </p>
         </Reveal>
       </div>
@@ -187,16 +231,17 @@ export function Audience() {
                 Find a lobby and show up
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Browse public tournaments by mode and type. Open an event to see
+                Browse tournaments by mode and type. Open an event to see
                 the roster, group tables, fixtures, and the knockout tree.
-                Register with the team size the host set. After it starts,
-                follow results on the same page. You do not need a separate
-                results thread.
+                Register with the team size the host set. Only join hosts you
+                trust, and keep proof of your matches. After it starts, follow
+                results on the same page.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Private events stay off the public list. If you were invited,
-                use the link the host sent. Create an account so your
-                registrations and hosted events sit on your dashboard.
+                Invite-only events still show on the list. You just cannot
+                register until the host invites you and you accept. Create an
+                account so your registrations and hosted events sit on your
+                dashboard.
               </p>
               <Link href="/tournament/all/ALL/ALL" className="mt-6 inline-block">
                 <Button>Browse tournaments</Button>
@@ -216,9 +261,11 @@ export function Audience() {
                 you add them in settings.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Visibility can stay public or private. Tournament size can grow
-                before the event starts. Once you draw, fixtures stay on the
-                tournament page until the last match is played.
+                Invite-only is the default: the event still shows on the list,
+                and players register after they accept an invite. Switch to
+                anyone-can-join if you want open registration. Tournament size
+                can grow before the event starts. Once you draw, fixtures stay
+                on the tournament page until the last match is played.
               </p>
               <Link href="/tournament/new" className="mt-6 inline-block">
                 <Button variant="outline">Create tournament</Button>
@@ -243,11 +290,27 @@ export function HomeFaq() {
     },
     {
       q: "Can I change settings after teams sign up?",
-      a: "Draw order, visibility, and size can change before the event starts. Visibility changes ask for confirmation. After fixtures exist, groups cannot be shuffled.",
+      a: "Draw order, who can register, and size can change before the event starts. Changing who can register asks for confirmation. After fixtures exist, groups cannot be shuffled.",
     },
     {
-      q: "How do sponsored events work?",
-      a: "Mark the tournament as sponsored when you create it and set a prize pool. Sponsored events carry a yellow frame on listings so they stand apart from free lobbies.",
+      q: "Are invite-only events hidden?",
+      a: "No. Every event shows on the tournament list, home, and banner. Invite-only only means players cannot register until the host invites them and they accept. Sponsored events stay off the list only until the prize deposit clears.",
+    },
+    {
+      q: "How do paid and sponsored events work?",
+      a: "Paid: players pay the entry you set. 10% is Gamelyd's fee; 90% is held as the prize pot. Sponsored: you deposit the prize board plus 10% at launch so winners can receive the amounts you publish. The event stays off the public list until that deposit clears. Checkout stays in the currency you pick. We do not convert currencies.",
+    },
+    {
+      q: "When is prize money paid?",
+      a: "We hold paid entries and sponsored deposits until the tournament finishes. When there is a champion, we record what is owed to winners (and leftover to the host). Bank transfers follow once payout details are on the account.",
+    },
+    {
+      q: "Should I join every paid event?",
+      a: "No. Anyone can host. Check the host, the rules, and the prize board before you pay. If you do not trust the lobby, skip it. Gamelyd holding the pot is not a guarantee that the host is honest.",
+    },
+    {
+      q: "What proof should I keep?",
+      a: "Screenshots, recordings, and match IDs of your games and wins. If a result is disputed, that is what you show the host. Do not rely on a chat that can be deleted.",
     },
   ];
 

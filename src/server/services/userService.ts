@@ -93,6 +93,7 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
     isDeleted: false,
     isSuspended: false,
     emailVerified: false,
+    verified: false,
     twitter: "",
     instagram: "",
     linkedin: "",
@@ -148,7 +149,7 @@ export async function authenticate(
 /**
  * Exchange a refresh token for a new access + refresh pair. Fails (returns
  * null) if the token is invalid, does not match the stored session, or the
- * account is banned/deleted — so a banned user cannot mint a new session.
+ * account is banned/deleted - so a banned user cannot mint a new session.
  */
 /**
  * Mint a new access token from the refresh cookie. The refresh token itself
@@ -199,7 +200,7 @@ export async function exchangeRefreshToken(
 }
 
 /**
- * Read-only session lookup for Server Components. Never writes cookies —
+ * Read-only session lookup for Server Components. Never writes cookies - 
  * Next.js only allows that from a client-invoked Server Action or Route Handler.
  */
 export async function resolveCurrentUser(): Promise<User | null> {
@@ -226,7 +227,7 @@ export async function forgotPassword(email: string): Promise<boolean> {
   // Dev convenience: print the reset link to the server console so the flow
   // can be tested locally without a working SMTP host. Never runs in production.
   // The path is logged too, in case the dev server is on a different port than
-  // NEXT_PUBLIC_APP_URL — just prepend your running origin.
+  // NEXT_PUBLIC_APP_URL - just prepend your running origin.
   if (process.env.NODE_ENV !== "production") {
     console.info(
       `\n[dev] Password reset for ${found.email}` +
@@ -399,6 +400,22 @@ export async function checkUserName(name: string): Promise<number> {
   return col.countDocuments({ user_name: name });
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Look up a user by exact username or email (case-insensitive). */
+export async function findUserByHandle(handle: string): Promise<User | null> {
+  const q = handle.trim();
+  if (q.length < 2) return null;
+  const col = await users();
+  const exact = { $regex: `^${escapeRegex(q)}$`, $options: "i" };
+  const found = await col.findOne({
+    $or: [{ user_name: exact }, { email: exact }],
+  });
+  return found ? serializeUser(found) : null;
+}
+
 /* ------------------------- admin management ------------------------- */
 
 export async function setUserType(
@@ -409,6 +426,20 @@ export async function setUserType(
   const updated = await col.findOneAndUpdate(
     { user_id: userId },
     { $set: { user_type: type, updated_at: new Date().toISOString() } },
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("User not found");
+  return serializeUser(updated);
+}
+
+export async function setUserVerified(
+  userId: string,
+  verified: boolean,
+): Promise<User> {
+  const col = await users();
+  const updated = await col.findOneAndUpdate(
+    { user_id: userId },
+    { $set: { verified, updated_at: new Date().toISOString() } },
     { returnDocument: "after" },
   );
   if (!updated) throw new ServiceError("User not found");

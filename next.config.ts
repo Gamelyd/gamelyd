@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     ],
     qualities: [75, 90],
   },
-  serverExternalPackages: ["mongodb", "nodemailer", "bcryptjs"],
+  serverExternalPackages: ["mongodb", "nodemailer", "bcryptjs", "stripe"],
 };
 
 export default nextConfig;

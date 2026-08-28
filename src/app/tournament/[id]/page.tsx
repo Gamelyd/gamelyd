@@ -39,10 +39,10 @@ export default async function SingleTournamentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; checkout?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, checkout } = await searchParams;
 
   const tournament = await getTournamentById(id);
   if (!tournament) notFound();
@@ -58,7 +58,10 @@ export default async function SingleTournamentPage({
         tournament={tournament}
         initialParticipants={participants}
         initialDraws={draws}
-        initialTab={tab === "register" ? "register" : undefined}
+        initialTab={
+          tab === "register" || tab === "invite" ? tab : undefined
+        }
+        checkout={checkout}
       />
     </SiteLayout>
   );

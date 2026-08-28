@@ -263,7 +263,7 @@ export const TEAM_ICONS: AppIcon[] = localCrests("team", [
 /** Org logos reuse the same crest set. Upload comes later. */
 export const ORG_ICONS = TEAM_ICONS;
 
-/** Generic player tokens — symbols, not portraits. */
+/** Generic player tokens - symbols, not portraits. */
 export const PLAYER_ICONS: AppIcon[] = localCrests("player", [
   ["crest-player-01-headset.png", "Headset"],
   ["crest-player-02-pad.png", "Pad"],

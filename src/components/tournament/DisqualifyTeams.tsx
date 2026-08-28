@@ -16,6 +16,7 @@ import {
 import type { Tournament, TournamentGroup } from "@/lib/schemas/tournament";
 import type { Draw } from "@/lib/schemas/draw";
 import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 type Pending =
   | { kind: "team"; name: string }
@@ -91,7 +92,7 @@ export function DisqualifyTeams({
         result.data.forfeited > 0
           ? `${pending.name} disqualified. ${result.data.forfeited} remaining match${
               result.data.forfeited === 1 ? "" : "es"
-            } set as 3–0 losses.`
+            } set as 3-0 losses.`
           : `${pending.name} disqualified.`,
       );
       onDisqualified({
@@ -119,7 +120,7 @@ export function DisqualifyTeams({
     pending?.kind === "player"
       ? "They will be taken off this team. If they were the last player, the team is removed too."
       : started
-        ? "They will lose every remaining match 3–0. In knockout, their opponent goes through automatically. Played results stay as they are."
+        ? "They will lose every remaining match 3-0. In knockout, their opponent goes through automatically. Played results stay as they are."
         : "They will be taken off the roster. They can register again later if you allow it.";
   const confirmLabel =
     pending?.kind === "player" ? "Remove" : teamAction;
@@ -171,8 +172,11 @@ export function DisqualifyTeams({
                           key={pl.User_id}
                           className="flex items-center justify-between gap-2 text-xs text-body"
                         >
-                          <span className="truncate">
-                            {label}
+                          <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                            <VerifiedName
+                              name={label}
+                              verified={pl.Verified}
+                            />
                             {pl.GameUserName && pl.UserName
                               ? ` · ${pl.GameUserName}`
                               : ""}

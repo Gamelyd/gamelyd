@@ -6,9 +6,9 @@ import { Collections } from "./collections";
  * paths. Index keys mirror the fields the services actually filter/sort on.
  *
  * Consumed by:
- *  - the Next runtime (`getDb()` in `db.ts`), which creates them once per
+ * - the Next runtime (`getDb()` in `db.ts`), which creates them once per
  *    process on first DB access; and
- *  - the standalone setup script (`scripts/create-indexes.ts`) you can run
+ * - the standalone setup script (`scripts/create-indexes.ts`) you can run
  *    against a fresh database.
  *
  * NOTE: keys cover both PascalCase (new app writes) and lowercase (Go/mgo
@@ -49,10 +49,17 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
     { key: { DrawId: 1 } },
     { key: { drawid: 1 } },
   ],
-  [Collections.notification]: [{ key: { user_id: 1, _id: -1 } }],
+  [Collections.notification]: [
+    { key: { user_id: 1, _id: -1 } },
+    { key: { user_id: 1, is_read: 1 } },
+  ],
   [Collections.inviteTournament]: [
     { key: { tournament_id: 1 } },
     { key: { user_id: 1 } },
+    { key: { invite_id: 1 } },
+    { key: { invitee_id: 1, status: 1, _id: -1 } },
+    { key: { tournament_id: 1, invitee_id: 1, kind: 1, status: 1 } },
+    { key: { register_id: 1, status: 1 } },
   ],
   [Collections.contact]: [{ key: { ContactId: 1 } }],
   [Collections.reportAbuse]: [{ key: { ReportAbuseId: 1 } }],
@@ -84,6 +91,16 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
     { key: { slug: 1 }, unique: true },
     { key: { kind: 1, archived: 1, name: 1 } },
     { key: { kind: 1, gameIds: 1, archived: 1 } },
+  ],
+  [Collections.payment]: [
+    { key: { payment_id: 1 }, unique: true },
+    { key: { processorRef: 1 }, unique: true, sparse: true },
+    { key: { tournamentId: 1, kind: 1, status: 1 } },
+    { key: { userId: 1, _id: -1 } },
+  ],
+  [Collections.payout]: [
+    { key: { payout_id: 1 }, unique: true },
+    { key: { tournamentId: 1, place: 1 } },
   ],
 };
 

@@ -3,7 +3,10 @@
 import { ok, fail, type ActionResult, type Paginated } from "@/lib/result";
 import type { Notification } from "@/lib/schemas/misc";
 import {
+  countUnreadNotifications,
+  countUnreadMatchNotifications,
   deleteNotification,
+  getMatchNotifications,
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -18,12 +21,36 @@ export async function getNotificationsAction(
   return ok(await getNotifications(claims.uid, page));
 }
 
+export async function countUnreadNotificationsAction(): Promise<
+  ActionResult<number>
+> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  return ok(await countUnreadNotifications(claims.uid));
+}
+
+export async function countUnreadMatchNotificationsAction(): Promise<
+  ActionResult<number>
+> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  return ok(await countUnreadMatchNotifications(claims.uid));
+}
+
+export async function getMatchNotificationsAction(): Promise<
+  ActionResult<Notification[]>
+> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  return ok(await getMatchNotifications(claims.uid));
+}
+
 export async function markNotificationReadAction(
   id: string,
 ): Promise<ActionResult<null>> {
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
-  await markNotificationRead(id);
+  await markNotificationRead(claims.uid, id);
   return ok(null);
 }
 
@@ -41,6 +68,6 @@ export async function deleteNotificationAction(
 ): Promise<ActionResult<null>> {
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
-  await deleteNotification(id);
+  await deleteNotification(claims.uid, id);
   return ok(null);
 }

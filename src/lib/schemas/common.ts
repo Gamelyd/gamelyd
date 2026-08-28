@@ -7,9 +7,20 @@ export type UserType = z.infer<typeof userTypeSchema>;
 export const tournamentTypeSchema = z.enum(["PUBLIC", "PRIVATE"]);
 export type TournamentType = z.infer<typeof tournamentTypeSchema>;
 
-/** PAID stays in the enum for existing docs; create/browse hide it for now. */
 export const paymentSchema = z.enum(["FREE", "PAID", "SPONSORED"]);
 export type Payment = z.infer<typeof paymentSchema>;
+
+/** ISO 4217 codes hosts can stake or charge in. Missing on older docs → USD. */
+export const currencySchema = z.enum([
+  "USD",
+  "NGN",
+  "GBP",
+  "EUR",
+  "GHS",
+  "KES",
+  "ZAR",
+]);
+export type Currency = z.infer<typeof currencySchema>;
 
 export const tournamentModeSchema = z.enum([
   "MULTIPLAYER",
@@ -57,6 +68,21 @@ export const orgInviteStatusSchema = z.enum([
   "DECLINED",
 ]);
 export type OrgInviteStatus = z.infer<typeof orgInviteStatusSchema>;
+
+export const tournamentInviteKindSchema = z.enum(["TOURNAMENT", "TEAM"]);
+export type TournamentInviteKind = z.infer<typeof tournamentInviteKindSchema>;
+
+export const notificationKindSchema = z.enum([
+  "GENERIC",
+  "TOURNAMENT_INVITE",
+  "TEAM_INVITE",
+  "DRAW",
+  "SCORE",
+  "TIME",
+  "ANNOUNCEMENT",
+  "SETTING_CHANGE",
+]);
+export type NotificationKind = z.infer<typeof notificationKindSchema>;
 
 /** A Mongo ObjectId rendered as a 24-char hex string on the wire. */
 export const objectIdString = z

@@ -15,6 +15,7 @@ export const playerSchema = z.object({
   User_id: z.string().min(1),
   Email: playerString(),
   Icon: playerString(),
+  Verified: z.boolean().default(false),
 });
 export type Player = z.infer<typeof playerSchema>;
 

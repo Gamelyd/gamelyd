@@ -2,6 +2,7 @@ import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { GroupQualifier } from "@/lib/schemas/tournament";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
 import {
   asDisqualifiedSet,
   qualifierForTeam,
@@ -153,7 +154,10 @@ function GroupTable({
                       />
                       <div className="min-w-0">
                         <span className="truncate font-medium text-white">
-                          {row.TeamName}
+                          <VerifiedName
+                            name={row.TeamName}
+                            verified={isSoloVerified(row.Players)}
+                          />
                           {out ? (
                             <span className="ml-2 text-xs font-normal text-lose">
                               Disqualified

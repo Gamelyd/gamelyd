@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -162,6 +163,17 @@ export function SignupForm({ onFlip }: { onFlip: () => void }) {
       <Button type="submit" loading={loading} fullWidth>
         Sign Up
       </Button>
+      <p className="text-center text-xs text-body">
+        By signing up you agree to the{" "}
+        <Link href="/terms" className="text-primary hover:underline">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/policy" className="text-primary hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
       <button
         type="button"
         onClick={onFlip}

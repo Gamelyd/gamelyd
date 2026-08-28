@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { IconPicker } from "@/components/ui/IconPicker";
-import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
-import { searchUsersAction } from "@/server/actions/userActions";
 import { registerForTournamentAction } from "@/server/actions/tournamentActions";
-import { FALLBACKS, playerIconFor, resolveIcon, type AppIcon } from "@/lib/icons";
+import { startEntryCheckoutAction } from "@/server/actions/paymentActions";
+import { FALLBACKS, playerIconFor, type AppIcon } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import type { Player } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
-import type { User } from "@/lib/schemas/user";
-import type { TeamSize } from "@/lib/schemas/common";
+import { parseCurrency } from "@/lib/currency";
+import { FeeSummary } from "@/components/tournament/FeeSummary";
+import type { Payment, TeamSize } from "@/lib/schemas/common";
 import { rosterSize } from "@/lib/schemas/common";
 
 function playerFromUser(
@@ -24,6 +24,7 @@ function playerFromUser(
     user_id: string;
     email?: string;
     icon?: string;
+    verified?: boolean;
   },
   playerIcons: AppIcon[],
 ): Player {
@@ -34,16 +35,25 @@ function playerFromUser(
     User_id: u.user_id,
     Email: u.email || "",
     Icon: u.icon || playerIconFor(u.user_id, playerIcons),
+    Verified: Boolean(u.verified),
   };
 }
 
 export function RegisterTeam({
   tournamentId,
   teamSize,
+  payment = "FREE",
+  currency = "USD",
+  entryFee = 0,
+  feeBps,
   onRegistered,
 }: {
   tournamentId: string;
   teamSize: TeamSize;
+  payment?: Payment;
+  currency?: string;
+  entryFee?: number;
+  feeBps?: number;
   onRegistered: (registration: RegisterTournament) => void;
 }) {
   const { user } = useAuth();
@@ -52,16 +62,10 @@ export function RegisterTeam({
   const { icons: playerIcons, loading: playerIconsLoading } = useIcons("player");
   const [teamName, setTeamName] = useState("");
   const [icon, setIcon] = useState<string>(FALLBACKS.team);
+  const [playerIcon, setPlayerIcon] = useState<string>("");
   const [gameUserName, setGameUserName] = useState("");
-  const [search, setSearch] = useState("");
-  const [results, setResults] = useState<User[]>([]);
-  const [players, setPlayers] = useState<Player[]>(
-    user ? [playerFromUser(user, [])] : [],
-  );
-  const [activePlayerId, setActivePlayerId] = useState(user?.user_id ?? "");
   const [loading, setLoading] = useState(false);
   const needed = rosterSize(teamSize);
-  const spotsLeft = Math.max(needed - players.length, 0);
 
   useEffect(() => {
     if (teamIcons.length === 0) return;
@@ -71,77 +75,44 @@ export function RegisterTeam({
   }, [teamIcons]);
 
   useEffect(() => {
-    if (playerIcons.length === 0) return;
-    setPlayers((prev) =>
-      prev.map((player) => {
-        if (player.Icon) return player;
-        return {
-          ...player,
-          Icon: playerIconFor(player.User_id, playerIcons),
-        };
-      }),
-    );
-  }, [playerIcons]);
-
-  const runSearch = async (value: string) => {
-    setSearch(value);
-    if (value.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    const result = await searchUsersAction(value, 1);
-    if (result.ok) setResults(result.data.items);
-  };
-
-  const addPlayer = (u: User) => {
-    if (players.some((p) => p.User_id === u.user_id)) return;
-    if (players.length >= needed) {
-      toast.error(
-        `This is a ${teamSize.toLowerCase()} tournament. Maximum ${needed} player${needed === 1 ? "" : "s"}.`,
+    if (!user) return;
+    const preferred =
+      user.icon || playerIconFor(user.user_id, playerIcons) || FALLBACKS.player;
+    setPlayerIcon((prev) => {
+      if (playerIcons.length === 0) return prev || preferred;
+      if (prev && playerIcons.some((item) => item.url === prev)) return prev;
+      return (
+        playerIcons.find((item) => item.url === preferred)?.url ??
+        playerIcons[0].url
       );
-      return;
-    }
-    const next = playerFromUser(u, playerIcons);
-    setPlayers((prev) => [...prev, next]);
-    setActivePlayerId(next.User_id);
-    setSearch("");
-    setResults([]);
-  };
-
-  const removePlayer = (id: string) => {
-    setPlayers((prev) => prev.filter((p) => p.User_id !== id));
-    if (activePlayerId === id) {
-      setActivePlayerId(user?.user_id ?? "");
-    }
-  };
-
-  const setPlayerIcon = (userId: string, url: string) => {
-    setPlayers((prev) =>
-      prev.map((p) => (p.User_id === userId ? { ...p, Icon: url } : p)),
-    );
-  };
+    });
+  }, [user, playerIcons]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (players.length !== needed) {
-      toast.error(
-        `This ${teamSize.toLowerCase()} tournament needs exactly ${needed} player${needed === 1 ? "" : "s"}.`,
-      );
-      return;
-    }
+    if (!user) return;
     setLoading(true);
-    const withGameName = players.map((p) => ({
-      UserName: p.UserName || "Player",
-      GameUserName:
-        p.User_id === user?.user_id ? gameUserName : p.GameUserName || "",
-      User_id: p.User_id,
-      Email: p.Email || "",
-      Icon: p.Icon || playerIconFor(p.User_id, playerIcons),
-    }));
-    const result = await registerForTournamentAction(tournamentId, {
-      Players: withGameName,
+    const me = playerFromUser(user, playerIcons);
+    me.GameUserName = gameUserName;
+    if (playerIcon) me.Icon = playerIcon;
+    const roster = {
+      Players: [me],
       TeamName: teamName,
       Icon: icon || FALLBACKS.team,
+    };
+    if (payment === "PAID") {
+      const checkout = await startEntryCheckoutAction(tournamentId, roster);
+      setLoading(false);
+      if (checkout.ok) {
+        toast.success("Redirecting to pay entry fee");
+        window.location.href = checkout.data.checkoutUrl;
+        return;
+      }
+      toast.error(checkout.error);
+      return;
+    }
+    const result = await registerForTournamentAction(tournamentId, {
+      ...roster,
       RefNumber: "",
       PaymentChannel: "",
       Amount: 0,
@@ -165,9 +136,6 @@ export function RegisterTeam({
     );
   }
 
-  const activePlayer =
-    players.find((p) => p.User_id === activePlayerId) ?? players[0];
-
   return (
     <form onSubmit={handleSubmit} className="flex max-w-lg flex-col gap-4">
       <Input
@@ -183,116 +151,40 @@ export function RegisterTeam({
         onChange={setIcon}
         loading={teamIconsLoading}
       />
+      <IconPicker
+        label="Your player icon"
+        icons={playerIcons}
+        value={playerIcon}
+        onChange={setPlayerIcon}
+        loading={playerIconsLoading}
+        size="sm"
+      />
       <Input
         label="Your in-game username"
         value={gameUserName}
         onChange={(e) => setGameUserName(e.target.value)}
       />
-
       {needed > 1 ? (
-        <div>
-          <Input
-            label={`Add teammates (${players.length}/${needed})`}
-            placeholder={
-              spotsLeft === 0
-                ? "Roster is full"
-                : "Search players by username"
-            }
-            value={search}
-            onChange={(e) => runSearch(e.target.value)}
-            disabled={spotsLeft === 0}
-          />
-          {results.length > 0 && spotsLeft > 0 && (
-            <div className="mt-2 rounded-lg border border-surface-2 bg-surface">
-              {results.map((u) => (
-                <button
-                  key={u.user_id}
-                  type="button"
-                  onClick={() => addPlayer(u)}
-                  className="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-body hover:bg-surface-2 hover:text-white"
-                >
-                  <span className="flex items-center gap-2">
-                    <CatalogAvatar
-                      userId={u.user_id}
-                      icon={u.icon}
-                      className="h-6 w-6 rounded-full object-cover"
-                    />
-                    <span>
-                      {u.first_name} {u.last_name} (@{u.user_name})
-                    </span>
-                  </span>
-                  <span className="text-primary">+ Add</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
         <p className="text-sm text-body">
-          Solo tournament. You register alone.
+          You register as captain. After this, invite teammates by username.
+          They are not on the roster until they accept. A player can only be on
+          one team.
         </p>
+      ) : (
+        <p className="text-sm text-body">Solo tournament. You register alone.</p>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {players.map((p) => (
-          <button
-            key={p.User_id}
-            type="button"
-            onClick={() => setActivePlayerId(p.User_id)}
-            className={`flex items-center gap-2 rounded-full px-2 py-1 text-sm text-white ${
-              activePlayer?.User_id === p.User_id
-                ? "bg-primary/30 ring-1 ring-primary"
-                : "bg-surface-2"
-            }`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={resolveIcon(
-                p.Icon || playerIconFor(p.User_id, playerIcons),
-              )}
-              alt=""
-              className="h-6 w-6 rounded-full object-cover"
-            />
-            {p.UserName}
-            {p.User_id !== user.user_id && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removePlayer(p.User_id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    removePlayer(p.User_id);
-                  }
-                }}
-                className="text-lose"
-              >
-                ✕
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {activePlayer ? (
-          <IconPicker
-            label={`Player icon for @${activePlayer.UserName} (defaults to their profile icon)`}
-            icons={playerIcons}
-          value={
-            activePlayer.Icon ||
-            playerIconFor(activePlayer.User_id, playerIcons)
-          }
-          onChange={(url) => setPlayerIcon(activePlayer.User_id, url)}
-          size="sm"
-          loading={playerIconsLoading}
+      {payment === "PAID" && entryFee > 0 ? (
+        <FeeSummary
+          kind="PAID"
+          currency={parseCurrency(currency)}
+          entryFee={entryFee}
+          feeBps={feeBps}
         />
       ) : null}
 
       <Button type="submit" loading={loading}>
-        Register team
+        {payment === "PAID" ? "Pay and register" : "Register team"}
       </Button>
     </form>
   );

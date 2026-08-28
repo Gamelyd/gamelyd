@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Confirm } from "@/components/ui/Confirm";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useToast } from "@/components/ui/Toast";
 import { useIcons } from "@/hooks/useIcons";
@@ -23,7 +24,11 @@ export function TournamentCoverPicker({
   const [gameId, setGameId] = useState("");
   const [icon, setIcon] = useState(value);
   const [saving, setSaving] = useState(false);
-  const { icons, loading } = useIcons("tournament", { gameId });
+  const [confirm, setConfirm] = useState(false);
+  const { icons, loading } = useIcons("tournament", {
+    gameId,
+    taggedOnly: true,
+  });
 
   useEffect(() => {
     setIcon(value);
@@ -54,6 +59,7 @@ export function TournamentCoverPicker({
     setSaving(false);
     if (result.ok) {
       toast.success(result.message ?? "Cover updated");
+      setConfirm(false);
       onSaved?.(icon);
     } else {
       toast.error(result.error);
@@ -80,11 +86,23 @@ export function TournamentCoverPicker({
           type="button"
           disabled={!dirty || saving}
           loading={saving}
-          onClick={() => void save()}
+          onClick={() => setConfirm(true)}
         >
           Save cover
         </Button>
       </div>
+      <Confirm
+        open={confirm}
+        title="Update this tournament?"
+        message="Are you sure you want to update this?"
+        confirmLabel="Yes, update"
+        confirmVariant="default"
+        loading={saving}
+        onConfirm={() => void save()}
+        onCancel={() => {
+          if (!saving) setConfirm(false);
+        }}
+      />
     </div>
   );
 }

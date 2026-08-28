@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:indexes": "tsx scripts/create-indexes.ts",
     "set-admin": "tsx scripts/set-admin.ts",
-    "catalog:upload": "tsx scripts/upload-game-images.ts"
+    "catalog:upload": "tsx scripts/upload-game-images.ts",
+    "catalog:prune-orphans": "tsx scripts/prune-orphan-icon-files.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -20,6 +21,7 @@
     "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "stripe": "^22.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

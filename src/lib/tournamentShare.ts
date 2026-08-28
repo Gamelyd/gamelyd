@@ -1,5 +1,6 @@
 import type { Tournament } from "@/lib/schemas/tournament";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { formatMoney } from "@/lib/currency";
 
 export function publicAppUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
@@ -36,7 +37,7 @@ export function tournamentShareDescription(tournament: Tournament): string {
     tournament.Date || undefined,
   ].filter(Boolean);
   if (tournament.Amount > 0) {
-    bits.push(`Prize ₦${tournament.Amount.toLocaleString()}`);
+    bits.push(`Prize ${formatMoney(tournament.Amount, tournament.Currency)}`);
   }
   return `${bits.join(" · ")}. Host and play on Gamelyd.`;
 }

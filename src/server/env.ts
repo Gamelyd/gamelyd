@@ -15,7 +15,7 @@ function optional(name: string, fallback: string): string {
 
 /**
  * Env is exposed via getters so required variables are only validated when
- * they are actually read at runtime — not when this module is imported. This
+ * they are actually read at runtime - not when this module is imported. This
  * lets `next build` collect page data without secrets present (they are
  * injected at runtime from Infisical / the container environment).
  */
@@ -41,5 +41,14 @@ export const env = {
   },
   get appUrl(): string {
     return optional("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+  },
+  get stripeSecretKey(): string {
+    return process.env.STRIPE_SECRET_KEY ?? "";
+  },
+  get stripeWebhookSecret(): string {
+    return process.env.STRIPE_WEBHOOK_SECRET ?? "";
+  },
+  get paystackSecretKey(): string {
+    return process.env.PAYSTACK_SECRET_KEY ?? "";
   },
 } as const;

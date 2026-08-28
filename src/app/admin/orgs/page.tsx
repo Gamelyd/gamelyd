@@ -5,10 +5,13 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { Loader } from "@/components/ui/Loader";
 import type { Org } from "@/lib/schemas/org";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
 import {
   adminListOrgsAction,
+  adminSetOrgVerifiedAction,
   adminToggleDeleteOrgAction,
 } from "@/server/actions/adminActions";
 
@@ -38,6 +41,18 @@ export default function AdminOrgsPage() {
   const toggleDelete = async (org: Org) => {
     setBusyId(org.org_id);
     const result = await adminToggleDeleteOrgAction(org.org_id);
+    setBusyId("");
+    if (result.ok) {
+      toast.success(result.message ?? "Done");
+      setReload((r) => r + 1);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const toggleVerified = async (org: Org) => {
+    setBusyId(org.org_id);
+    const result = await adminSetOrgVerifiedAction(org.org_id, !org.verified);
     setBusyId("");
     if (result.ok) {
       toast.success(result.message ?? "Done");
@@ -88,7 +103,7 @@ export default function AdminOrgsPage() {
                     href={`/admin/orgs/${org.org_id}`}
                     className="text-white hover:text-primary"
                   >
-                    {org.name}
+                    <VerifiedName name={org.name} verified={org.verified} />
                   </Link>
                   {org.description ? (
                     <span className="mt-0.5 block max-w-sm truncate text-xs text-body">
@@ -114,6 +129,13 @@ export default function AdminOrgsPage() {
                       <Button variant="outline">Manage</Button>
                     </Link>
                     <Button
+                      variant="outline"
+                      loading={busyId === org.org_id}
+                      onClick={() => toggleVerified(org)}
+                    >
+                      {org.verified ? "Unverify" : "Verify"}
+                    </Button>
+                    <Button
                       variant={org.isDeleted ? "dark" : "danger"}
                       loading={busyId === org.org_id}
                       onClick={() => toggleDelete(org)}
@@ -124,6 +146,13 @@ export default function AdminOrgsPage() {
                 </td>
               </tr>
             ))}
+            {loading && !data ? (
+              <tr>
+                <td colSpan={4}>
+                  <Loader variant="compact" label="Loading organizations" />
+                </td>
+              </tr>
+            ) : null}
             {data && data.items.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-body">

@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import type { GroupQualifier } from "@/lib/schemas/tournament";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
 import {
   groupPlaceholderPairs,
   isKnockoutBye,
@@ -421,7 +422,10 @@ function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
               : "text-white/35"
       }`}
     >
-      {name}
+      <VerifiedName
+        name={name}
+        verified={isSoloVerified(slot.team?.Players)}
+      />
     </span>
   );
   const score = slot.played ? (

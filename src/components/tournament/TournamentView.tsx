@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
+import { CatalogImage } from "@/components/ui/CatalogImage";
+import { useRouter } from "next/navigation";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import { placeLabel } from "@/lib/schemas/tournament";
+import { formatMoney } from "@/lib/currency";
+import { feePercent, splitEntry, sponsorDeposit } from "@/lib/fees";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { TeamCard } from "./TeamCard";
@@ -22,11 +26,20 @@ import {
 } from "./SelectQualifiers";
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
+import { InviteSearch } from "./InviteSearch";
+import { HostInvitePanel } from "./HostInvitePanel";
+import { startSponsorCheckoutAction, listTournamentPayoutsAction } from "@/server/actions/paymentActions";
+import type { PayoutRecord } from "@/lib/schemas/payment";
 import { LeagueTable } from "./LeagueTable";
 import { BrTable } from "./BrTable";
 import { ShareTournamentButton } from "./ShareTournamentButton";
+import {
+  LatestAnnouncementBanner,
+  TournamentAnnouncements,
+} from "./TournamentAnnouncements";
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
+import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { setTournamentGroupsAction } from "@/server/actions/tournamentActions";
@@ -39,8 +52,10 @@ import {
 } from "@/lib/groupQualifiers";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import {
+  formatForSeriesGames,
   groupKnockoutTies,
   knockoutRoundsForBracket,
+  knockoutRulesSummary,
   knockoutTieWinner,
   seriesKey,
 } from "@/lib/knockoutSeries";
@@ -51,12 +66,20 @@ import {
 } from "@/lib/tournamentWindow";
 import { checkInForTournamentAction } from "@/server/actions/tournamentActions";
 import {
+  canJoinTournamentAction,
+  listPendingTeamInvitesAction,
+} from "@/server/actions/inviteActions";
+import type { InviteTournament } from "@/lib/schemas/misc";
+import { rosterSize } from "@/lib/schemas/common";
+import {
   nextStageAfterScore,
   type NextStagePrompt,
 } from "@/lib/nextStagePrompt";
 
 type Tab =
   | "details"
+  | "announcements"
+  | "invite"
   | "teams"
   | "table"
   | "fixtures"
@@ -70,17 +93,28 @@ export function TournamentView({
   initialParticipants,
   initialDraws,
   initialTab,
+  checkout,
 }: {
   tournament: Tournament;
   initialParticipants: RegisterTournament[];
   initialDraws: Draw[];
   initialTab?: Tab;
+  checkout?: string;
 }) {
   const { user } = useAuth();
   const toast = useToast();
+  const router = useRouter();
 
   const [tab, setTab] = useState<Tab>(() => {
     if (initialTab === "register" && !tournament.Start) return "register";
+    if (initialTab === "invite") return "invite";
+    if (
+      tournament.Start &&
+      (tournament.TournamentMode === "MULTIPLAYER" ||
+        tournament.TournamentMode === "GROUPS")
+    ) {
+      return "teams";
+    }
     return tournament.Start ? "details" : "teams";
   });
   const [participants, setParticipants] =
@@ -90,15 +124,27 @@ export function TournamentView({
   const [qualifiers, setQualifiers] = useState<GroupQualifier[]>(
     tournament.Qualifiers ?? [],
   );
+  const [announcements, setAnnouncements] = useState(
+    tournament.Announcements ?? [],
+  );
   const disqualifiedTeams = tournament.DisqualifiedTeams ?? [];
   const [started, setStarted] = useState(tournament.Start);
+  const [pendingChange, setPendingChange] = useState(
+    tournament.PendingSettingChange,
+  );
   const isKnockout = tournament.TournamentMode === "MULTIPLAYER";
   const [teamsPanel, setTeamsPanel] = useState<TeamsPanel>(() => {
-    if (tournament.TournamentMode !== "GROUPS") return "teams";
-    const groupDraws = initialDraws.filter(isGroupDraw);
-    const groupStageComplete =
-      groupDraws.length > 0 && groupDraws.every((d) => d.Played);
-    return groupStageComplete ? "bracket" : "teams";
+    if (tournament.TournamentMode === "MULTIPLAYER" && tournament.Start) {
+      return "bracket";
+    }
+    if (tournament.TournamentMode === "GROUPS") {
+      const groupDraws = initialDraws.filter(isGroupDraw);
+      const groupStageComplete =
+        groupDraws.length > 0 && groupDraws.every((d) => d.Played);
+      const knockoutDrawn = initialDraws.some(isKnockoutDraw);
+      return groupStageComplete && knockoutDrawn ? "bracket" : "teams";
+    }
+    return "teams";
   });
   const [stagePrompt, setStagePrompt] = useState<NextStagePrompt | null>(null);
   const champion = useMemo(
@@ -112,12 +158,21 @@ export function TournamentView({
     if (championName) setCelebrate(true);
   }, [championName]);
 
+  useEffect(() => {
+    setPendingChange(tournament.PendingSettingChange);
+  }, [tournament.PendingSettingChange]);
+
   const isOwner = Boolean(user?.user_id && user.user_id === tournament.User_id);
   const isAdmin = user?.user_type === "ADMIN";
   const isManager = Boolean(
     user?.user_id && (tournament.Managers ?? []).includes(user.user_id),
   );
   const canManage = isOwner || isAdmin || isManager;
+
+  useEffect(() => {
+    if (checkout === "success") toast.success("Payment received");
+    if (checkout === "cancel") toast.error("Payment cancelled");
+  }, [checkout, toast]);
   const canAdminister = isOwner || isAdmin;
   const canReshuffle =
     isAdmin || (canManage && tournament.OwnerCanReshuffleGroups);
@@ -136,17 +191,65 @@ export function TournamentView({
     !myTeam?.CheckedIn &&
     checkInWindowOpen(tournament);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [canJoin, setCanJoin] = useState(
+    tournament.TournamentType !== "PRIVATE",
+  );
+  const [pendingTeamInvites, setPendingTeamInvites] = useState<
+    InviteTournament[]
+  >([]);
   const canRegister = registrationOpen(tournament) && !isRegistered;
   const groupsCreated = groups.length > 0;
+  const needed = rosterSize(tournament.Team);
+  const isCaptain = Boolean(
+    user?.user_id && myTeam?.Players?.[0]?.User_id === user.user_id,
+  );
+  const rosterSpotsLeft = myTeam
+    ? Math.max(needed - (myTeam.Players ?? []).length, 0)
+    : 0;
 
   const isGroups = tournament.TournamentMode === "GROUPS";
 
   useEffect(() => {
-    if (tab === "run" && !canManage) setTab("details");
+    if ((tab === "run" || tab === "invite") && !canManage) setTab("details");
   }, [tab, canManage]);
+
+  useEffect(() => {
+    if (!user) {
+      setCanJoin(tournament.TournamentType !== "PRIVATE");
+      return;
+    }
+    if (tournament.TournamentType !== "PRIVATE") {
+      setCanJoin(true);
+      return;
+    }
+    void canJoinTournamentAction(tournament.TournamentId).then((result) => {
+      if (result.ok) setCanJoin(result.data);
+    });
+  }, [user, tournament.TournamentId, tournament.TournamentType]);
+
+  useEffect(() => {
+    if (!isCaptain || needed < 2) {
+      setPendingTeamInvites([]);
+      return;
+    }
+    void listPendingTeamInvitesAction(tournament.TournamentId).then(
+      (result) => {
+        if (result.ok) setPendingTeamInvites(result.data);
+      },
+    );
+  }, [isCaptain, needed, tournament.TournamentId, participants.length]);
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "details", label: "Details", show: true },
+    {
+      id: "announcements",
+      label:
+        announcements.length > 0
+          ? `Announcements (${announcements.length})`
+          : "Announcements",
+      show: true,
+    },
+    { id: "invite", label: "Invite", show: canManage },
     {
       id: "teams",
       label: isGroups
@@ -396,6 +499,15 @@ export function TournamentView({
           onClose={() => setCelebrate(false)}
         />
       ) : null}
+      {tournament.Payment === "SPONSORED" && !tournament.PurseFunded ? (
+        <div className="border-b border-yellow/30 bg-yellow/10 px-5 py-4 text-center text-sm text-white">
+          Prize pool is not funded yet. This event stays off the public list
+          until the host pays the board plus a {feePercent()}% fee.
+          {canManage ? (
+            <FundPrizeButton tournamentId={tournament.TournamentId} />
+          ) : null}
+        </div>
+      ) : null}
       <section className="relative overflow-hidden border-b border-primary/20 bg-primary-panel">
         <CatalogImage
           src={cover}
@@ -411,6 +523,11 @@ export function TournamentView({
           <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <Tag payment={tournament.Payment} className="rounded-md" />
+                {tournament.TournamentType === "PRIVATE" ? (
+                  <span className="rounded-full border border-white/20 bg-black/50 px-3 py-1 text-xs text-white">
+                    Invite only
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
                   {tournament.TournamentMode}
                 </span>
@@ -521,8 +638,12 @@ export function TournamentView({
                           className="h-4 w-4 shrink-0 rounded-full object-cover"
                         />
                       ) : null}
-                      <span className="truncate">
-                        Hosted by {tournament.OrgName}
+                      <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                        Hosted by{" "}
+                        <VerifiedName
+                          name={tournament.OrgName}
+                          verified={tournament.OrgVerified}
+                        />
                       </span>
                     </Link>
                   )}
@@ -531,6 +652,30 @@ export function TournamentView({
             </div>
           </div>
       </section>
+
+      {pendingChange && (isRegistered || canAdminister) ? (
+        <div className="border-b border-primary/25 bg-nav">
+          <div className="mx-auto max-w-6xl px-5 py-4">
+            <SettingChangePanel
+              tournamentId={tournament.TournamentId}
+              change={pendingChange}
+              currentUserId={user?.user_id}
+              canApply={canAdminister}
+              onUpdated={(next) => {
+                setPendingChange(next.PendingSettingChange);
+                router.refresh();
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {announcements[0] && tab !== "announcements" ? (
+        <LatestAnnouncementBanner
+          announcement={announcements[0]}
+          onOpen={() => setTab("announcements")}
+        />
+      ) : null}
 
       <div className="border-b border-surface-2 bg-nav">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-5">
@@ -555,6 +700,37 @@ export function TournamentView({
       <section className="mx-auto max-w-6xl px-5 py-10">
         {tab === "details" && (
           <Details tournament={tournament} champion={champion} />
+        )}
+
+        {tab === "announcements" && (
+          <div className="mx-auto max-w-3xl">
+            <h2 className="mb-5 font-display text-2xl text-white">
+              Announcements
+            </h2>
+            <TournamentAnnouncements
+              tournamentId={tournament.TournamentId}
+              announcements={announcements}
+              canPost={canManage && !championName}
+              closed={Boolean(championName)}
+              onChange={setAnnouncements}
+            />
+          </div>
+        )}
+
+        {tab === "invite" && (
+          <div className="mx-auto max-w-3xl">
+            <h2 className="mb-5 font-display text-2xl text-white">Invite</h2>
+            <HostInvitePanel
+              tournamentId={tournament.TournamentId}
+              tournamentType={tournament.TournamentType}
+              started={started}
+              registeredCount={participants.length}
+              tournamentSize={tournament.TournamentSize}
+              excludeIds={participants.flatMap((p) =>
+                (p.Players ?? []).map((pl) => pl.User_id),
+              )}
+            />
+          </div>
         )}
 
         {tab === "table" && tournament.TournamentMode === "LEAGUE" && (
@@ -613,15 +789,27 @@ export function TournamentView({
                 </div>
               )
             ) : (
-              <div className="flex flex-wrap justify-center gap-5 py-2">
+              <div className="py-2">
                 {participants.length === 0 ? (
-                  <p className="w-full py-16 text-center text-body">
+                  <div className="rounded-2xl border border-primary/25 bg-primary-panel py-16 text-center text-body">
                     No registered teams yet
-                  </p>
+                  </div>
                 ) : (
-                  participants.map((p) => (
-                    <TeamCard key={p.RegisterTournamentId || p._id} team={p} />
-                  ))
+                  <>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                      {participants.length} registered
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {participants.map((p) => (
+                        <TeamCard
+                          key={p.RegisterTournamentId || p._id}
+                          team={p}
+                          seats={needed}
+                          checkInRequired={tournament.CheckInRequired}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             );
@@ -643,7 +831,67 @@ export function TournamentView({
               </div>
             );
 
-            if (!(isKnockout || isGroups)) return teamsContent;
+            const invitePanels =
+              registrationOpen(tournament) &&
+              !started &&
+              isCaptain &&
+              (rosterSpotsLeft > 0 || pendingTeamInvites.length > 0) ? (
+                <div className="mx-auto max-w-lg">
+                  <div className="rounded-xl border border-primary/25 bg-surface p-5">
+                    <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
+                      Invite teammates
+                    </h3>
+                    {rosterSpotsLeft > 0 ? (
+                      <>
+                        <p className="mb-3 text-sm text-body">
+                          {rosterSpotsLeft} spot
+                          {rosterSpotsLeft === 1 ? "" : "s"} left on{" "}
+                          {myTeam?.TeamName}. They are not on the team until they
+                          accept. One player cannot join two teams.
+                        </p>
+                        <InviteSearch
+                          tournamentId={tournament.TournamentId}
+                          kind="TEAM"
+                          excludeIds={participants.flatMap((p) =>
+                            (p.Players ?? []).map((pl) => pl.User_id),
+                          )}
+                          onSent={(invite) =>
+                            setPendingTeamInvites((prev) => [invite, ...prev])
+                          }
+                        />
+                      </>
+                    ) : (
+                      <p className="mb-3 text-sm text-body">
+                        This roster is full. You can&apos;t send more invites.
+                        Outstanding invites will be rejected with Tournament
+                        full if someone tries to accept.
+                      </p>
+                    )}
+                    {pendingTeamInvites.length > 0 ? (
+                      <ul className="mt-3 space-y-1 text-sm text-body">
+                        {pendingTeamInvites.map((invite) => (
+                          <li key={invite.invite_id}>
+                            Waiting for @
+                            {invite.invitee_name || "player"} to accept
+                            {rosterSpotsLeft === 0
+                              ? " · will be rejected (tournament full)"
+                              : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null;
+
+            if (!(isKnockout || isGroups)) {
+              return (
+                <div className="space-y-8">
+                  {teamsContent}
+                  {invitePanels}
+                </div>
+              );
+            }
 
             return (
               <div className="flex flex-col gap-6">
@@ -658,7 +906,14 @@ export function TournamentView({
                   value={teamsPanel}
                   onChange={setTeamsPanel}
                 />
-                {teamsPanel === "teams" ? teamsContent : bracketContent}
+                {teamsPanel === "teams" ? (
+                  <div className="space-y-8">
+                    {teamsContent}
+                    {invitePanels}
+                  </div>
+                ) : (
+                  bracketContent
+                )}
               </div>
             );
           })()}
@@ -819,10 +1074,34 @@ export function TournamentView({
                   : "The registration deadline has passed."}
               </p>
             </div>
+          ) : user &&
+            tournament.TournamentType === "PRIVATE" &&
+            !canJoin &&
+            !canManage ? (
+            <div className="mx-auto max-w-lg rounded-xl border border-surface-2 bg-surface p-8 text-center">
+              <h3 className="text-xl font-semibold text-white">
+                Invite only
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-body">
+                You can join this tournament only after the host invites you.
+                Accept the invite from Notifications, then come back to
+                register.
+              </p>
+              <Link
+                href="/notifications"
+                className="mt-4 inline-block text-sm text-primary hover:underline"
+              >
+                Open notifications
+              </Link>
+            </div>
           ) : user ? (
             <RegisterTeam
               tournamentId={tournament.TournamentId}
               teamSize={tournament.Team}
+              payment={tournament.Payment}
+              currency={tournament.Currency}
+              entryFee={tournament.RegistrationAmount}
+              feeBps={tournament.PlatformFeeBps}
               onRegistered={(reg) => {
                 setParticipants((prev) => [...prev, reg]);
                 toast.success("Team registered");
@@ -1069,7 +1348,12 @@ function championFromDraws(
   const maxStage = Math.max(...ties.map((tie) => tie.stage));
   const last = ties.filter((tie) => tie.stage === maxStage);
   if (last.length !== 1) return undefined;
-  return knockoutTieWinner(last[0].games, tournament.KnockoutFormat) ?? undefined;
+  return (
+    knockoutTieWinner(
+      last[0].games,
+      formatForSeriesGames(last[0].games, tournament.KnockoutFormat),
+    ) ?? undefined
+  );
 }
 
 function knockoutHostPicks(
@@ -1144,15 +1428,11 @@ function Details({
       ? [
           {
             label: "Knockout",
-            value: `${
-              tournament.KnockoutFormat === "TWO_LEG"
-                ? "Two legs"
-                : tournament.KnockoutFormat === "BO3"
-                  ? "Best of 3"
-                  : tournament.KnockoutFormat === "BO5"
-                    ? "Best of 5"
-                    : "Single match"
-            }${tournament.ThirdPlace ? " · 3rd place" : ""}`,
+            value: knockoutRulesSummary({
+              format: tournament.KnockoutFormat,
+              finalsUseSeries: tournament.KnockoutFinalsSeries,
+              thirdPlace: tournament.ThirdPlace,
+            }),
           },
         ]
       : []),
@@ -1180,8 +1460,22 @@ function Details({
       ? [{ label: "Check-in", value: "Required" }]
       : []),
     { label: "Team size", value: tournament.Team },
-    { label: "Visibility", value: tournament.TournamentType },
-    { label: "Payment", value: tournament.Payment },
+    {
+      label: "Who can register",
+      value:
+        tournament.TournamentType === "PRIVATE"
+          ? "Invite only"
+          : "Anyone can join",
+    },
+    {
+      label: "Payment",
+      value:
+        tournament.Payment === "PAID"
+          ? "Paid"
+          : tournament.Payment === "SPONSORED"
+            ? "Sponsored"
+            : "Free",
+    },
     { label: "Draw", value: tournament.Shuffle },
     { label: "Size", value: `${tournament.TournamentSize} teams` },
     { label: "Date", value: tournament.Date },
@@ -1189,18 +1483,82 @@ function Details({
     ...(tournament.Payment === "PAID"
       ? [
           {
-            label: "Registration fee",
-            value: `₦${tournament.RegistrationAmount.toLocaleString()}`,
+            label: "Platform fee",
+            value: `${feePercent(tournament.PlatformFeeBps)}% of each entry (Gamelyd; not in the pot)`,
+          },
+          {
+            label: "Entry (player pays)",
+            value: formatMoney(
+              tournament.RegistrationAmount,
+              tournament.Currency,
+            ),
+          },
+          {
+            label: "Per seat to pot",
+            value: formatMoney(
+              splitEntry(
+                tournament.RegistrationAmount,
+                tournament.PlatformFeeBps,
+              ).net,
+              tournament.Currency,
+            ),
+          },
+          {
+            label: "Per seat to Gamelyd",
+            value: formatMoney(
+              splitEntry(
+                tournament.RegistrationAmount,
+                tournament.PlatformFeeBps,
+              ).fee,
+              tournament.Currency,
+            ),
+          },
+          {
+            label: "Net prize pot now",
+            value: formatMoney(tournament.PotNet, tournament.Currency),
           },
         ]
       : []),
-    {
-      label: "Prize pool",
-      value: tournament.Amount ? `₦${tournament.Amount.toLocaleString()}` : "-",
-    },
+    ...(tournament.Payment === "SPONSORED"
+      ? [
+          {
+            label: "Platform fee",
+            value: `${feePercent(tournament.PlatformFeeBps)}% on top of the prize board (paid by the host)`,
+          },
+          {
+            label: "Published prizes",
+            value: tournament.Amount
+              ? formatMoney(tournament.Amount, tournament.Currency)
+              : "-",
+          },
+          {
+            label: "Host deposit (board + fee)",
+            value: tournament.Amount
+              ? formatMoney(
+                  sponsorDeposit(
+                    tournament.Amount,
+                    tournament.PlatformFeeBps,
+                  ).gross,
+                  tournament.Currency,
+                )
+              : "-",
+          },
+        ]
+      : []),
+    ...(tournament.FeeCollected
+      ? [
+          {
+            label: "Fees collected so far",
+            value: formatMoney(tournament.FeeCollected, tournament.Currency),
+          },
+        ]
+      : []),
     ...(tournament.Prizes ?? []).map((prize) => ({
       label: `${placeLabel(prize.Position)} prize`,
-      value: `₦${prize.Amount.toLocaleString()}`,
+      value:
+        tournament.Payment === "PAID"
+          ? `${prize.Share || 0}% of net pot`
+          : formatMoney(prize.Amount, tournament.Currency),
     })),
   ];
 
@@ -1227,6 +1585,71 @@ function Details({
           ))}
         </dl>
       </div>
+      {tournament.Payment !== "FREE" ? (
+        <PrizeSettlement tournamentId={tournament.TournamentId} />
+      ) : null}
+    </div>
+  );
+}
+
+function FundPrizeButton({ tournamentId }: { tournamentId: string }) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  return (
+    <div className="mt-3">
+      <Button
+        type="button"
+        loading={loading}
+        onClick={async () => {
+          setLoading(true);
+          const result = await startSponsorCheckoutAction(tournamentId);
+          setLoading(false);
+          if (result.ok) {
+            window.location.href = result.data.checkoutUrl;
+            return;
+          }
+          toast.error(result.error);
+        }}
+      >
+        Fund prize pool
+      </Button>
+    </div>
+  );
+}
+
+function PrizeSettlement({ tournamentId }: { tournamentId: string }) {
+  const [rows, setRows] = useState<PayoutRecord[]>([]);
+  useEffect(() => {
+    void listTournamentPayoutsAction(tournamentId).then((result) => {
+      if (result.ok) setRows(result.data);
+    });
+  }, [tournamentId]);
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-surface-2 bg-surface p-5">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
+        Prize settlement
+      </h3>
+      <p className="mb-3 text-sm text-body">
+        Held until the event ends. Owed lines are the payout board - bank
+        transfers to winners ship next once payout accounts are on each
+        profile.
+      </p>
+      <ul className="space-y-2 text-sm">
+        {rows.map((row) => (
+          <li
+            key={row.payout_id}
+            className="flex justify-between gap-3 text-white"
+          >
+            <span>
+              {row.place > 0 ? `${placeLabel(row.place)} · ` : ""}
+              {row.teamName}{" "}
+              <span className="text-body">({row.status})</span>
+            </span>
+            <span>{formatMoney(row.amount, row.currency)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
+import { VerifiedName } from "@/components/ui/VerifiedName";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { getMyOrgInvitesAction } from "@/server/actions/orgActions";
 
 const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] =
@@ -102,46 +104,58 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="hidden items-center gap-3 md:flex">
-          {isAuthenticated && user ? (
-            <>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-white transition-colors hover:text-primary"
-              >
-                Logout
-              </button>
-              <Link
-                href={`/profile/${user.user_id}`}
-                className="flex items-center gap-2"
-              >
-                <CatalogAvatar
-                  userId={user.user_id}
-                  icon={user.icon}
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-                <span className="flex flex-col leading-tight">
-                  <span className="text-sm text-white">{user.first_name}</span>
-                  <span className="text-xs text-white/70">
-                    @{user.user_name}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {isAuthenticated ? <NotificationBell /> : null}
+          <div className="hidden items-center gap-4 md:flex">
+            {isAuthenticated && user ? (
+              <>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm text-white transition-colors hover:text-primary"
+                >
+                  Logout
+                </button>
+                <Link
+                  href={`/profile/${user.user_id}`}
+                  className="flex items-center gap-2"
+                >
+                  <CatalogAvatar
+                    userId={user.user_id}
+                    icon={user.icon}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                  <span className="flex flex-col leading-tight">
+                    <VerifiedName
+                      name={user.first_name}
+                      verified={user.verified}
+                      className="text-sm text-white"
+                    />
+                    <span className="text-xs text-white/70">
+                      @{user.user_name}
+                    </span>
                   </span>
-                </span>
+                </Link>
+              </>
+            ) : (
+              <Link href="/signup">
+                <Button>Sign In</Button>
               </Link>
-            </>
-          ) : (
-            <Link href="/signup">
-              <Button>Sign In</Button>
-            </Link>
-          )}
+            )}
+          </div>
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-lg text-white transition-colors hover:bg-white/5 hover:text-primary md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+          >
+            {open ? (
+              <CloseIcon className="h-6 w-6" />
+            ) : (
+              <MenuIcon className="h-6 w-6" />
+            )}
+          </button>
         </div>
-
-        <button
-          className="text-2xl text-white md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
-        >
-          {open ? "✕" : "☰"}
-        </button>
       </nav>
 
       {open && (
@@ -189,5 +203,31 @@ export function Navbar() {
         </div>
       )}
     </header>
+  );
+}
+
+function MenuIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M4 7h16M4 12h16M4 17h16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

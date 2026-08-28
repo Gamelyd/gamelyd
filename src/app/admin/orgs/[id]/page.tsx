@@ -13,11 +13,14 @@ import {
   adminGetOrgAction,
   adminListOrgMembersAction,
   adminRemoveOrgMemberAction,
+  adminSetOrgVerifiedAction,
   adminToggleDeleteOrgAction,
   adminUpdateOrgAction,
 } from "@/server/actions/adminActions";
 import { IconPicker } from "@/components/ui/IconPicker";
+import { Loader } from "@/components/ui/Loader";
 import { useIcons } from "@/hooks/useIcons";
+import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export default function AdminOrgDetailPage() {
   const params = useParams<{ id: string }>();
@@ -28,6 +31,7 @@ export default function AdminOrgDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [busyUid, setBusyUid] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -78,6 +82,18 @@ export default function AdminOrgDetailPage() {
     }
   };
 
+  const toggleVerified = async () => {
+    setVerifying(true);
+    const result = await adminSetOrgVerifiedAction(orgId, !org?.verified);
+    setVerifying(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Done");
+      setReload((r) => r + 1);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
   const toggleDelete = async () => {
     const result = await adminToggleDeleteOrgAction(orgId);
     if (result.ok) {
@@ -101,7 +117,7 @@ export default function AdminOrgDetailPage() {
   };
 
   if (loading && !org) {
-    return <p className="text-body">Loading…</p>;
+    return <Loader label="Loading organization" />;
   }
 
   if (!org) {
@@ -133,7 +149,12 @@ export default function AdminOrgDetailPage() {
             </div>
           )}
           <div>
-            <h1 className="font-display text-3xl text-white">{org.name}</h1>
+            <VerifiedName
+              as="h1"
+              name={org.name}
+              verified={org.verified}
+              className="font-display text-3xl text-white"
+            />
             {org.isDeleted ? (
               <span className="text-xs text-lose">Deleted</span>
             ) : (
@@ -141,12 +162,21 @@ export default function AdminOrgDetailPage() {
             )}
           </div>
         </div>
-        <Button
-          variant={org.isDeleted ? "dark" : "danger"}
-          onClick={toggleDelete}
-        >
-          {org.isDeleted ? "Restore organization" : "Delete organization"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            loading={verifying}
+            onClick={toggleVerified}
+          >
+            {org.verified ? "Unverify" : "Verify"}
+          </Button>
+          <Button
+            variant={org.isDeleted ? "dark" : "danger"}
+            onClick={toggleDelete}
+          >
+            {org.isDeleted ? "Restore organization" : "Delete organization"}
+          </Button>
+        </div>
       </div>
 
       <form
@@ -202,7 +232,10 @@ export default function AdminOrgDetailPage() {
             {members.map((m) => (
               <tr key={m.user_id} className="border-t border-surface-2">
                 <td className="px-4 py-3 text-white">
-                  {m.first_name} {m.last_name}
+                  <VerifiedName
+                    name={`${m.first_name} ${m.last_name}`.trim()}
+                    verified={m.verified}
+                  />
                   <span className="block text-xs text-body">
                     @{m.user_name}
                   </span>

@@ -7,6 +7,7 @@ import { HostCta } from "@/components/home/HostCta";
 import { Leaderboard } from "@/components/home/Leaderboard";
 import {
   HowItWorks,
+  MoneyAndSafety,
   Formats,
   GamesStrip,
   Audience,
@@ -43,6 +44,7 @@ export default async function HomePage() {
     <SiteLayout>
       <Hero banner={banner} />
       <HowItWorks />
+      <MoneyAndSafety />
       <LatestTournaments tournaments={latest} />
       <Formats />
       <GamesStrip games={games} />

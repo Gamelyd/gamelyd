@@ -24,7 +24,7 @@ const lato = Lato({
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 const description =
-  "Gamelyd is a tournament organizer for games. Create a tournament, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
+  "Gamelyd is where you host and play game tournaments. Create a lobby, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
 
 const defaultTitle = "Gamelyd: Host and join game tournaments";
 
