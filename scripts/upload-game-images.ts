@@ -116,7 +116,15 @@ async function api<T>(
       Authorization: `Bearer ${token}`,
     },
   });
-  const json = (await res.json()) as Ok<T> | Fail;
+  const text = await res.text();
+  let json: Ok<T> | Fail;
+  try {
+    json = JSON.parse(text) as Ok<T> | Fail;
+  } catch {
+    throw new Error(
+      `${path}: ${res.status} ${res.statusText} — expected JSON, got: ${text.slice(0, 240).replace(/\s+/g, " ")}`,
+    );
+  }
   if (!json.ok) {
     throw new Error(`${path}: ${json.error} (${res.status})`);
   }
@@ -174,11 +182,19 @@ async function main(): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  const loginJson = (await loginRes.json()) as Ok<{
+  const loginText = await loginRes.text();
+  let loginJson: Ok<{
     token: string;
     refreshToken: string;
     user_type: string;
   }> | Fail;
+  try {
+    loginJson = JSON.parse(loginText) as typeof loginJson;
+  } catch {
+    throw new Error(
+      `/api/auth/login: ${loginRes.status} — expected JSON, got: ${loginText.slice(0, 240).replace(/\s+/g, " ")}`,
+    );
+  }
   if (!loginJson.ok) {
     console.error(`Login failed: ${loginJson.error}`);
     process.exit(1);
