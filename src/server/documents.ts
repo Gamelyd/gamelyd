@@ -67,6 +67,24 @@ export interface TournamentDoc {
   OrgName: string;
   OrgIcon: string;
   OrgVerified?: boolean;
+  CatalogKind?: string;
+  FormatName?: string;
+  RosterCount?: number;
+  AllowDraw?: boolean;
+  ScoreLabel?: string;
+  VenueCountry?: string;
+  VenueCity?: string;
+  VenueLocation?: string;
+  VenueLat?: number;
+  VenueLng?: number;
+  VenueGeo?: { type: "Point"; coordinates: [number, number] };
+  Venues?: {
+    Country: string;
+    Location: string;
+    Lat: number;
+    Lng: number;
+    Geo?: { type: "Point"; coordinates: [number, number] };
+  }[];
   Active: boolean;
   IsDeleted: boolean;
   IsSuspended: boolean;
@@ -284,7 +302,25 @@ export interface GameDoc {
   name: string;
   image: string;
   platforms: string[];
+  kind?: string;
+  formats?: { id: string; label: string; roster: number }[];
+  allowDraw?: boolean;
+  scoreLabel?: string;
   active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogKindDoc {
+  _id: ObjectId;
+  kind_id: string;
+  slug: string;
+  label: string;
+  usesPlatforms: boolean;
+  usesBattleRoyale: boolean;
+  usesInGameName: boolean;
+  usesVenue?: boolean;
+  sort: number;
   created_at: string;
   updated_at: string;
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { DateInput, TimeInput } from "@/components/ui/DateTimePicker";
 import { useToast } from "@/components/ui/Toast";
 import {
   addLinkAction,
@@ -270,15 +271,13 @@ function MpFixture({
       <div className="mt-4 flex min-h-6 flex-wrap items-center justify-center gap-x-4 text-[15.5px] font-bold text-white">
         {mode === "time" ? (
           <div className="flex flex-wrap items-end justify-center gap-2">
-            <Input
-              type="date"
+            <DateInput
               label="Date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="py-2"
             />
-            <Input
-              type="time"
+            <TimeInput
               label="Time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
@@ -697,14 +696,12 @@ function BrFixture({
       </div>
       {canManage && open && (
         <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
-          <Input
-            type="date"
+          <DateInput
             label="Date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          <Input
-            type="time"
+          <TimeInput
             label="Time"
             value={time}
             onChange={(e) => setTime(e.target.value)}

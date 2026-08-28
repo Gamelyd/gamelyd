@@ -6,7 +6,7 @@ export function PageHeader({
   description,
   actions,
   children,
-  width = "max-w-7xl",
+  width = "max-w-page",
 }: {
   kicker?: string;
   title: ReactNode;
@@ -17,7 +17,7 @@ export function PageHeader({
 }) {
   return (
     <section className="border-b border-primary/20 bg-primary-panel">
-      <div className={`mx-auto px-5 py-10 lg:py-12 ${width}`}>
+      <div className={`mx-auto px-page py-10 lg:py-12 ${width}`}>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             {kicker ? (

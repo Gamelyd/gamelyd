@@ -1,6 +1,7 @@
 import "server-only";
 import type {
   ContactUsDoc,
+  CatalogKindDoc,
   DrawDoc,
   GameDoc,
   IconDoc,
@@ -16,7 +17,7 @@ import type {
   UserDoc,
 } from "./documents";
 import type { User } from "@/lib/schemas/user";
-import type { Tournament } from "@/lib/schemas/tournament";
+import type { Tournament, TournamentVenue } from "@/lib/schemas/tournament";
 import type { Player, Teams, BRTeams, Draw } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type {
@@ -26,7 +27,8 @@ import type {
   ReportAbuse,
 } from "@/lib/schemas/misc";
 import type { Org, OrgInvite, OrgMember } from "@/lib/schemas/org";
-import type { Game } from "@/lib/schemas/game";
+import type { Game, ScoreLabel, CatalogFormat } from "@/lib/schemas/game";
+import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { IconAsset } from "@/lib/schemas/icon";
 import { catalogUrl } from "@/lib/icons";
 import type { Platform } from "@/lib/schemas/platform";
@@ -135,6 +137,15 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     OrgName: readString(raw, ["OrgName", "orgname"]),
     OrgIcon: readString(raw, ["OrgIcon", "orgicon"]),
     OrgVerified: readBool(raw, ["OrgVerified", "orgverified"]),
+    CatalogKind:
+      readString(raw, ["CatalogKind", "catalogkind"], "games") || "games",
+    FormatName: readString(raw, ["FormatName", "formatname"]),
+    RosterCount: readNumber(raw, ["RosterCount", "rostercount"]),
+    AllowDraw: readBoolOr(raw, ["AllowDraw", "allowdraw"], true),
+    ScoreLabel: normalizeScoreLabel(
+      readString(raw, ["ScoreLabel", "scorelabel"], "Goals"),
+    ),
+    ...serializeVenueFields(raw),
     Active: readBool(raw, ["Active", "active"]),
     IsDeleted: readBool(raw, ["IsDeleted", "isdeleted"]),
     IsSuspended: readBool(raw, ["IsSuspended", "issuspended"]),
@@ -536,12 +547,111 @@ export function serializeOrgInvite(doc: OrgInviteDoc): OrgInvite {
 }
 
 export function serializeGame(doc: GameDoc): Game {
+  const raw = asRecord(doc);
   return {
-    ...doc,
     _id: doc._id.toHexString(),
+    game_id: doc.game_id,
+    name: doc.name,
     image: catalogUrl(doc.image || ""),
     platforms: Array.isArray(doc.platforms) ? doc.platforms : [],
+    kind: readString(raw, ["kind"], "games") || "games",
+    formats: serializeCatalogFormats(raw.formats),
+    allowDraw: readBoolOr(raw, ["allowDraw"], true),
+    scoreLabel: normalizeScoreLabel(readString(raw, ["scoreLabel"], "Goals")),
+    active: doc.active !== false,
+    created_at: doc.created_at,
+    updated_at: doc.updated_at ?? "",
   };
+}
+
+export function serializeCatalogKind(doc: CatalogKindDoc): CatalogKind {
+  return {
+    _id: doc._id.toHexString(),
+    kind_id: doc.kind_id,
+    slug: doc.slug,
+    label: doc.label,
+    usesPlatforms: Boolean(doc.usesPlatforms),
+    usesBattleRoyale: Boolean(doc.usesBattleRoyale),
+    usesInGameName: Boolean(doc.usesInGameName),
+    usesVenue:
+      typeof doc.usesVenue === "boolean"
+        ? doc.usesVenue
+        : doc.slug === "sports",
+    sort: typeof doc.sort === "number" ? doc.sort : 0,
+    created_at: doc.created_at,
+    updated_at: doc.updated_at ?? "",
+  };
+}
+
+function readBoolOr(
+  raw: Record<string, unknown>,
+  keys: string[],
+  fallback: boolean,
+): boolean {
+  for (const key of keys) {
+    const value = raw[key];
+    if (typeof value === "boolean") return value;
+  }
+  return fallback;
+}
+
+function normalizeScoreLabel(value: string): ScoreLabel {
+  return value === "Points" ? "Points" : "Goals";
+}
+
+function serializeVenueFields(raw: Record<string, unknown>): {
+  VenueCountry: string;
+  VenueCity: string;
+  VenueLocation: string;
+  VenueLat: number;
+  VenueLng: number;
+  Venues: TournamentVenue[];
+} {
+  const fromArray = Array.isArray(raw.Venues)
+    ? raw.Venues
+    : Array.isArray(raw.venues)
+      ? raw.venues
+      : [];
+  const venues = fromArray
+    .map((row) => {
+      const rec = asRecord(row);
+      const country = readString(rec, ["country", "Country"]).toUpperCase();
+      const location = readString(rec, ["location", "Location"]);
+      if (!location) return null;
+      return {
+        country,
+        location,
+        lat: readNumber(rec, ["lat", "Lat"]),
+        lng: readNumber(rec, ["lng", "Lng"]),
+      } satisfies TournamentVenue;
+    })
+    .filter((row): row is TournamentVenue => row !== null);
+  const country = readString(raw, ["VenueCountry", "venuecountry"]).toUpperCase();
+  const city = readString(raw, ["VenueCity", "venuecity"]);
+  const legacyPlace = readString(raw, ["VenueLocation", "venuelocation"]);
+  const eventCity = city || (venues.length === 0 ? legacyPlace : "");
+  return {
+    Venues: venues,
+    VenueCountry: country,
+    VenueCity: eventCity,
+    VenueLocation: eventCity,
+    VenueLat: readNumber(raw, ["VenueLat", "venuelat"]),
+    VenueLng: readNumber(raw, ["VenueLng", "venuelng"]),
+  };
+}
+
+function serializeCatalogFormats(raw: unknown): CatalogFormat[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => {
+      const rec = asRecord(row);
+      const label = readString(rec, ["label", "Label"]);
+      const roster = readNumber(rec, ["roster", "Roster"]);
+      const id = readString(rec, ["id", "Id"]) || label;
+      if (!label || roster < 1) return null;
+      return { id, label, roster };
+    })
+    .filter((row): row is CatalogFormat => row !== null);
 }
 
 export function serializeIcon(doc: IconDoc): IconAsset {

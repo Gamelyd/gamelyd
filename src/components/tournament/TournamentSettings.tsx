@@ -6,6 +6,7 @@ import { isSeriousSettingPatch } from "@/lib/settingChange";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { Input } from "@/components/ui/Input";
+import { DateInput, DateTimeInput } from "@/components/ui/DateTimePicker";
 import { Select } from "@/components/ui/Select";
 import { TextArea } from "@/components/ui/TextArea";
 import { Loader } from "@/components/ui/Loader";
@@ -21,6 +22,10 @@ import {
   listTournamentManagersAction,
   removeTournamentManagerAction,
 } from "@/server/actions/tournamentActions";
+import { kindUses, teamSizeFromRoster } from "@/lib/catalog";
+import { rosterSize } from "@/lib/schemas/common";
+import { eventCity, venuesOf } from "@/lib/venue";
+import { PlaceEditor, type VenueDraft } from "@/components/tournament/VenueEditor";
 
 export function EditTournamentSettings({
   tournament,
@@ -60,6 +65,7 @@ export function EditTournamentSettings({
     | "shuffle"
     | "type"
     | "size"
+    | "roster"
     | "name"
     | "date"
     | "note"
@@ -75,12 +81,16 @@ export function EditTournamentSettings({
     | "br"
     | "schedule"
     | "checkin"
-    | "deadline";
+    | "deadline"
+    | "venue";
 
   const [busyField, setBusyField] = useState<BusyField>("");
   const [shuffle, setShuffle] = useState(tournament.Shuffle);
   const [type, setType] = useState(tournament.TournamentType);
   const [size, setSize] = useState(String(tournament.TournamentSize));
+  const [roster, setRoster] = useState(
+    String(rosterSize(tournament.Team, tournament.RosterCount)),
+  );
   const [name, setName] = useState(tournament.Name);
   const [date, setDate] = useState(dateInputValue(tournament.Date));
   const [note, setNote] = useState(tournament.Note);
@@ -133,6 +143,16 @@ export function EditTournamentSettings({
   const [matchInterval, setMatchInterval] = useState(
     String(tournament.MatchIntervalMinutes || 0),
   );
+  const [locationCountry, setLocationCountry] = useState(
+    tournament.VenueCountry || "",
+  );
+  const [locationCity, setLocationCity] = useState(eventCity(tournament));
+  const [venues, setVenues] = useState<VenueDraft[]>(
+    venuesOf(tournament).map(({ country, location }) => ({
+      country,
+      location,
+    })),
+  );
   const [pendingSave, setPendingSave] = useState<{
     field: BusyField;
     patch: Record<string, unknown>;
@@ -143,6 +163,7 @@ export function EditTournamentSettings({
     setShuffle(tournament.Shuffle);
     setType(tournament.TournamentType);
     setSize(String(tournament.TournamentSize));
+    setRoster(String(rosterSize(tournament.Team, tournament.RosterCount)));
     setName(tournament.Name);
     setDate(dateInputValue(tournament.Date));
     setNote(tournament.Note);
@@ -167,6 +188,14 @@ export function EditTournamentSettings({
     setCheckInCloses(dateInputValue(tournament.CheckInCloses || ""));
     setFirstMatchAt(tournament.FirstMatchAt || "");
     setMatchInterval(String(tournament.MatchIntervalMinutes || 0));
+    setLocationCountry(tournament.VenueCountry || "");
+    setLocationCity(eventCity(tournament));
+    setVenues(
+      venuesOf(tournament).map(({ country, location }) => ({
+        country,
+        location,
+      })),
+    );
   }, [tournament]);
 
   const save = async (field: BusyField, patch: Record<string, unknown>) => {
@@ -273,6 +302,23 @@ export function EditTournamentSettings({
     );
   };
 
+  const saveRoster = () => {
+    if (locked) return;
+    const current = rosterSize(tournament.Team, tournament.RosterCount);
+    if (roster === String(current)) return;
+    const value = Number(roster);
+    if (!Number.isFinite(value) || value < 1 || value > 32) {
+      toast.error("Players per team must be between 1 and 32");
+      setRoster(String(current));
+      return;
+    }
+    askToSave(
+      "roster",
+      { RosterCount: value, Team: teamSizeFromRoster(value) },
+      () => setRoster(String(current)),
+    );
+  };
+
   const saveName = () => {
     if (locked) return;
     const next = name.trim();
@@ -310,6 +356,46 @@ export function EditTournamentSettings({
     askToSave("note", { Note: next }, () => setNote(tournament.Note));
   };
 
+  const saveVenue = () => {
+    if (locked) return;
+    const nextCountry = locationCountry.trim().toUpperCase();
+    const nextCity = locationCity.trim();
+    const nextVenues = venues.filter((v) => v.location.trim());
+    const currentVenues = venuesOf(tournament).map(({ country, location }) => ({
+      country,
+      location,
+    }));
+    const key = (rows: VenueDraft[]) =>
+      JSON.stringify(
+        rows.map((v) => [v.country.toUpperCase(), v.location.trim()]),
+      );
+    if (
+      nextCountry === (tournament.VenueCountry || "") &&
+      nextCity === eventCity(tournament) &&
+      key(nextVenues) === key(currentVenues)
+    ) {
+      return;
+    }
+    askToSave(
+      "venue",
+      {
+        VenueCountry: nextCountry,
+        VenueCity: nextCity,
+        Venues: nextVenues,
+      },
+      () => {
+        setLocationCountry(tournament.VenueCountry || "");
+        setLocationCity(eventCity(tournament));
+        setVenues(
+          venuesOf(tournament).map(({ country, location }) => ({
+            country,
+            location,
+          })),
+        );
+      },
+    );
+  };
+
   const saveAdvance = () => {
     if (locked) return;
     const value = Number(advancePerGroup);
@@ -327,7 +413,8 @@ export function EditTournamentSettings({
   const savePoints = () => {
     if (locked) return;
     const win = Number(pointsWin);
-    const draw = Number(pointsDraw);
+    const draw =
+      tournament.AllowDraw === false ? 0 : Number(pointsDraw);
     if (
       win === (tournament.PointSystem?.Win ?? 3) &&
       draw === (tournament.PointSystem?.Draw ?? 1)
@@ -395,8 +482,7 @@ export function EditTournamentSettings({
             }}
           />
 
-          <Input
-            type="date"
+          <DateInput
             label={busyField === "date" ? "Date (saving…)" : "Date"}
             value={date}
             disabled={locked}
@@ -412,6 +498,30 @@ export function EditTournamentSettings({
             onChange={(e) => setNote(e.target.value)}
             onBlur={saveNote}
           />
+
+          {kindUses([], tournament.CatalogKind).usesVenue ? (
+            <div className="flex flex-col gap-3">
+              <PlaceEditor
+                country={locationCountry}
+                city={locationCity}
+                onCountry={setLocationCountry}
+                onCity={setLocationCity}
+                venues={venues}
+                onVenues={setVenues}
+                disabled={locked}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                disabled={locked}
+                loading={busyField === "venue"}
+                onClick={saveVenue}
+              >
+                Save location
+              </Button>
+            </div>
+          ) : null}
 
           <Select
             label={
@@ -464,6 +574,27 @@ export function EditTournamentSettings({
               }
             }}
           />
+
+          <Input
+            label={
+              busyField === "roster"
+                ? "Players per team (saving…)"
+                : "Players per team"
+            }
+            type="number"
+            min={1}
+            max={32}
+            value={roster}
+            disabled={locked}
+            onChange={(e) => setRoster(e.target.value)}
+            onBlur={saveRoster}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                saveRoster();
+              }
+            }}
+          />
         </>
       ) : null}
 
@@ -500,6 +631,7 @@ export function EditTournamentSettings({
               }
             }}
           />
+          {tournament.AllowDraw !== false ? (
           <Input
             type="number"
             min={0}
@@ -518,6 +650,7 @@ export function EditTournamentSettings({
               }
             }}
           />
+          ) : null}
         </div>
       ) : null}
 
@@ -765,8 +898,7 @@ export function EditTournamentSettings({
 
       {showCore ? (
         <>
-          <Input
-            type="date"
+          <DateInput
             label={
               busyField === "deadline"
                 ? "Registration closes (saving…)"
@@ -807,8 +939,7 @@ export function EditTournamentSettings({
             ]}
           />
           {checkInRequired ? (
-            <Input
-              type="date"
+            <DateInput
               label="Check-in closes"
               value={checkInCloses}
               disabled={locked}
@@ -833,8 +964,7 @@ export function EditTournamentSettings({
 
       {showSchedule ? (
         <>
-          <Input
-            type="datetime-local"
+          <DateTimeInput
             label={
               busyField === "schedule" ? "First match (saving…)" : "First match"
             }

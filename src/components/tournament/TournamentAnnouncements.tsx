@@ -24,7 +24,7 @@ export function LatestAnnouncementBanner({
       onClick={onOpen}
       className="w-full border-b border-primary/25 bg-primary/10 text-left transition-colors hover:bg-primary/15"
     >
-      <div className="mx-auto flex max-w-6xl items-start gap-3 px-5 py-3">
+      <span className="mx-auto flex max-w-6xl items-start gap-3 px-page py-3">
         <span className="mt-0.5 shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
           New
         </span>
@@ -36,10 +36,11 @@ export function LatestAnnouncementBanner({
             {announcement.Body}
           </span>
         </span>
-        <span className="shrink-0 text-xs text-body">
-          {formatPostedAt(announcement.CreatedAt)}
-        </span>
-      </div>
+        <PostedAt
+          value={announcement.CreatedAt}
+          className="shrink-0 text-xs text-body"
+        />
+      </span>
     </button>
   );
 }
@@ -153,9 +154,10 @@ export function TournamentAnnouncements({
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
                   {index === 0 ? "Latest" : "Earlier"}
-                  <span className="ml-2 font-normal normal-case tracking-normal text-body">
-                    {formatPostedAt(item.CreatedAt)}
-                  </span>
+                  <PostedAt
+                    value={item.CreatedAt}
+                    className="ml-2 font-normal normal-case tracking-normal text-body"
+                  />
                 </p>
                 {canPost ? (
                   <button
@@ -188,6 +190,20 @@ export function TournamentAnnouncements({
         }}
       />
     </div>
+  );
+}
+
+function PostedAt({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  return (
+    <time dateTime={value} suppressHydrationWarning className={className}>
+      {formatPostedAt(value)}
+    </time>
   );
 }
 

@@ -39,6 +39,11 @@ import {
 import { createNotifications } from "./notificationService";
 import type { Tournament, PendingSettingChange } from "@/lib/schemas/tournament";
 import { browseStatusClause, tournamentBrowsePhase } from "@/lib/tournamentStatus";
+import { catalogKindClause } from "@/lib/catalog";
+import { parseCountryCode } from "@/lib/countries";
+import { geocodeVenue } from "../geocode";
+import type { BrowseLocation } from "@/lib/venue";
+import { nearestVenueKm } from "@/lib/venue";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player, Teams, Draw } from "@/lib/schemas/draw";
 import type {
@@ -57,7 +62,11 @@ import type {
 } from "@/lib/schemas/tournament";
 import { editTournamentInputSchema } from "@/lib/schemas/tournament";
 import type { RegisterTournamentInput } from "@/lib/schemas/register";
-import { rosterSize } from "@/lib/schemas/common";
+import {
+  rosterOverCapMessage,
+  rosterSize,
+  rosterSpotsLeftMessage,
+} from "@/lib/schemas/common";
 import { PLATFORM_FEE_BPS } from "@/lib/fees";
 import {
   asDisqualifiedSet,
@@ -74,6 +83,107 @@ import {
 } from "@/lib/settingChange";
 
 const PER_PAGE = 10;
+const EARTH_KM = 6378.1;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+type VenueDoc = NonNullable<TournamentDoc["Venues"]>[number];
+
+type ResolvedPlace = {
+  Venues: VenueDoc[];
+  VenueCountry: string;
+  VenueCity: string;
+  VenueLocation: string;
+  VenueLat: number;
+  VenueLng: number;
+  VenueGeo?: { type: "Point"; coordinates: [number, number] };
+};
+
+async function resolveEventPlace(
+  countryRaw: string | undefined,
+  cityRaw: string | undefined,
+  rows: { country?: string; location?: string }[],
+): Promise<ResolvedPlace> {
+  const country = parseCountryCode(countryRaw);
+  const city = (cityRaw ?? "").trim();
+  const point = city ? await geocodeVenue(city, country) : null;
+  const venues: VenueDoc[] = [];
+  for (const row of rows) {
+    const place = (row.location ?? "").trim();
+    if (!place) continue;
+    const rowCountry = parseCountryCode(row.country) || country;
+    const venuePoint = await geocodeVenue(place, rowCountry);
+    venues.push({
+      Country: rowCountry,
+      Location: place,
+      Lat: venuePoint?.lat ?? 0,
+      Lng: venuePoint?.lng ?? 0,
+      ...(venuePoint
+        ? {
+            Geo: {
+              type: "Point" as const,
+              coordinates: [venuePoint.lng, venuePoint.lat] as [number, number],
+            },
+          }
+        : {}),
+    });
+  }
+  const geo = point
+    ? { type: "Point" as const, coordinates: [point.lng, point.lat] as [number, number] }
+    : venues.find((row) => row.Geo)?.Geo;
+  return {
+    Venues: venues,
+    VenueCountry: country,
+    VenueCity: city,
+    VenueLocation: city,
+    VenueLat: point?.lat ?? venues[0]?.Lat ?? 0,
+    VenueLng: point?.lng ?? venues[0]?.Lng ?? 0,
+    ...(geo ? { VenueGeo: geo } : {}),
+  };
+}
+
+function venueBrowseClause(
+  loc: BrowseLocation | undefined,
+): Record<string, unknown> | null {
+  if (!loc) return null;
+  const clauses: Record<string, unknown>[] = [];
+  if (loc.country) {
+    clauses.push({
+      $or: [
+        { "Venues.Country": loc.country },
+        { VenueCountry: loc.country },
+        { venuecountry: loc.country },
+      ],
+    });
+  }
+  if (loc.place) {
+    const regex = { $regex: escapeRegex(loc.place), $options: "i" };
+    clauses.push({
+      $or: [
+        { "Venues.Location": regex },
+        { VenueLocation: regex },
+        { venuelocation: regex },
+        { VenueCity: regex },
+        { venuecity: regex },
+      ],
+    });
+  }
+  if (loc.lat != null && loc.lng != null) {
+    const geo = {
+      $geoWithin: {
+        $centerSphere: [[loc.lng, loc.lat], loc.radius / EARTH_KM],
+      },
+    };
+    clauses.push({
+      $or: [{ "Venues.Geo": geo }, { VenueGeo: geo }],
+    });
+  }
+  if (clauses.length === 0) return null;
+  if (clauses.length === 1) return clauses[0];
+  return { $and: clauses };
+}
 
 function fundedPublicClause(): Record<string, unknown> {
   return {
@@ -127,6 +237,12 @@ export async function saveTournament(
     }
   }
 
+  const venue = await resolveEventPlace(
+    input.VenueCountry,
+    input.VenueCity || input.VenueLocation,
+    input.Venues ?? [],
+  );
+
   const doc: TournamentDoc = {
     _id,
     Name: input.Name,
@@ -175,11 +291,16 @@ export async function saveTournament(
     Announcements: [],
     AcceptedInvites: [],
     Platform: input.Platform,
+    CatalogKind: input.CatalogKind || "games",
+    FormatName: input.FormatName || "",
+    RosterCount: input.RosterCount || 0,
+    AllowDraw: input.AllowDraw !== false,
+    ScoreLabel: input.ScoreLabel === "Points" ? "Points" : "Goals",
     Stage: 0,
     Groups: [],
     PointSystem: {
       Win: input.PointSystem?.Win ?? 3,
-      Draw: input.PointSystem?.Draw ?? 1,
+      Draw: input.AllowDraw === false ? 0 : (input.PointSystem?.Draw ?? 1),
     },
     ReturnLeg:
       input.TournamentMode === "LEAGUE" || input.TournamentMode === "GROUPS"
@@ -238,6 +359,7 @@ export async function saveTournament(
     CheckInCloses: input.CheckInCloses || "",
     FirstMatchAt: input.FirstMatchAt || "",
     MatchIntervalMinutes: input.MatchIntervalMinutes || 0,
+    ...venue,
   };
 
   await col.insertOne(doc);
@@ -275,6 +397,14 @@ export async function getPublicTournaments(
                 { name: regex },
                 { GameName: regex },
                 { gamename: regex },
+                { VenueLocation: regex },
+                { venuelocation: regex },
+                { VenueCity: regex },
+                { venuecity: regex },
+                { VenueCountry: regex },
+                { venuecountry: regex },
+                { "Venues.Location": regex },
+                { "Venues.Country": regex },
               ],
             },
           ]
@@ -303,6 +433,8 @@ export async function getTournamentsByMode(
   type: string,
   page: number,
   status = "ALL",
+  kind = "ALL",
+  location?: BrowseLocation,
 ): Promise<Paginated<Tournament>> {
   const col = await tournaments();
   const perPage = 15;
@@ -321,6 +453,10 @@ export async function getTournamentsByMode(
   }
   const statusClause = browseStatusClause(status);
   if (statusClause) clauses.push(statusClause);
+  const kindClause = catalogKindClause(kind);
+  if (kindClause) clauses.push(kindClause);
+  const venueClause = venueBrowseClause(location);
+  if (venueClause) clauses.push(venueClause);
 
   const filter = asDocFilter<TournamentDoc>({ $and: clauses });
 
@@ -332,11 +468,21 @@ export async function getTournamentsByMode(
     .limit(perPage)
     .toArray();
 
+  const items = docs.map(serializeTournament);
+  if (location?.lat != null && location.lng != null) {
+    const origin = { lat: location.lat, lng: location.lng };
+    items.sort((a, b) => {
+      const da = nearestVenueKm(a, origin) ?? Number.POSITIVE_INFINITY;
+      const db = nearestVenueKm(b, origin) ?? Number.POSITIVE_INFINITY;
+      return da - db;
+    });
+  }
+
   return {
     total,
     page: safePage,
     last_page: Math.max(Math.ceil(total / perPage), 1),
-    items: docs.map(serializeTournament),
+    items,
   };
 }
 
@@ -730,20 +876,9 @@ export async function registerForTournament(
     }
   }
 
-  const needed = rosterSize(tournament.Team);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
   if (input.Players.length < 1 || input.Players.length > needed) {
-    throw new ServiceError(
-      `A ${tournament.Team.toLowerCase()} team can have at most ${needed} player${needed === 1 ? "" : "s"}`,
-    );
-  }
-  if (
-    !options?.allowPartialRoster &&
-    !options?.captainOnly &&
-    input.Players.length !== needed
-  ) {
-    throw new ServiceError(
-      `This ${tournament.Team.toLowerCase()} tournament requires exactly ${needed} player${needed === 1 ? "" : "s"}`,
-    );
+    throw new ServiceError(rosterOverCapMessage(needed));
   }
 
   const rCol = await registrations();
@@ -857,11 +992,9 @@ export async function adminAddParticipants(
   }
 
   const tournament = serializeTournament(found);
-  const needed = rosterSize(tournament.Team);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
   if (players.length > needed) {
-    throw new ServiceError(
-      `A ${tournament.Team.toLowerCase()} team can have at most ${needed} players`,
-    );
+    throw new ServiceError(rosterOverCapMessage(needed));
   }
 
   const teamName =
@@ -900,7 +1033,7 @@ async function addPlayersToExistingTeam(
       "Registration is closed. This tournament has already started.",
     );
   }
-  const needed = rosterSize(tournament.Team);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
   const ids = relatedIdsFromDoc(found);
   const rCol = await registrations();
   const reg = await rCol.findOne(
@@ -927,25 +1060,28 @@ async function addPlayersToExistingTeam(
   }
 
   const nextPlayers = [...mapped.Players, ...newcomers];
+  const left = needed - mapped.Players.length;
   if (nextPlayers.length > needed) {
-    throw new ServiceError(
-      `This ${tournament.Team.toLowerCase()} team only has ${Math.max(
-        needed - mapped.Players.length,
-        0,
-      )} spot${needed - mapped.Players.length === 1 ? "" : "s"} left`,
-    );
+    throw new ServiceError(rosterSpotsLeftMessage(left, needed));
   }
 
   const now = new Date().toISOString();
-  await rCol.updateOne(
-    { _id: reg._id },
-    { $set: { Players: nextPlayers, Updated_at: now } },
+  const roomKey = `Players.${needed - newcomers.length}` as const;
+  const updated = await rCol.findOneAndUpdate(
+    {
+      _id: reg._id,
+      [roomKey]: { $exists: false },
+    } as never,
+    {
+      $set: { Updated_at: now },
+      $push: { Players: { $each: newcomers } },
+    } as never,
+    { returnDocument: "after" },
   );
-  return serializeRegistration({
-    ...reg,
-    Players: nextPlayers,
-    Updated_at: now,
-  });
+  if (!updated) {
+    throw new ServiceError(rosterOverCapMessage(needed));
+  }
+  return serializeRegistration(updated);
 }
 
 export async function addPlayerToTeam(
@@ -1894,6 +2030,14 @@ async function applyTournamentSettings(
     set.TournamentSize = input.TournamentSize;
     set.tournamentsize = input.TournamentSize;
   }
+  if (input.RosterCount !== undefined) {
+    set.RosterCount = input.RosterCount;
+    set.rostercount = input.RosterCount;
+  }
+  if (input.Team !== undefined) {
+    set.Team = input.Team;
+    set.team = input.Team;
+  }
   if (input.Shuffle !== undefined) {
     set.Shuffle = input.Shuffle;
     set.shuffle = input.Shuffle;
@@ -2005,16 +2149,63 @@ async function applyTournamentSettings(
   if (input.icon !== undefined) {
     set.icon = input.icon;
   }
+  if (
+    input.Venues !== undefined ||
+    input.VenueCountry !== undefined ||
+    input.VenueCity !== undefined ||
+    input.VenueLocation !== undefined
+  ) {
+    const venue = await resolveEventPlace(
+      input.VenueCountry !== undefined
+        ? input.VenueCountry
+        : (current.VenueCountry ?? ""),
+      input.VenueCity !== undefined
+        ? input.VenueCity
+        : input.VenueLocation !== undefined
+          ? input.VenueLocation
+          : (current.VenueCity ?? current.VenueLocation ?? ""),
+      input.Venues !== undefined
+        ? input.Venues
+        : (current.Venues ?? []).map((row) => ({
+            country: row.country,
+            location: row.location,
+          })),
+    );
+    set.Venues = venue.Venues;
+    set.venues = venue.Venues;
+    set.VenueCountry = venue.VenueCountry;
+    set.venuecountry = venue.VenueCountry;
+    set.VenueCity = venue.VenueCity;
+    set.venuecity = venue.VenueCity;
+    set.VenueLocation = venue.VenueLocation;
+    set.venuelocation = venue.VenueLocation;
+    set.VenueLat = venue.VenueLat;
+    set.venuelat = venue.VenueLat;
+    set.VenueLng = venue.VenueLng;
+    set.venuelng = venue.VenueLng;
+    if (venue.VenueGeo) {
+      set.VenueGeo = venue.VenueGeo;
+    }
+  }
 
   const col = await tournaments();
-  const unset = extra?.clearPending
+  const unset: Record<string, string> = extra?.clearPending
     ? { PendingSettingChange: "", pendingsettingchange: "" }
-    : undefined;
+    : {};
+  if (
+    (input.Venues !== undefined ||
+      input.VenueCountry !== undefined ||
+      input.VenueCity !== undefined ||
+      input.VenueLocation !== undefined) &&
+    !(set.VenueGeo as ResolvedPlace["VenueGeo"] | undefined)
+  ) {
+    unset.VenueGeo = "";
+  }
   const updated = await col.findOneAndUpdate(
     { _id: found._id },
     {
       $set: set,
-      ...(unset ? { $unset: unset } : {}),
+      ...(Object.keys(unset).length > 0 ? { $unset: unset } : {}),
     } as unknown as Parameters<typeof col.findOneAndUpdate>[1],
     { returnDocument: "after" },
   );

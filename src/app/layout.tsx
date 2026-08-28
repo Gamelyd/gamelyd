@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto, Lalezar, Lato, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { HelpProvider } from "@/context/HelpContext";
 import { ToastProvider } from "@/components/ui/Toast";
 import { resolveCurrentUser } from "@/server/services/userService";
 import { listUserOrgs } from "@/server/services/orgService";
@@ -27,6 +28,12 @@ const description =
   "Gamelyd is where you host and play game tournaments. Create a lobby, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
 
 const defaultTitle = "Gamelyd: Host and join game tournaments";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -56,7 +63,9 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <AuthProvider initialUser={initialUser} initialOrgs={initialOrgs}>
-          <ToastProvider>{children}</ToastProvider>
+          <HelpProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </HelpProvider>
         </AuthProvider>
       </body>
     </html>

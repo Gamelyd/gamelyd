@@ -24,6 +24,10 @@ import type { Draw } from "@/lib/schemas/draw";
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
+import { rosterSize } from "@/lib/schemas/common";
+import { PageTour } from "@/components/help/PageTour";
+import { MANAGE_TOUR } from "@/components/help/tours";
+import { helpTarget } from "@/lib/help";
 
 export function TournamentManageView({
   tournament,
@@ -56,6 +60,7 @@ export function TournamentManageView({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const canAdd =
     isPlatformAdmin || (canAdminister && tournament.OwnerCanAddParticipants);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
   const groupDraws = draws.filter(isGroupDraw);
   const knockoutDrawn = draws.some(isKnockoutDraw);
   const allGroupPlayed =
@@ -79,7 +84,8 @@ export function TournamentManageView({
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-5 py-10">
+    <div className="mx-auto max-w-4xl px-page py-10">
+      <PageTour tour={MANAGE_TOUR} />
       <Link
         href={`/tournament/${tournament.TournamentId}`}
         className="mb-4 inline-block text-sm text-primary hover:underline"
@@ -115,7 +121,7 @@ export function TournamentManageView({
       </div>
 
       <div className="flex flex-col gap-6">
-        <div>
+        <div {...helpTarget("manage-announce")}>
           <h2 className="mb-1 text-lg font-semibold text-white">
             Announcements
           </h2>
@@ -133,7 +139,7 @@ export function TournamentManageView({
             onChange={setAnnouncements}
           />
         </div>
-        <div>
+        <div {...helpTarget("manage-invite")}>
           <h2 className="mb-4 text-lg font-semibold text-white">
             Invite players
           </h2>
@@ -148,13 +154,15 @@ export function TournamentManageView({
             )}
           />
         </div>
-        <TournamentStageControls
-          key={disqualifiedTeams.join("|")}
-          tournament={tournament}
-          initialDraws={draws}
-          qualifiers={qualifiers}
-          disqualifiedTeams={disqualifiedTeams}
-        />
+        <div {...helpTarget("tour-stages")}>
+          <TournamentStageControls
+            key={disqualifiedTeams.join("|")}
+            tournament={tournament}
+            initialDraws={draws}
+            qualifiers={qualifiers}
+            disqualifiedTeams={disqualifiedTeams}
+          />
+        </div>
         {showQualifierPicker ? (
           <SelectQualifiers
             tournamentId={tournament.TournamentId}
@@ -217,14 +225,16 @@ export function TournamentManageView({
           </div>
         ) : null}
         {canAdminister ? (
-          <EditTournamentSettings
-            tournament={tournament}
-            started={tournament.Start}
-            registeredCount={participants.length}
-            fixturesDrawn={draws.length > 0}
-            knockoutDrawn={knockoutDrawn}
-            onSaved={() => router.refresh()}
-          />
+          <div {...helpTarget("manage-settings")}>
+            <EditTournamentSettings
+              tournament={tournament}
+              started={tournament.Start}
+              registeredCount={participants.length}
+              fixturesDrawn={draws.length > 0}
+              knockoutDrawn={knockoutDrawn}
+              onSaved={() => router.refresh()}
+            />
+          </div>
         ) : null}
 
         {canAdminister ? (
@@ -243,12 +253,14 @@ export function TournamentManageView({
             <p className="mb-4 text-sm text-body">
               Add a new team, or add players to a team that still has
               roster spots. They join the roster immediately, without an
-              invite. Squads take up to four, duos two, solo one.
+              invite. A team cannot have more than {needed}{" "}
+              {needed === 1 ? "player" : "players"}.
             </p>
             {canAdd ? (
               <AddParticipants
                 tournamentId={tournament.TournamentId}
                 teamSize={tournament.Team}
+                rosterCount={tournament.RosterCount}
                 started={tournament.Start}
                 participants={participants}
                 existingUserIds={participants.flatMap((p) =>

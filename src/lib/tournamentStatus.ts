@@ -26,18 +26,42 @@ export function parseBrowseStatus(
   return "ALL";
 }
 
-export function browseTournamentsHref(
-  payment: string,
-  type: string,
-  status: string,
-  page?: number,
-): string {
-  const pay = payment || "ALL";
-  const fmt = type || "ALL";
+export function browseTournamentsHref(args: {
+  payment: string;
+  type: string;
+  status?: string;
+  page?: number;
+  kind?: string;
+  country?: string;
+  place?: string;
+  lat?: number | null;
+  lng?: number | null;
+  radius?: number;
+}): string {
+  const pay = args.payment || "ALL";
+  const fmt = args.type || "ALL";
   const params = new URLSearchParams();
-  const parsed = parseBrowseStatus(status);
+  const parsed = parseBrowseStatus(args.status);
   if (parsed !== "ALL") params.set("status", parsed);
-  if (page && page > 1) params.set("page", String(page));
+  const kindSlug = (args.kind ?? "ALL").trim().toLowerCase();
+  if (kindSlug && kindSlug !== "all") params.set("kind", kindSlug);
+  const country = (args.country ?? "").trim().toUpperCase();
+  if (country) params.set("country", country);
+  const place = (args.place ?? "").trim();
+  if (place) params.set("place", place);
+  if (
+    args.lat != null &&
+    args.lng != null &&
+    Number.isFinite(args.lat) &&
+    Number.isFinite(args.lng)
+  ) {
+    params.set("lat", String(args.lat));
+    params.set("lng", String(args.lng));
+    if (args.radius && args.radius !== 50) {
+      params.set("radius", String(args.radius));
+    }
+  }
+  if (args.page && args.page > 1) params.set("page", String(args.page));
   const query = params.toString();
   return query
     ? `/tournament/all/${pay}/${fmt}?${query}`

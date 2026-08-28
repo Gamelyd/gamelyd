@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/Input";
+import { DateInput, DateTimeInput } from "@/components/ui/DateTimePicker";
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import { TextArea } from "@/components/ui/TextArea";
 import { Select } from "@/components/ui/Select";
@@ -12,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { saveTournamentAction } from "@/server/actions/tournamentActions";
 import { getGamesAction } from "@/server/actions/gameActions";
+import { getCatalogKindsAction } from "@/server/actions/catalogKindActions";
 import { getPlatformsAction } from "@/server/actions/platformActions";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { MultiSelect } from "@/components/ui/MultiSelect";
@@ -19,6 +21,7 @@ import { FALLBACKS, iconForGame } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import { joinPlatforms } from "@/lib/platforms";
 import type { Game } from "@/lib/schemas/game";
+import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { Platform } from "@/lib/schemas/platform";
 import {
   placeLabel,
@@ -30,7 +33,6 @@ import type {
   KnockoutFormat,
   Payment,
   Shuffle,
-  TeamSize,
   TieBreaker,
   TournamentMode,
   TournamentType,
@@ -39,11 +41,22 @@ import { CURRENCY_OPTIONS } from "@/lib/currency";
 import { feePercent } from "@/lib/fees";
 import { FeeSummary } from "@/components/tournament/FeeSummary";
 import { Loader } from "@/components/ui/Loader";
+import {
+  GAMES_KIND,
+  SPORTS_KIND,
+  kindUses,
+  teamSizeFromRoster,
+} from "@/lib/catalog";
+import { venueLabel } from "@/lib/venue";
+import { PlaceEditor, type VenueDraft } from "@/components/tournament/VenueEditor";
+import { PageTour } from "@/components/help/PageTour";
+import { CREATE_TOURS } from "@/components/help/tours";
+import { helpTarget } from "@/lib/help";
 
 type Step = "game" | "format" | "rules" | "brief";
 
 const STEPS: { id: Step; label: string; code: string }[] = [
-  { id: "game", label: "Select game", code: "01" },
+  { id: "game", label: "Catalog", code: "01" },
   { id: "format", label: "Format", code: "02" },
   { id: "rules", label: "Rules", code: "03" },
   { id: "brief", label: "Launch", code: "04" },
@@ -81,19 +94,8 @@ const MODES: {
   },
 ];
 
-const TEAM_SIZES: {
-  value: TeamSize;
-  label: string;
-  blurb: string;
-  seats: number;
-}[] = [
-  { value: "SINGLE", label: "Solo", blurb: "One player per entry", seats: 1 },
-  { value: "DUO", label: "Duo", blurb: "Two players per team", seats: 2 },
-  { value: "SQUAD", label: "Squad", blurb: "Four players per team", seats: 4 },
-];
-
 const NEXT_LABEL: Record<Exclude<Step, "brief">, string> = {
-  game: "Lock game",
+  game: "Continue",
   format: "Lock format",
   rules: "Lock rules",
 };
@@ -106,6 +108,9 @@ export function CreateTournamentWizard() {
   const [loading, setLoading] = useState(false);
   const [orgId, setOrgId] = useState("");
   const [gamesList, setGamesList] = useState<Game[]>([]);
+  const [kinds, setKinds] = useState<CatalogKind[]>([]);
+  const [catalogKind, setCatalogKind] = useState(GAMES_KIND);
+  const [formatId, setFormatId] = useState("");
   const [gamesLoaded, setGamesLoaded] = useState(false);
   const [platformList, setPlatformList] = useState<Platform[]>([]);
   const [platformsLoaded, setPlatformsLoaded] = useState(false);
@@ -115,7 +120,7 @@ export function CreateTournamentWizard() {
   const [payment, setPayment] = useState<Payment>("FREE");
   const [currency, setCurrency] = useState<Currency>("USD");
   const [mode, setMode] = useState<TournamentMode>("MULTIPLAYER");
-  const [team, setTeam] = useState<TeamSize>("SINGLE");
+  const [rosterCount, setRosterCount] = useState(1);
   const [shuffle, setShuffle] = useState<Shuffle>("AUTOMATIC");
   const [returnLeg, setReturnLeg] = useState(false);
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
@@ -136,6 +141,9 @@ export function CreateTournamentWizard() {
   const [checkInRequired, setCheckInRequired] = useState(false);
   const [checkInCloses, setCheckInCloses] = useState("");
   const [firstMatchAt, setFirstMatchAt] = useState("");
+  const [locationCountry, setLocationCountry] = useState("");
+  const [locationCity, setLocationCity] = useState("");
+  const [venues, setVenues] = useState<VenueDraft[]>([]);
   const [matchInterval, setMatchInterval] = useState(0);
   const [prizes, setPrizes] = useState<PrizePosition[]>([
     { Position: 1, Amount: 0, Share: 70 },
@@ -160,12 +168,24 @@ export function CreateTournamentWizard() {
 
   useEffect(() => {
     let active = true;
-    void getGamesAction().then((result) => {
-      if (!active) return;
-      if (result.ok) setGamesList(result.data);
-      else toast.error(result.error);
-      setGamesLoaded(true);
-    });
+    void Promise.all([getGamesAction(), getCatalogKindsAction()]).then(
+      ([gamesResult, kindsResult]) => {
+        if (!active) return;
+        if (gamesResult.ok) setGamesList(gamesResult.data);
+        else toast.error(gamesResult.error);
+        if (kindsResult.ok) {
+          setKinds(kindsResult.data);
+          if (kindsResult.data.length > 0) {
+            setCatalogKind((prev) =>
+              kindsResult.data.some((k) => k.slug === prev)
+                ? prev
+                : kindsResult.data[0].slug,
+            );
+          }
+        } else toast.error(kindsResult.error);
+        setGamesLoaded(true);
+      },
+    );
     return () => {
       active = false;
     };
@@ -200,6 +220,19 @@ export function CreateTournamentWizard() {
     });
   }, [selectedGameId, covers]);
 
+  const selectedGame = gamesList.find((g) => g.name === details.GameName);
+  const selectedFormat =
+    (selectedGame?.formats ?? []).find((row) => row.id === formatId) ??
+    selectedGame?.formats?.[0];
+  const kindFlags = kindUses(kinds, catalogKind);
+  const allowDraw = selectedGame?.allowDraw !== false;
+  const scoreLabel =
+    selectedGame?.scoreLabel === "Points" ? "Points" : "Goals";
+  const gamesForKind = gamesList.filter((game) => {
+    const kind = game.kind || GAMES_KIND;
+    return kind === catalogKind;
+  });
+
   const pickGame = (game: Game) => {
     const catalog = new Set(platformList.map((p) => p.name));
     const fromGame = (game.platforms ?? []).filter((name) => catalog.has(name));
@@ -209,6 +242,25 @@ export function CreateTournamentWizard() {
       icon: game.image || iconForGame(game.name, covers) || prev.icon,
     }));
     if (fromGame.length > 0) setSelectedPlatforms(fromGame);
+    else if (!kindUses(kinds, game.kind).usesPlatforms) {
+      setSelectedPlatforms([]);
+    }
+    const first = (game.formats ?? [])[0];
+    setFormatId(first?.id ?? "");
+    setRosterCount(first?.roster ?? 1);
+    if (game.allowDraw === false) setPointsDraw(0);
+    else setPointsDraw((prev) => (prev === 0 ? 1 : prev));
+  };
+
+  const switchKind = (slug: string) => {
+    setCatalogKind(slug);
+    setDetails((prev) => ({ ...prev, GameName: "" }));
+    setFormatId("");
+    const flags = kindUses(kinds, slug);
+    if (!flags.usesBattleRoyale && mode === "BATTLEROYALE") {
+      setMode("MULTIPLAYER");
+    }
+    if (!flags.usesPlatforms) setSelectedPlatforms([]);
   };
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
@@ -216,13 +268,19 @@ export function CreateTournamentWizard() {
   const goNext = () => {
     if (step === "game") {
       if (!details.GameName) {
-        toast.error("Pick a game to continue");
+        toast.error(
+          catalogKind === GAMES_KIND ? "Pick a game to continue" : "Pick a sport to continue",
+        );
         return;
       }
       setStep("format");
       return;
     }
     if (step === "format") {
+      if (rosterCount < 1 || rosterCount > 32) {
+        toast.error("Choose how many players each team has");
+        return;
+      }
       setStep("rules");
       return;
     }
@@ -248,7 +306,7 @@ export function CreateTournamentWizard() {
       Payment: payment,
       Currency: payment === "FREE" ? "USD" : currency,
       TournamentMode: mode,
-      Team: team,
+      Team: teamSizeFromRoster(rosterCount),
       Shuffle: shuffle,
       Name: details.Name,
       GameName: details.GameName,
@@ -256,7 +314,9 @@ export function CreateTournamentWizard() {
       TournamentSize: details.TournamentSize,
       Date: details.Date,
       Note: details.Note,
-      Platform: joinPlatforms(selectedPlatforms),
+      Platform: kindFlags.usesPlatforms
+        ? joinPlatforms(selectedPlatforms)
+        : "",
       Amount:
         payment === "SPONSORED"
           ? prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
@@ -273,7 +333,7 @@ export function CreateTournamentWizard() {
       OwnerCanSelectQualifiers: mode === "GROUPS" ? pickQualifiers : false,
       PointSystem:
         mode === "LEAGUE" || mode === "GROUPS"
-          ? { Win: pointsWin, Draw: pointsDraw }
+          ? { Win: pointsWin, Draw: allowDraw ? pointsDraw : 0 }
           : undefined,
       KnockoutFormat:
         mode === "MULTIPLAYER" || mode === "GROUPS" ? knockoutFormat : "SINGLE",
@@ -302,6 +362,16 @@ export function CreateTournamentWizard() {
       CheckInCloses: checkInCloses,
       FirstMatchAt: firstMatchAt,
       MatchIntervalMinutes: matchInterval,
+      CatalogKind: catalogKind,
+      FormatName: selectedFormat?.label ?? "",
+      RosterCount: rosterCount,
+      AllowDraw: allowDraw,
+      ScoreLabel: scoreLabel,
+      VenueCountry: kindFlags.usesVenue ? locationCountry : "",
+      VenueCity: kindFlags.usesVenue ? locationCity.trim() : "",
+      Venues: kindFlags.usesVenue
+        ? venues.filter((v) => v.location.trim())
+        : [],
     };
     const result = await saveTournamentAction(payload);
     setLoading(false);
@@ -318,9 +388,10 @@ export function CreateTournamentWizard() {
     }
   };
 
-  const selectedGame = gamesList.find((g) => g.name === details.GameName);
   const modeLabel = MODES.find((m) => m.value === mode)?.label ?? mode;
-  const teamLabel = TEAM_SIZES.find((t) => t.value === team)?.label ?? team;
+  const teamLabel = selectedFormat
+    ? `${selectedFormat.label} · ${rosterCount}`
+    : `${rosterCount} per team`;
   const heroSrc = details.GameName
     ? details.icon || selectedGame?.image || FALLBACKS.tournament
     : "";
@@ -328,6 +399,7 @@ export function CreateTournamentWizard() {
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)]">
+      <PageTour tour={CREATE_TOURS[step]} />
       <section className="create-hud-head relative overflow-hidden border-b border-primary/20 bg-primary-panel">
         {heroSrc ? (
           <>
@@ -344,7 +416,7 @@ export function CreateTournamentWizard() {
             <div className="absolute inset-0 bg-linear-to-t from-black via-black/70 to-black/30" />
           </>
         ) : null}
-        <div className="relative z-1 mx-auto max-w-6xl px-5 py-8">
+        <div className="relative z-1 mx-auto max-w-6xl px-page py-8">
           <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-primary">
             Host terminal
           </p>
@@ -355,7 +427,10 @@ export function CreateTournamentWizard() {
             Lock in the game, format, and rules, then launch the lobby.
           </p>
 
-          <ol className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <ol
+            className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4"
+            {...helpTarget("create-steps")}
+          >
             {STEPS.map((item, index) => {
               const done = index < stepIndex;
               const active = item.id === step;
@@ -408,16 +483,18 @@ export function CreateTournamentWizard() {
         </div>
       </section>
 
-      <section className="relative mx-auto grid max-w-6xl gap-8 px-5 py-10 lg:grid-cols-[1fr_16rem]">
+      <section className="relative mx-auto grid max-w-6xl gap-8 px-page py-10 lg:grid-cols-[1fr_16rem]">
         <div key={catalogReady ? step : "boot"} className="create-step min-w-0">
           {!catalogReady ? (
             <Loader label="Loading games" />
           ) : step === "game" ? (
             <GameStep
-              games={gamesList}
+              games={gamesForKind}
+              kinds={kinds}
+              catalogKind={catalogKind}
+              onKind={switchKind}
               loaded={gamesLoaded}
               selected={details.GameName}
-              isAdmin={user?.user_type === "ADMIN"}
               covers={covers}
               onPick={(game) => {
                 if (details.GameName === game.name) {
@@ -432,8 +509,41 @@ export function CreateTournamentWizard() {
           {step === "format" ? (
             <div className="flex flex-col gap-8">
               <SectionTitle kicker="Loadout" title="How do they compete?" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {MODES.map((item, i) => (
+              {((selectedGame?.formats ?? []).length > 0) ? (
+                <div {...helpTarget("create-pitch-format")}>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                    Format
+                  </p>
+                  <p className="mb-3 text-sm text-body">
+                    Optional preset. You still set how many players sit on a
+                    team.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {(selectedGame?.formats ?? []).map((row) => (
+                      <ChoiceChip
+                        key={row.id}
+                        label={`${row.label} · ${row.roster}`}
+                        active={
+                          (selectedFormat?.id ?? formatId) === row.id
+                        }
+                        onClick={() => {
+                          setFormatId(row.id);
+                          setRosterCount(row.roster);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div
+                className="grid gap-3 sm:grid-cols-2"
+                {...helpTarget("create-modes")}
+              >
+                {MODES.filter(
+                  (item) =>
+                    item.value !== "BATTLEROYALE" ||
+                    kindFlags.usesBattleRoyale,
+                ).map((item, i) => (
                   <ChoiceTile
                     key={item.value}
                     delay={i}
@@ -475,7 +585,8 @@ export function CreateTournamentWizard() {
                     Points
                   </p>
                   <p className="mb-3 text-sm text-body">
-                    How the table scores a win and a draw. A loss is always 0.
+                    How the table scores a win{allowDraw ? " and a draw" : ""}.
+                    A loss is always 0.
                   </p>
                   <div className="grid max-w-md gap-4 sm:grid-cols-2">
                     <Input
@@ -488,6 +599,7 @@ export function CreateTournamentWizard() {
                         setPointsWin(Math.max(0, Number(e.target.value) || 0))
                       }
                     />
+                    {allowDraw ? (
                     <Input
                       type="number"
                       min={0}
@@ -498,6 +610,7 @@ export function CreateTournamentWizard() {
                         setPointsDraw(Math.max(0, Number(e.target.value) || 0))
                       }
                     />
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -702,25 +815,23 @@ export function CreateTournamentWizard() {
                   />
                 </div>
               ) : null}
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                  Roster
-                </p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {TEAM_SIZES.map((item, i) => (
-                    <ChoiceTile
-                      key={item.value}
-                      delay={i}
-                      title={item.label}
-                      blurb={item.blurb}
-                      active={team === item.value}
-                      glyph={<RosterGlyph seats={item.seats} />}
-                      onClick={() => setTeam(item.value)}
-                    />
-                  ))}
-                </div>
+              <div className="max-w-xs" {...helpTarget("create-roster")}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={32}
+                  label="Players per team"
+                  value={rosterCount}
+                  onChange={(e) => {
+                    const next = Math.max(
+                      1,
+                      Math.min(32, Number(e.target.value) || 1),
+                    );
+                    setRosterCount(next);
+                  }}
+                />
               </div>
-              <div>
+              <div {...helpTarget("create-draw")}>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   Draw
                 </p>
@@ -746,7 +857,7 @@ export function CreateTournamentWizard() {
                 kicker="Access"
                 title="Who gets in, and the stakes"
               />
-              <div>
+              <div {...helpTarget("create-access")}>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   Who can register
                 </p>
@@ -766,7 +877,7 @@ export function CreateTournamentWizard() {
                   />
                 </div>
               </div>
-              <div>
+              <div {...helpTarget("create-entry")}>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   Entry
                 </p>
@@ -780,15 +891,15 @@ export function CreateTournamentWizard() {
                   <ChoiceTile
                     title="Paid"
                     blurb={`Players pay to join. ${feePercent()}% platform fee. Rest held for prizes.`}
-                    active={payment === "PAID"}
-                    onClick={() => setPayment("PAID")}
+                    active={false}
+                    soon
                     delay={1}
                   />
                   <ChoiceTile
                     title="Sponsored"
                     blurb={`You fund the prize board plus ${feePercent()}% at launch.`}
-                    active={payment === "SPONSORED"}
-                    onClick={() => setPayment("SPONSORED")}
+                    active={false}
+                    soon
                     delay={2}
                   />
                 </div>
@@ -1004,6 +1115,7 @@ export function CreateTournamentWizard() {
                   </li>
                 ))}
               </ul>
+              <div {...helpTarget("create-identity")}>
               {orgs.length > 0 ? (
                 <Select
                   label="Host as"
@@ -1060,8 +1172,7 @@ export function CreateTournamentWizard() {
                   min={2}
                   required
                 />
-                <Input
-                  type="date"
+                <DateInput
                   label="Date"
                   value={details.Date}
                   onChange={(e) =>
@@ -1070,15 +1181,14 @@ export function CreateTournamentWizard() {
                   required
                 />
               </div>
+              </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Input
-                  type="date"
+                <DateInput
                   label="Registration closes (optional)"
                   value={registrationDeadline}
                   onChange={(e) => setRegistrationDeadline(e.target.value)}
                 />
-                <Input
-                  type="datetime-local"
+                <DateTimeInput
                   label="First match (optional)"
                   value={firstMatchAt}
                   onChange={(e) => setFirstMatchAt(e.target.value)}
@@ -1094,8 +1204,7 @@ export function CreateTournamentWizard() {
                     setMatchInterval(Math.max(0, Number(e.target.value) || 0))
                   }
                 />
-                <Input
-                  type="date"
+                <DateInput
                   label="Check-in closes (optional)"
                   value={checkInCloses}
                   onChange={(e) => setCheckInCloses(e.target.value)}
@@ -1119,6 +1228,19 @@ export function CreateTournamentWizard() {
                   />
                 </div>
               </div>
+              {kindFlags.usesVenue ? (
+                <div {...helpTarget("create-venues")}>
+                  <PlaceEditor
+                    country={locationCountry}
+                    city={locationCity}
+                    onCountry={setLocationCountry}
+                    onCity={setLocationCity}
+                    venues={venues}
+                    onVenues={setVenues}
+                  />
+                </div>
+              ) : null}
+              {kindFlags.usesPlatforms ? (
               <div>
                 <MultiSelect
                   label="Platforms"
@@ -1150,6 +1272,7 @@ export function CreateTournamentWizard() {
                   </p>
                 ) : null}
               </div>
+              ) : null}
               <TextArea
                 label="Briefing / rules"
                 rows={4}
@@ -1179,12 +1302,15 @@ export function CreateTournamentWizard() {
                   ? "."
                   : ` and the ${feePercent()}% platform fee on held funds.`}
               </p>
-              <div className="create-action-bar flex flex-wrap gap-3">
+              <div
+                className="create-action-bar flex flex-wrap gap-3"
+                {...helpTarget("create-launch")}
+              >
                 <Button type="button" variant="dark" onClick={goBack}>
                   Back
                 </Button>
                 <Button type="submit" loading={loading}>
-                  Launch tournament
+                  {payment === "SPONSORED" ? "Pay and launch" : "Launch lobby"}
                 </Button>
               </div>
             </form>
@@ -1226,13 +1352,28 @@ export function CreateTournamentWizard() {
                   Loadout
                 </p>
                 <p className="truncate font-display text-xl text-white">
-                  {details.GameName || "No game locked"}
+                  {details.GameName || "Nothing locked"}
                 </p>
               </div>
             </div>
             <ul className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-4 text-sm lg:grid-cols-1">
               <LoadoutRow label="Format" value={modeLabel} />
               <LoadoutRow label="Roster" value={teamLabel} />
+              {kindFlags.usesVenue &&
+              venueLabel({
+                VenueCountry: locationCountry,
+                VenueCity: locationCity,
+                Venues: venues,
+              }) ? (
+                <LoadoutRow
+                  label="Place"
+                  value={venueLabel({
+                    VenueCountry: locationCountry,
+                    VenueCity: locationCity,
+                    Venues: venues,
+                  })}
+                />
+              ) : null}
               <LoadoutRow
                 label="Access"
                 value={type === "PUBLIC" ? "Anyone can join" : "Invite only"}
@@ -1276,7 +1417,11 @@ export function CreateTournamentWizard() {
               {mode === "LEAGUE" || mode === "GROUPS" ? (
                 <LoadoutRow
                   label="Points"
-                  value={`${pointsWin} / ${pointsDraw}`}
+                  value={
+                    allowDraw
+                      ? `${pointsWin} / ${pointsDraw}`
+                      : `${pointsWin} win`
+                  }
                 />
               ) : null}
               {mode === "GROUPS" ? (
@@ -1343,23 +1488,28 @@ function ChoiceTile({
   onClick,
   delay = 0,
   glyph,
+  soon = false,
 }: {
   title: string;
   blurb: string;
   active: boolean;
-  onClick: () => void;
+  onClick?: () => void;
   delay?: number;
   glyph?: ReactNode;
+  soon?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      disabled={soon}
+      onClick={soon ? undefined : onClick}
       style={{ animationDelay: `${delay * 60}ms` }}
       className={`create-tile create-hud-tile rounded-2xl border px-5 py-4 text-left transition-colors ${
-        active
-          ? "is-on border-primary bg-primary/15"
-          : "border-surface-2 bg-surface hover:border-primary/40"
+        soon
+          ? "cursor-not-allowed border-surface-2 bg-surface/60 opacity-60"
+          : active
+            ? "is-on border-primary bg-primary/15"
+            : "border-surface-2 bg-surface hover:border-primary/40"
       }`}
     >
       {glyph ? (
@@ -1371,11 +1521,20 @@ function ChoiceTile({
           {glyph}
         </span>
       ) : null}
-      <p
-        className={`font-display text-xl leading-none ${active ? "text-primary" : "text-white"}`}
-      >
-        {title}
-      </p>
+      <span className="flex flex-wrap items-center gap-2">
+        <span
+          className={`font-display text-xl leading-none ${
+            soon ? "text-white/70" : active ? "text-primary" : "text-white"
+          }`}
+        >
+          {title}
+        </span>
+        {soon ? (
+          <span className="rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
+            Coming soon
+          </span>
+        ) : null}
+      </span>
       <p className="mt-2 text-sm text-body">{blurb}</p>
     </button>
   );
@@ -1432,33 +1591,61 @@ function arenaGames(games: Game[], selected: string, query: string): Game[] {
 
 function GameStep({
   games,
+  kinds,
+  catalogKind,
+  onKind,
   loaded,
   selected,
-  isAdmin,
   covers,
   onPick,
 }: {
   games: Game[];
+  kinds: CatalogKind[];
+  catalogKind: string;
+  onKind: (slug: string) => void;
   loaded: boolean;
   selected: string;
-  isAdmin: boolean;
   covers: { id: string; label: string; url: string }[];
   onPick: (game: Game) => void;
 }) {
   const [query, setQuery] = useState("");
   const searching = query.trim().length > 0;
   const shown = arenaGames(games, selected, query);
+  const kindLabel =
+    kinds.find((k) => k.slug === catalogKind)?.label ?? "Games";
+  const noun = catalogKind === GAMES_KIND ? "game" : kindLabel.toLowerCase();
 
   return (
     <div>
-      <SectionTitle kicker="Arena" title="Choose your arena" />
+      <SectionTitle
+        kicker="Catalog"
+        title={
+          catalogKind === GAMES_KIND
+            ? "Choose a game"
+            : catalogKind === SPORTS_KIND
+              ? "Choose a sport"
+              : `Choose ${kindLabel.toLowerCase()}`
+        }
+      />
+      {kinds.length > 1 ? (
+        <div className="mt-6 flex flex-wrap gap-2" {...helpTarget("create-kinds")}>
+          {kinds.map((kind) => (
+            <ChoiceChip
+              key={kind.slug}
+              label={kind.label}
+              active={catalogKind === kind.slug}
+              onClick={() => onKind(kind.slug)}
+            />
+          ))}
+        </div>
+      ) : null}
       {loaded && games.length > 0 ? (
         <div className="mt-6 max-w-md">
           <Input
-            placeholder="Search any game"
+            placeholder={`Search ${noun}s`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search any game"
+            aria-label={`Search ${noun}s`}
           />
           {searching || games.length > ARENA_PREVIEW ? (
             <p className="mt-2 text-xs text-body">
@@ -1466,31 +1653,24 @@ function GameStep({
                 ? shown.length === 1
                   ? "1 match."
                   : `${shown.length} matches.`
-                : `Showing ${shown.length} of ${games.length}. Search to find any game.`}
+                : `Showing ${shown.length} of ${games.length}. Search to find any ${noun}.`}
             </p>
           ) : null}
         </div>
       ) : null}
       {!loaded ? (
-        <Loader label="Loading games" />
+        <Loader label={`Loading ${noun}s`} />
       ) : games.length === 0 ? (
         <p className="mt-6 text-sm text-body">
-          {isAdmin ? (
-            <>
-              Add games in Admin → Games:{" "}
-              <Link href="/admin/games" className="text-primary hover:underline">
-                open games
-              </Link>
-              .
-            </>
-          ) : (
-            "No games are listed yet."
-          )}
+          No {noun}s available now.
         </p>
       ) : shown.length === 0 ? (
-        <p className="mt-6 text-sm text-body">No games match that name.</p>
+        <p className="mt-6 text-sm text-body">No {noun}s match that name.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div
+          className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3"
+          {...helpTarget("create-pick")}
+        >
           {shown.map((game, i) => {
             const on = selected === game.name;
             const art = game.image || iconForGame(game.name, covers);
@@ -1603,26 +1783,3 @@ function ModeGlyph({
   );
 }
 
-function RosterGlyph({ seats }: { seats: number }) {
-  const spots =
-    seats === 4
-      ? [
-          [8, 8],
-          [16, 8],
-          [8, 16],
-          [16, 16],
-        ]
-      : seats === 2
-        ? [
-            [8, 12],
-            [16, 12],
-          ]
-        : [[12, 12]];
-  return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      {spots.map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r="3.2" />
-      ))}
-    </svg>
-  );
-}

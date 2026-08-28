@@ -64,6 +64,7 @@ import {
   requireTournamentAdmin,
   requireTournamentManager,
 } from "@/server/auth/tournament";
+import type { BrowseLocation } from "@/lib/venue";
 
 export async function saveTournamentAction(
   input: unknown,
@@ -112,8 +113,10 @@ export async function getTournamentsByModeAction(
   type: string,
   page: number,
   status = "ALL",
+  kind = "ALL",
+  location?: BrowseLocation,
 ): Promise<ActionResult<Paginated<Tournament>>> {
-  return ok(await getTournamentsByMode(payment, type, page, status));
+  return ok(await getTournamentsByMode(payment, type, page, status, kind, location));
 }
 
 export async function getBannerTournamentsAction(): Promise<

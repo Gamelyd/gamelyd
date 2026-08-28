@@ -22,7 +22,7 @@ export const registerTournamentSchema = z.object({
 export type RegisterTournament = z.infer<typeof registerTournamentSchema>;
 
 export const registerTournamentInputSchema = z.object({
-  Players: z.array(playerSchema).min(1),
+  Players: z.array(playerSchema).min(1).max(32),
   TeamName: z.string().min(1),
   Icon: z.string().min(1),
   RefNumber: z.string().optional().default(""),

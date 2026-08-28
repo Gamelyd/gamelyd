@@ -105,6 +105,20 @@ export const pendingSettingChangeSchema = z.object({
 });
 export type PendingSettingChange = z.infer<typeof pendingSettingChangeSchema>;
 
+export const tournamentVenueSchema = z.object({
+  country: z.string().max(2).default(""),
+  location: z.string().max(200).default(""),
+  lat: z.number().default(0),
+  lng: z.number().default(0),
+});
+export type TournamentVenue = z.infer<typeof tournamentVenueSchema>;
+
+export const tournamentVenueInputSchema = z.object({
+  country: z.string().max(2).optional().default(""),
+  location: z.string().max(200).optional().default(""),
+});
+export type TournamentVenueInput = z.infer<typeof tournamentVenueInputSchema>;
+
 export const addAnnouncementInputSchema = z.object({
   Body: z.string().trim().min(1, "Write an announcement").max(2000),
 });
@@ -130,6 +144,11 @@ export const tournamentSchema = z.object({
   OrgName: z.string().default(""),
   OrgIcon: z.string().default(""),
   OrgVerified: z.boolean().default(false),
+  CatalogKind: z.string().default("games"),
+  FormatName: z.string().default(""),
+  RosterCount: z.number().int().min(0).max(32).default(0),
+  AllowDraw: z.boolean().default(true),
+  ScoreLabel: z.enum(["Goals", "Points"]).default("Goals"),
   Active: z.boolean().default(false),
   IsDeleted: z.boolean().default(false),
   IsSuspended: z.boolean().default(false),
@@ -204,6 +223,12 @@ export const tournamentSchema = z.object({
   CheckInCloses: z.string().default(""),
   FirstMatchAt: z.string().default(""),
   MatchIntervalMinutes: z.number().int().min(0).max(24 * 60).default(0),
+  VenueCountry: z.string().default(""),
+  VenueCity: z.string().default(""),
+  VenueLocation: z.string().default(""),
+  VenueLat: z.number().default(0),
+  VenueLng: z.number().default(0),
+  Venues: z.array(tournamentVenueSchema).default([]),
 });
 export type Tournament = z.infer<typeof tournamentSchema>;
 
@@ -253,6 +278,15 @@ export const saveTournamentInputSchema = z.object({
     .max(24 * 60)
     .optional()
     .default(0),
+  CatalogKind: z.string().min(1).max(40).optional().default("games"),
+  FormatName: z.string().max(40).optional().default(""),
+  RosterCount: z.coerce.number().int().min(0).max(32).optional().default(0),
+  AllowDraw: z.boolean().optional().default(true),
+  ScoreLabel: z.enum(["Goals", "Points"]).optional().default("Goals"),
+  VenueCountry: z.string().max(2).optional().default(""),
+  VenueCity: z.string().max(80).optional().default(""),
+  VenueLocation: z.string().max(200).optional().default(""),
+  Venues: z.array(tournamentVenueInputSchema).max(8).optional().default([]),
 });
 export type SaveTournamentInput = z.infer<typeof saveTournamentInputSchema>;
 
@@ -277,6 +311,8 @@ export const editTournamentInputSchema = z
     TournamentType: tournamentTypeSchema.optional(),
     Shuffle: shuffleSchema.optional(),
     TournamentSize: z.coerce.number().int().positive().optional(),
+    Team: teamSizeSchema.optional(),
+    RosterCount: z.coerce.number().int().min(1).max(32).optional(),
     Name: z.string().min(2).max(100).optional(),
     Date: z.string().min(1).optional(),
     Note: z.string().min(1).optional(),
@@ -305,6 +341,10 @@ export const editTournamentInputSchema = z
       .max(24 * 60)
       .optional(),
     icon: z.string().min(1).max(500).optional(),
+    VenueCountry: z.string().max(2).optional(),
+    VenueCity: z.string().max(80).optional(),
+    VenueLocation: z.string().max(200).optional(),
+    Venues: z.array(tournamentVenueInputSchema).max(8).optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: "Nothing to update",
@@ -313,7 +353,7 @@ export type EditTournamentInput = z.infer<typeof editTournamentInputSchema>;
 
 /** Host/admin: register existing users onto a tournament that has not started. */
 export const adminAddParticipantsInputSchema = z.object({
-  userIds: z.array(z.string().min(1)).min(1).max(4),
+  userIds: z.array(z.string().min(1)).min(1).max(32),
   teamName: z.string().max(100).optional().default(""),
   existingTeamName: z.string().max(100).optional().default(""),
 });

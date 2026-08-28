@@ -11,6 +11,9 @@ import {
 } from "@/components/tournament/TournamentCard";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { PageTour } from "@/components/help/PageTour";
+import { DASHBOARD_TOUR } from "@/components/help/tours";
+import { helpTarget } from "@/lib/help";
 
 export function DashboardView({
   profile,
@@ -23,8 +26,9 @@ export function DashboardView({
 }) {
   return (
     <div>
+      <PageTour tour={DASHBOARD_TOUR} />
       <section className="border-b border-primary/20 bg-primary-panel">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-10 lg:py-12 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-page flex-col gap-6 px-page py-10 lg:py-12 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <CatalogAvatar
               userId={profile.user_id}
@@ -48,20 +52,23 @@ export function DashboardView({
             <Link href={`/profile/${profile.user_id}`}>
               <Button variant="outline">View profile</Button>
             </Link>
-            <Link href="/tournament/new">
+            <Link href="/tournament/new" {...helpTarget("dash-create")}>
               <Button>Create tournament</Button>
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-4 px-5 py-10 sm:grid-cols-3">
+      <section className="mx-auto grid max-w-page gap-4 px-page py-10 sm:grid-cols-3">
         <Stat label="Tournaments created" value={created.length} />
         <Stat label="Tournaments joined" value={registered.length} />
         <Stat label="Country" value={profile.country || "-"} />
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-12">
+      <section
+        className="mx-auto max-w-page px-page pb-12"
+        {...helpTarget("dash-hosted")}
+      >
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <h2 className="font-display text-2xl text-white">
             Tournaments you created
@@ -87,7 +94,10 @@ export function DashboardView({
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-16">
+      <section
+        className="mx-auto max-w-page px-page pb-16"
+        {...helpTarget("dash-joined")}
+      >
         <h2 className="mb-6 font-display text-2xl text-white">
           Tournaments you joined
         </h2>

@@ -5,6 +5,7 @@ import {
   TournamentDisplay,
   EmptyTournamentDisplay,
 } from "@/components/tournament/TournamentDisplay";
+import { helpTarget } from "@/lib/help";
 
 const FORMAT_JUMPS: { label: string; href: string; blurb: string }[] = [
   {
@@ -37,7 +38,7 @@ const FORMAT_JUMPS: { label: string; href: string; blurb: string }[] = [
 export function Hero({ banner }: { banner: Tournament[] }) {
   return (
     <section className="create-hud-head border-b border-primary/20 bg-primary-panel">
-      <div className="mx-auto max-w-7xl px-5 py-10 lg:py-14">
+      <div className="mx-auto max-w-page px-page py-10 lg:py-14">
         <div className="grid gap-8 lg:grid-cols-[1fr_17rem]">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-primary">
@@ -51,7 +52,7 @@ export function Hero({ banner }: { banner: Tournament[] }) {
               scores in one place: leagues, groups, knockouts, and battle
               royale lobbies. Paid pots stay held until the event ends.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3" {...helpTarget("home-hero")}>
               <Link href="/tournament/all/ALL/ALL">
                 <Button>Browse tournaments</Button>
               </Link>

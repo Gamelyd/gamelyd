@@ -4,6 +4,7 @@ import type { Game } from "@/lib/schemas/game";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { GamesCarousel } from "@/components/home/GamesCarousel";
+import { helpTarget } from "@/lib/help";
 
 export function SectionHead({
   kicker,
@@ -34,7 +35,7 @@ export function HowItWorks() {
     {
       n: "01",
       title: "Create the event",
-      body: "Pick a game, platform, team size, and format. Set the date, prize, and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
+      body: "Pick a game or a sport, then the format. Set the date, prize, and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
     },
     {
       n: "02",
@@ -55,8 +56,9 @@ export function HowItWorks() {
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
+          <div {...helpTarget("home-how")}>
           <SectionHead
             kicker="How it works"
             title="From lobby to final"
@@ -79,6 +81,7 @@ export function HowItWorks() {
                 </p>
               </article>
             ))}
+          </div>
           </div>
         </Reveal>
       </div>
@@ -104,7 +107,7 @@ export function MoneyAndSafety() {
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead
             kicker="Money and play"
@@ -160,7 +163,7 @@ export function Formats() {
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead
             kicker="Formats"
@@ -193,21 +196,35 @@ export function Formats() {
   );
 }
 
-export function GamesStrip({ games }: { games: Game[] }) {
+export function GamesStrip({
+  games,
+  kicker = "Titles",
+  title = "Games you can host",
+  description = "Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC.",
+  href = "/games",
+  moreLabel = "View more",
+}: {
+  games: Game[];
+  kicker?: string;
+  title?: string;
+  description?: string;
+  href?: string;
+  moreLabel?: string;
+}) {
   if (games.length === 0) return null;
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
             <SectionHead
-              kicker="Titles"
-              title="Games you can host"
-              description="Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC."
+              kicker={kicker}
+              title={title}
+              description={description}
             />
-            <Link href="/games">
-              <Button variant="outline">View more</Button>
+            <Link href={href}>
+              <Button variant="outline">{moreLabel}</Button>
             </Link>
           </div>
           <GamesCarousel games={games} />
@@ -220,7 +237,7 @@ export function GamesStrip({ games }: { games: Game[] }) {
 export function Audience() {
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <div className="grid gap-4 lg:grid-cols-2">
             <article className="arena-panel arena-hud-corners p-5 sm:p-6">
@@ -316,7 +333,7 @@ export function HomeFaq() {
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead kicker="Questions" title="Before you create or join" />
           <dl className="mt-10 grid gap-4 md:grid-cols-2">

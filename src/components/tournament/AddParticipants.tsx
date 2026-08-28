@@ -19,6 +19,7 @@ const NEW_TEAM = "";
 export function AddParticipants({
   tournamentId,
   teamSize,
+  rosterCount = 0,
   started,
   participants,
   existingUserIds,
@@ -26,13 +27,14 @@ export function AddParticipants({
 }: {
   tournamentId: string;
   teamSize: TeamSize;
+  rosterCount?: number;
   started: boolean;
   participants: RegisterTournament[];
   existingUserIds: string[];
   onAdded: (registration: RegisterTournament) => void;
 }) {
   const toast = useToast();
-  const needed = rosterSize(teamSize);
+  const needed = rosterSize(teamSize, rosterCount);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<User[]>([]);
   const [picked, setPicked] = useState<User[]>([]);
@@ -97,9 +99,7 @@ export function AddParticipants({
     }
     if (users.length > needed - filled) {
       toast.error(
-        `This ${teamSize.toLowerCase()} team only has ${needed - filled} spot${
-          needed - filled === 1 ? "" : "s"
-        } left.`,
+        `A team cannot have more than ${needed} player${needed === 1 ? "" : "s"}. ${needed - filled} spot${needed - filled === 1 ? "" : "s"} left.`,
       );
       return;
     }
@@ -133,8 +133,6 @@ export function AddParticipants({
     );
   }
 
-  const sizeWord =
-    teamSize === "SQUAD" ? "squad" : teamSize === "DUO" ? "duo" : "solo";
   const addingToExisting = Boolean(target);
   const canSubmit = picked.length > 0 && spotsLeft >= 0;
 
@@ -224,10 +222,10 @@ export function AddParticipants({
 
       <p className="text-xs text-body">
         {needed === 1
-          ? "Solo event. Pick a user to add them as their own team."
+          ? "The host set 1 player per team. Pick a user to add them as their own team."
           : addingToExisting
-            ? `Adding to ${target}. ${spotsLeft} of ${needed} ${sizeWord} spots left after this pick (${picked.length} selected).`
-            : `New ${sizeWord}: add 1-${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected).`}
+            ? `Adding to ${target}. ${spotsLeft} of ${needed} spots left after this pick (${picked.length} selected). A team cannot have more than ${needed} players.`
+            : `New team: add 1–${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected). A team cannot have more than ${needed} players.`}
       </p>
 
       {needed > 1 || picked.length > 0 ? (

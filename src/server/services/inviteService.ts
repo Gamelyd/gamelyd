@@ -23,7 +23,7 @@ import {
   tournamentInviteEmail,
 } from "../email/templates";
 import type { InviteTournament } from "@/lib/schemas/misc";
-import { rosterSize } from "@/lib/schemas/common";
+import { rosterOverCapMessage, rosterSize } from "@/lib/schemas/common";
 import { playerIconForUser } from "./iconService";
 
 function pendingForUser(userId: string): Filter<InviteTournamentDoc> {
@@ -201,7 +201,7 @@ export async function inviteToTeam(
   if (tournament.Start) {
     throw new ServiceError("Registration is closed");
   }
-  const needed = rosterSize(tournament.Team);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
   if (needed < 2) {
     throw new ServiceError("Solo events do not use team invites");
   }
@@ -221,7 +221,7 @@ export async function inviteToTeam(
     throw new ServiceError("Only the player who registered the team can invite");
   }
   if (team.Players.length >= needed) {
-    throw new ServiceError("This roster is already full");
+    throw new ServiceError(rosterOverCapMessage(needed));
   }
 
   const invitee = await findUserByHandle(usernameOrEmail);
@@ -258,7 +258,7 @@ export async function inviteToTeam(
     status: { $nin: ["ACCEPTED", "DECLINED"] },
   });
   if (team.Players.length + pendingOnTeam >= needed) {
-    throw new ServiceError("No roster spots left to invite");
+    throw new ServiceError(rosterOverCapMessage(needed));
   }
 
   return insertInvite({
@@ -501,7 +501,7 @@ export async function acceptInviteById(
   if (!tournament) throw new ServiceError("Tournament not found");
 
   if (invite.kind === "TEAM") {
-    const needed = rosterSize(tournament.Team);
+    const needed = rosterSize(tournament.Team, tournament.RosterCount);
     const ids = await relatedTournamentIds(invite.tournament_id);
     const rCol = await registrations();
     const team = invite.register_id
@@ -518,7 +518,7 @@ export async function acceptInviteById(
         );
     const filled = (team?.Players ?? []).length;
     if (!team || filled >= needed) {
-      await bounceInvite(doc, "Tournament full");
+      await bounceInvite(doc, rosterOverCapMessage(needed));
     }
     const invitee = await getUserById(userId);
     if (!invitee) throw new ServiceError("User not found");
@@ -534,9 +534,9 @@ export async function acceptInviteById(
     } catch (error) {
       if (
         error instanceof ServiceError &&
-        /spot|full|at most/i.test(error.message)
+        /spot|full|at most|cannot have more/i.test(error.message)
       ) {
-        await bounceInvite(doc, "Tournament full");
+        await bounceInvite(doc, rosterOverCapMessage(needed));
       }
       throw error;
     }

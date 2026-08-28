@@ -29,11 +29,15 @@ export function Select({
         {...rest}
         className={`w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary ${error ? "border-lose" : ""} ${className}`}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-input">
-            {o.label}
-          </option>
-        ))}
+        {options
+          .filter(
+            (o, i, all) => all.findIndex((item) => item.value === o.value) === i,
+          )
+          .map((o) => (
+            <option key={o.value} value={o.value} className="bg-input">
+              {o.label}
+            </option>
+          ))}
       </select>
       {error && <span className="mt-1 block text-xs text-lose">{error}</span>}
     </label>

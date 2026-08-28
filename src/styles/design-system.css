@@ -33,6 +33,10 @@
   --ds-text-muted: #b8c0c8;
   --ds-text-label: #c5ccd3;
 
+  /* Centered column. Caps so 4K / ultrawide keep the same rhythm. */
+  --ds-page-max: 80rem;
+  --ds-page-gutter: 1.25rem;
+
   --ds-win: #46e96f;
   --ds-win-deep: #137c56;
   --ds-lose: #e94654;
@@ -43,4 +47,17 @@
   --ds-magenta: #d01966;
   --ds-purple: #7f56d9;
   --ds-purple-soft: #d6bbfb;
+}
+
+@media (min-width: 80rem) {
+  :root {
+    --ds-page-gutter: 1.5rem;
+  }
+}
+
+@media (min-width: 100rem) {
+  :root {
+    --ds-page-max: 90rem;
+    --ds-page-gutter: 2rem;
+  }
 }

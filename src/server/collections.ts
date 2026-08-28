@@ -16,6 +16,7 @@ export const Collections = {
   orgMember: "orgMember",
   orgInvite: "orgInvite",
   game: "game",
+  catalogKind: "catalogKind",
   platform: "platform",
   icon: "icon",
   payment: "payment",

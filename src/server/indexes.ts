@@ -34,6 +34,12 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
     { key: { payment: 1, tournamentmode: 1, isdeleted: 1, _id: -1 } },
     { key: { Payment: 1, IsDeleted: 1, _id: -1 } },
     { key: { payment: 1, isdeleted: 1, _id: -1 } },
+    { key: { CatalogKind: 1, IsDeleted: 1, _id: -1 } },
+    { key: { catalogkind: 1, isdeleted: 1, _id: -1 } },
+    { key: { VenueCountry: 1, IsDeleted: 1 } },
+    { key: { "Venues.Country": 1, IsDeleted: 1 } },
+    { key: { VenueGeo: "2dsphere" } },
+    { key: { "Venues.Geo": "2dsphere" } },
   ],
   [Collections.registerTournament]: [
     { key: { TournamentId: 1 } },
@@ -81,6 +87,11 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
   [Collections.game]: [
     { key: { game_id: 1 } },
     { key: { active: 1, name: 1 } },
+    { key: { kind: 1, active: 1, name: 1 } },
+  ],
+  [Collections.catalogKind]: [
+    { key: { slug: 1 }, unique: true },
+    { key: { sort: 1, label: 1 } },
   ],
   [Collections.platform]: [
     { key: { platform_id: 1 } },

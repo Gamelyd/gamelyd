@@ -27,7 +27,11 @@ export function GameTile({
         <p className="truncate font-display text-lg leading-none text-white">
           {game.name}
         </p>
-        {game.platforms.length > 0 ? (
+        {game.formats?.length ? (
+          <p className="mt-1 truncate text-[11px] text-body">
+            {game.formats.map((row) => row.label).join(" · ")}
+          </p>
+        ) : game.platforms.length > 0 ? (
           <p className="mt-1 truncate text-[11px] text-body">
             {game.platforms.join(" · ")}
           </p>

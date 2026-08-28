@@ -283,6 +283,7 @@ export default function AdminTournamentManagePage() {
         <AddParticipants
           tournamentId={tournament.TournamentId || id}
           teamSize={tournament.Team}
+          rosterCount={tournament.RosterCount}
           started={tournament.Start}
           participants={participants}
           existingUserIds={participants.flatMap((p) =>

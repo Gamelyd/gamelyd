@@ -21,7 +21,7 @@ export default async function AdminDashboardPage() {
     { label: "Tournaments", value: stats.tournaments, href: "/admin/tournaments" },
     { label: "Registrations", value: stats.registrations },
     { label: "Organizations", value: stats.orgs, href: "/admin/orgs" },
-    { label: "Games", value: stats.games, href: "/admin/games" },
+    { label: "Catalog", value: stats.games, href: "/admin/games" },
     { label: "Active games", value: stats.activeGames, href: "/admin/games" },
   ];
 
@@ -59,7 +59,7 @@ export default async function AdminDashboardPage() {
           href="/admin/games"
           className="rounded-lg bg-surface-3 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-surface-2"
         >
-          Manage games
+          Manage catalog
         </Link>
         <Link
           href="/admin/platforms"

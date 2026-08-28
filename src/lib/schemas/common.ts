@@ -33,11 +33,21 @@ export type TournamentMode = z.infer<typeof tournamentModeSchema>;
 export const teamSizeSchema = z.enum(["SINGLE", "DUO", "SQUAD"]);
 export type TeamSize = z.infer<typeof teamSizeSchema>;
 
-/** Players required on a registered team for each tournament team size. */
-export function rosterSize(team: string): number {
+/** Players allowed on a registered team (host-selected count, else Solo/Duo/Squad). */
+export function rosterSize(team: string, rosterCount = 0): number {
+  if (typeof rosterCount === "number" && rosterCount > 0) return rosterCount;
   if (team === "DUO") return 2;
   if (team === "SQUAD") return 4;
   return 1;
+}
+
+export function rosterOverCapMessage(needed: number): string {
+  return `A team cannot have more than ${needed} player${needed === 1 ? "" : "s"}`;
+}
+
+export function rosterSpotsLeftMessage(left: number, needed: number): string {
+  if (left <= 0) return rosterOverCapMessage(needed);
+  return `This team only has ${left} spot${left === 1 ? "" : "s"} left (max ${needed} players)`;
 }
 
 export const shuffleSchema = z.enum(["MANUAL", "AUTOMATIC"]);

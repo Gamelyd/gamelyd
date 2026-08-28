@@ -25,7 +25,7 @@ export function CreateOrgBanner() {
 
   return (
     <div className="border-b border-primary/20 bg-primary-panel">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3">
+      <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-3 px-page py-3">
         <p className="text-sm text-white">
           You don&apos;t belong to an organization yet. Create one to host
           tournaments under your brand.

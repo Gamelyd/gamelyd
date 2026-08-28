@@ -74,7 +74,7 @@ export function OrgView({
   return (
     <div>
       <section className="border-b border-primary/20 bg-primary-panel">
-        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-5 py-10 lg:py-12 sm:flex-row sm:items-center">
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-page py-10 lg:py-12 sm:flex-row sm:items-center">
           <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-primary/25 bg-black/30">
             {current.image ? (
               <Image
@@ -115,7 +115,7 @@ export function OrgView({
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-6xl gap-10 px-5 py-10 lg:grid-cols-3">
+      <section className="mx-auto grid max-w-6xl gap-10 px-page py-10 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-2xl text-white">

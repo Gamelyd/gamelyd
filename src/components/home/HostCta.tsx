@@ -6,7 +6,7 @@ import { Reveal } from "@/components/ui/Reveal";
 export function HostCta() {
   return (
     <section className="create-hud-head border-y border-primary/20 bg-primary-panel">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">

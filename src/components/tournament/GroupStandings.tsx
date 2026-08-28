@@ -8,6 +8,7 @@ import {
   qualifierForTeam,
   resolvedQualifyingNames,
 } from "@/lib/groupQualifiers";
+import { scoreColumnLabels } from "@/lib/catalog";
 
 export type GroupStandingSection = {
   name: string;
@@ -20,12 +21,16 @@ export function GroupStandings({
   qualifiers = [],
   manualSelection = false,
   disqualifiedTeams = [],
+  scoreLabel = "Goals",
+  allowDraw = true,
 }: {
   sections: GroupStandingSection[];
   advancePerGroup: number;
   qualifiers?: GroupQualifier[];
   manualSelection?: boolean;
   disqualifiedTeams?: string[];
+  scoreLabel?: "Goals" | "Points";
+  allowDraw?: boolean;
 }) {
   if (sections.length === 0) {
     return (
@@ -55,6 +60,8 @@ export function GroupStandings({
             qualifiers={qualifiers}
             manualSelection={manualSelection}
             disqualifiedTeams={disqualifiedTeams}
+            scoreLabel={scoreLabel}
+            allowDraw={allowDraw}
           />
         ))}
       </div>
@@ -68,12 +75,16 @@ function GroupTable({
   qualifiers,
   manualSelection,
   disqualifiedTeams,
+  scoreLabel,
+  allowDraw,
 }: {
   section: GroupStandingSection;
   advancePerGroup: number;
   qualifiers: GroupQualifier[];
   manualSelection: boolean;
   disqualifiedTeams: string[];
+  scoreLabel: "Goals" | "Points";
+  allowDraw: boolean;
 }) {
   const dq = asDisqualifiedSet(disqualifiedTeams);
   const through = new Set(
@@ -86,6 +97,7 @@ function GroupTable({
       manualSelection,
     ),
   );
+  const cols = scoreColumnLabels(scoreLabel);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-surface-2 bg-surface">
@@ -102,9 +114,11 @@ function GroupTable({
               <th className="px-3 py-2.5 font-medium">Team</th>
               <th className="px-2 py-2.5 text-center font-medium">P</th>
               <th className="px-2 py-2.5 text-center font-medium">W</th>
-              <th className="px-2 py-2.5 text-center font-medium">D</th>
+              {allowDraw ? (
+                <th className="px-2 py-2.5 text-center font-medium">D</th>
+              ) : null}
               <th className="px-2 py-2.5 text-center font-medium">L</th>
-              <th className="px-2 py-2.5 text-center font-medium">GD</th>
+              <th className="px-2 py-2.5 text-center font-medium">{cols.diff}</th>
               <th className="px-3 py-2.5 text-right font-medium">Pts</th>
             </tr>
           </thead>
@@ -178,9 +192,11 @@ function GroupTable({
                   <td className="px-2 py-2.5 text-center text-body">
                     {row.Won}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-body">
-                    {row.Drawn}
-                  </td>
+                  {allowDraw ? (
+                    <td className="px-2 py-2.5 text-center text-body">
+                      {row.Drawn}
+                    </td>
+                  ) : null}
                   <td className="px-2 py-2.5 text-center text-body">
                     {row.Lost}
                   </td>

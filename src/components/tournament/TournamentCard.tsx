@@ -9,10 +9,31 @@ import {
   tournamentBrowsePhase,
 } from "@/lib/tournamentStatus";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import {
+  catalogSubtitle,
+  GAMES_KIND,
+  kindPublicLabel,
+} from "@/lib/catalog";
+import {
+  formatDistanceKm,
+  nearestVenueKm,
+  venueLabel,
+} from "@/lib/venue";
 
-export function TournamentCard({ tournament }: { tournament: Tournament }) {
+export function TournamentCard({
+  tournament,
+  from,
+}: {
+  tournament: Tournament;
+  from?: { lat: number; lng: number };
+}) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
   const phase = tournamentBrowsePhase(tournament);
+  const kindSlug = tournament.CatalogKind || GAMES_KIND;
+  const kindLabel = kindPublicLabel(kindSlug);
+  const venue = venueLabel(tournament);
+  const km = from ? nearestVenueKm(tournament, from) : null;
+  const distance = km != null ? formatDistanceKm(km) : "";
 
   return (
     <Link
@@ -39,6 +60,11 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
         <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
           {BROWSE_STATUS_LABEL[phase]}
         </span>
+        {kindSlug !== GAMES_KIND ? (
+          <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+            {kindLabel}
+          </span>
+        ) : null}
       </div>
 
       {tournament.OrgId && tournament.OrgName && (
@@ -65,8 +91,13 @@ export function TournamentCard({ tournament }: { tournament: Tournament }) {
           {tournament.Name}
         </span>
         <span className="line-clamp-1 font-body text-xs text-body">
-          {tournament.GameName}
+          {catalogSubtitle(tournament)}
         </span>
+        {venue ? (
+          <span className="line-clamp-1 font-body text-xs text-white/70">
+            {distance ? `${distance} · ${venue}` : venue}
+          </span>
+        ) : null}
       </div>
     </Link>
   );

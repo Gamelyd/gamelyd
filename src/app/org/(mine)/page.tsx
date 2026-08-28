@@ -16,6 +16,9 @@ import {
 } from "@/server/actions/orgActions";
 import type { OrgInvite } from "@/lib/schemas/org";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { PageTour } from "@/components/help/PageTour";
+import { ORG_TOUR } from "@/components/help/tours";
+import { helpTarget } from "@/lib/help";
 
 export default function OrgsIndexPage() {
   const { isAuthenticated, orgs, refreshOrgs } = useAuth();
@@ -57,19 +60,22 @@ export default function OrgsIndexPage() {
 
   return (
     <SiteLayout>
+      <PageTour tour={ORG_TOUR} />
       <PageHeader
         kicker="Clubs"
         title="Organizations"
         description="Host events under a shared brand and invite people to help run them."
         width="max-w-6xl"
         actions={
-          <Button onClick={() => router.push("/org/new")}>Create new</Button>
+          <Button onClick={() => router.push("/org/new")} {...helpTarget("org-create")}>
+            Create new
+          </Button>
         }
       />
 
-      <section className="mx-auto max-w-6xl px-5 py-10">
+      <section className="mx-auto max-w-6xl px-page py-10">
         {invites.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-10" {...helpTarget("org-invites")}>
             <h2 className="mb-4 font-display text-2xl text-white">
               Pending invites
             </h2>
@@ -107,6 +113,7 @@ export default function OrgsIndexPage() {
           </div>
         )}
 
+        <div {...helpTarget("org-list")}>
         <h2 className="mb-4 font-display text-2xl text-white">
           Your organizations
         </h2>
@@ -153,6 +160,7 @@ export default function OrgsIndexPage() {
             ))}
           </div>
         )}
+        </div>
       </section>
     </SiteLayout>
   );

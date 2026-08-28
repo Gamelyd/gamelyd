@@ -25,7 +25,7 @@ export function LegalPage({
         width="max-w-4xl"
       />
 
-      <section className="mx-auto max-w-4xl space-y-4 px-5 py-16">
+      <section className="mx-auto max-w-4xl space-y-4 px-page py-16">
         <Reveal>
           <div className="space-y-4">
             {sections.map((s, i) => (

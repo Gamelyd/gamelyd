@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { HelpButton } from "@/components/help/HelpButton";
+import { helpTarget } from "@/lib/help";
 import { getMyOrgInvitesAction } from "@/server/actions/orgActions";
 
 const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] =
@@ -19,6 +21,7 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
       label: "Tournaments",
     },
     { href: "/games", label: "Games" },
+    { href: "/games?kind=sports", label: "Sports" },
     { href: "/dashboard", label: "Dashboard", auth: true },
     { href: "/org", label: "Organizations", auth: true },
     { href: "/about", label: "About" },
@@ -31,6 +34,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
   const [pendingInvites, setPendingInvites] = useState(0);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
@@ -68,12 +72,18 @@ export function Navbar() {
     if (href.startsWith("/tournament/all")) {
       return pathname.startsWith("/tournament/all");
     }
+    if (href === "/games?kind=sports") {
+      return pathname === "/games" && searchParams.get("kind") === "sports";
+    }
+    if (href === "/games") {
+      return pathname === "/games" && !searchParams.get("kind");
+    }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-primary/20 bg-nav">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
+      <nav className="mx-auto flex max-w-page items-center justify-between px-page py-3">
         <Link href="/" className="flex items-center">
           <Image
             src="/images/logos/logoWhite.png"
@@ -90,6 +100,13 @@ export function Navbar() {
             <Link
               key={l.href}
               href={l.href}
+              {...(l.href.startsWith("/tournament/all")
+                ? helpTarget("nav-tournaments")
+                : l.href === "/games"
+                  ? helpTarget("nav-games")
+                  : l.href === "/games?kind=sports"
+                    ? helpTarget("nav-sports")
+                    : {})}
               className={`relative text-sm transition-colors hover:text-primary ${
                 isActive(l.href) ? "text-primary" : "text-white"
               }`}
@@ -105,6 +122,7 @@ export function Navbar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          <HelpButton />
           {isAuthenticated ? <NotificationBell /> : null}
           <div className="hidden items-center gap-4 md:flex">
             {isAuthenticated && user ? (
@@ -159,7 +177,7 @@ export function Navbar() {
       </nav>
 
       {open && (
-        <div className="border-t border-primary/20 bg-nav px-5 py-4 md:hidden">
+        <div className="border-t border-primary/20 bg-nav px-page py-4 md:hidden">
           <div className="flex flex-col gap-4">
             {visibleLinks.map((l) => (
               <Link

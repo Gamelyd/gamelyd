@@ -6,6 +6,8 @@ import { knockoutFormatLabel } from "@/lib/knockoutSeries";
 export const SERIOUS_SETTING_KEYS = [
   "Shuffle",
   "TournamentSize",
+  "Team",
+  "RosterCount",
   "Date",
   "ReturnLeg",
   "AdvancePerGroup",
@@ -57,6 +59,12 @@ export function summarizeSettingPatch(
   }
   if (value.TournamentSize !== undefined) {
     parts.push(`Size ${String(value.TournamentSize)}`);
+  }
+  if (value.RosterCount !== undefined) {
+    const n = Number(value.RosterCount);
+    parts.push(
+      `${n} player${n === 1 ? "" : "s"} per team`,
+    );
   }
   if (value.Date !== undefined) {
     parts.push(`Date ${String(value.Date)}`);
@@ -139,6 +147,31 @@ export function summarizeSettingPatch(
   }
   if (value.MatchIntervalMinutes !== undefined) {
     parts.push(`${String(value.MatchIntervalMinutes)} min between matches`);
+  }
+  if (
+    value.Venues !== undefined ||
+    value.VenueCountry !== undefined ||
+    value.VenueCity !== undefined
+  ) {
+    const city =
+      typeof value.VenueCity === "string" ? value.VenueCity.trim() : "";
+    const country =
+      typeof value.VenueCountry === "string" ? value.VenueCountry : "";
+    const rows = Array.isArray(value.Venues) ? value.Venues : [];
+    const filled = rows.filter((row) => {
+      const rec = row as { location?: string };
+      return Boolean(rec.location?.trim());
+    });
+    const bits: string[] = [];
+    if (country || city) bits.push([city, country].filter(Boolean).join(", ") || "Location set");
+    bits.push(
+      filled.length === 0
+        ? "No venues"
+        : filled.length === 1
+          ? "1 venue"
+          : `${filled.length} venues`,
+    );
+    parts.push(bits.join(" · "));
   }
 
   return parts.join(" · ") || "Tournament settings";

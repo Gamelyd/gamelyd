@@ -19,8 +19,10 @@ import { ServiceError } from "@/server/services/userService";
 import { guardAdmin } from "@/server/auth/admin";
 
 /** Public: active games, used to populate the tournament creation picker. */
-export async function getGamesAction(): Promise<ActionResult<Game[]>> {
-  return ok(await listGames(true));
+export async function getGamesAction(
+  kind = "",
+): Promise<ActionResult<Game[]>> {
+  return ok(await listGames(true, kind));
 }
 
 /** Public: searchable, paginated active games. */
@@ -28,8 +30,11 @@ export async function getGamesPageAction(
   search = "",
   page = 1,
   perPage = 12,
+  kind = "",
 ): Promise<ActionResult<Paginated<Game>>> {
-  return ok(await listGamesPage({ activeOnly: true, search, page, perPage }));
+  return ok(
+    await listGamesPage({ activeOnly: true, search, page, perPage, kind }),
+  );
 }
 
 /** Admin: every game, including inactive ones. */

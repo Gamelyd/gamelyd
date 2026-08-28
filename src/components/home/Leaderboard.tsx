@@ -6,7 +6,7 @@ export function Leaderboard() {
 
   return (
     <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-7xl px-5 py-16">
+      <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead
             kicker="Rankings"

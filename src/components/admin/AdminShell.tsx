@@ -9,7 +9,7 @@ const navItems = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/orgs", label: "Organizations" },
   { href: "/admin/tournaments", label: "Tournaments" },
-  { href: "/admin/games", label: "Games" },
+  { href: "/admin/games", label: "Catalog" },
   { href: "/admin/images", label: "Images" },
   { href: "/admin/platforms", label: "Platforms" },
 ];
@@ -18,7 +18,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto max-w-7xl gap-8 px-5 py-10 md:flex">
+    <div className="mx-auto max-w-page gap-8 px-page py-10 md:flex">
       <aside className="mb-6 shrink-0 md:mb-0 md:w-56">
         <h2 className="mb-4 font-display text-2xl text-white">Admin</h2>
         <nav className="flex gap-2 md:flex-col">

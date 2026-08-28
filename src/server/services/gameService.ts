@@ -15,24 +15,39 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function gamesFilter(activeOnly: boolean, search = ""): Record<string, unknown> {
+function gamesFilter(
+  activeOnly: boolean,
+  search = "",
+  kind = "",
+): Record<string, unknown> {
   const clauses: Record<string, unknown>[] = [];
   if (activeOnly) clauses.push({ active: { $ne: false } });
   const q = search.trim();
   if (q) {
     clauses.push({ name: { $regex: escapeRegex(q), $options: "i" } });
   }
+  const slug = kind.trim().toLowerCase();
+  if (slug && slug !== "all") {
+    if (slug === "games") {
+      clauses.push({
+        $or: [{ kind: "games" }, { kind: { $exists: false } }, { kind: "" }],
+      });
+    } else {
+      clauses.push({ kind: slug });
+    }
+  }
   if (clauses.length === 0) return {};
   if (clauses.length === 1) return clauses[0];
   return { $and: clauses };
 }
 
-export async function listGames(activeOnly = false): Promise<Game[]> {
+export async function listGames(
+  activeOnly = false,
+  kind = "",
+): Promise<Game[]> {
   const col = await games();
-  // Treat missing `active` as selectable so admin-created games always appear
-  // unless they were explicitly deactivated.
   const docs = await col
-    .find(gamesFilter(activeOnly))
+    .find(gamesFilter(activeOnly, "", kind))
     .sort({ name: 1 })
     .limit(500)
     .toArray();
@@ -44,16 +59,18 @@ export async function listGamesPage({
   search = "",
   page = 1,
   perPage = 12,
+  kind = "",
 }: {
   activeOnly?: boolean;
   search?: string;
   page?: number;
   perPage?: number;
+  kind?: string;
 }): Promise<Paginated<Game>> {
   const col = await games();
   const safePage = Math.max(page, 1);
   const size = Math.min(Math.max(perPage, 1), 48);
-  const filter = gamesFilter(activeOnly, search);
+  const filter = gamesFilter(activeOnly, search, kind);
   const total = await col.countDocuments(filter);
   const docs = await col
     .find(filter)
@@ -116,6 +133,10 @@ export async function createGame(input: CreateGameInput): Promise<Game> {
     name: input.name,
     image: input.image,
     platforms: input.platforms,
+    kind: input.kind || "games",
+    formats: input.formats ?? [],
+    allowDraw: input.allowDraw !== false,
+    scoreLabel: input.scoreLabel === "Points" ? "Points" : "Goals",
     active: input.active,
     created_at: now,
     updated_at: now,

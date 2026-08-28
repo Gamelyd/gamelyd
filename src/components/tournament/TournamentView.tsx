@@ -41,6 +41,7 @@ import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
+import { resolvePodium } from "@/lib/podium";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { setTournamentGroupsAction } from "@/server/actions/tournamentActions";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
@@ -52,11 +53,9 @@ import {
 } from "@/lib/groupQualifiers";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import {
-  formatForSeriesGames,
   groupKnockoutTies,
   knockoutRoundsForBracket,
   knockoutRulesSummary,
-  knockoutTieWinner,
   seriesKey,
 } from "@/lib/knockoutSeries";
 import { computeBrStandings } from "@/lib/brStandings";
@@ -72,9 +71,21 @@ import {
 import type { InviteTournament } from "@/lib/schemas/misc";
 import { rosterSize } from "@/lib/schemas/common";
 import {
+  catalogSubtitle,
+  GAMES_KIND,
+  kindPublicLabel,
+  kindUses,
+  scoreColumnLabels,
+} from "@/lib/catalog";
+import { eventCity, formatVenueRow, locationLabel, venueLabel, venueMapsUrl, venuesOf } from "@/lib/venue";
+import {
   nextStageAfterScore,
   type NextStagePrompt,
 } from "@/lib/nextStagePrompt";
+import { PageTour } from "@/components/help/PageTour";
+import { TOURNAMENT_TOUR } from "@/components/help/tours";
+import { useHelp } from "@/context/HelpContext";
+import { helpTarget } from "@/lib/help";
 
 type Tab =
   | "details"
@@ -104,6 +115,7 @@ export function TournamentView({
   const { user } = useAuth();
   const toast = useToast();
   const router = useRouter();
+  const { setPaused } = useHelp();
 
   const [tab, setTab] = useState<Tab>(() => {
     if (initialTab === "register" && !tournament.Start) return "register";
@@ -147,16 +159,22 @@ export function TournamentView({
     return "teams";
   });
   const [stagePrompt, setStagePrompt] = useState<NextStagePrompt | null>(null);
-  const champion = useMemo(
-    () => resolveChampion(tournament, draws, participants),
+  const podium = useMemo(
+    () => resolvePodium(tournament, draws, participants),
     [tournament, draws, participants],
   );
+  const champion = podium?.first;
   const championName = champion?.TeamName?.trim() ?? "";
   const [celebrate, setCelebrate] = useState(() => Boolean(championName));
 
   useEffect(() => {
     if (championName) setCelebrate(true);
   }, [championName]);
+
+  useEffect(() => {
+    setPaused(celebrate);
+    return () => setPaused(false);
+  }, [celebrate, setPaused]);
 
   useEffect(() => {
     setPendingChange(tournament.PendingSettingChange);
@@ -199,7 +217,8 @@ export function TournamentView({
   >([]);
   const canRegister = registrationOpen(tournament) && !isRegistered;
   const groupsCreated = groups.length > 0;
-  const needed = rosterSize(tournament.Team);
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
+  const catalogKindFlags = kindUses([], tournament.CatalogKind);
   const isCaptain = Boolean(
     user?.user_id && myTeam?.Players?.[0]?.User_id === user.user_id,
   );
@@ -491,16 +510,17 @@ export function TournamentView({
 
   return (
     <div>
-      {celebrate && champion?.TeamName?.trim() ? (
+      <PageTour tour={TOURNAMENT_TOUR} enabled={!celebrate} />
+      {celebrate && podium?.first.TeamName?.trim() ? (
         <WinnerCelebration
-          team={champion}
+          podium={podium}
           tournamentName={tournament.Name}
           gameName={tournament.GameName}
           onClose={() => setCelebrate(false)}
         />
       ) : null}
       {tournament.Payment === "SPONSORED" && !tournament.PurseFunded ? (
-        <div className="border-b border-yellow/30 bg-yellow/10 px-5 py-4 text-center text-sm text-white">
+        <div className="border-b border-yellow/30 bg-yellow/10 px-page py-4 text-center text-sm text-white">
           Prize pool is not funded yet. This event stays off the public list
           until the host pays the board plus a {feePercent()}% fee.
           {canManage ? (
@@ -519,7 +539,7 @@ export function TournamentView({
           className="object-cover object-center"
         />
         <div className="absolute inset-0 bg-linear-to-t from-black via-black/55 to-black/20" />
-        <div className="relative z-1 mx-auto flex min-h-56 max-w-6xl flex-col justify-end px-5 py-8 sm:min-h-80 sm:py-14 md:min-h-96 md:py-16">
+        <div className="relative z-1 mx-auto flex min-h-56 max-w-6xl flex-col justify-end px-page py-8 sm:min-h-80 sm:py-14 md:min-h-96 md:py-16">
           <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <Tag payment={tournament.Payment} className="rounded-md" />
@@ -531,6 +551,11 @@ export function TournamentView({
                 <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
                   {tournament.TournamentMode}
                 </span>
+                {(tournament.CatalogKind || GAMES_KIND) !== GAMES_KIND ? (
+                  <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
+                    {kindPublicLabel(tournament.CatalogKind)}
+                  </span>
+                ) : null}
                 {champion?.TeamName?.trim() ? (
                   <button
                     type="button"
@@ -544,11 +569,23 @@ export function TournamentView({
               <h1 className="mt-3 font-display text-3xl leading-none text-white sm:text-4xl md:text-5xl">
                 {tournament.Name}
               </h1>
-              <p className="mt-2 text-sm text-white/75 sm:text-base">
-                {tournament.GameName} · {tournament.Date}
+              <p
+                className="mt-2 text-sm text-white/75 sm:text-base"
+                suppressHydrationWarning
+              >
+                {[
+                  catalogSubtitle(tournament),
+                  tournament.Date,
+                  venueLabel(tournament),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
               <div className="mt-5 flex flex-col gap-3">
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                <div
+                  className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3"
+                  {...helpTarget("tour-actions")}
+                >
                   {canRegister ? (
                     <Button
                       className="col-span-2 w-full sm:col-auto sm:w-auto"
@@ -655,7 +692,7 @@ export function TournamentView({
 
       {pendingChange && (isRegistered || canAdminister) ? (
         <div className="border-b border-primary/25 bg-nav">
-          <div className="mx-auto max-w-6xl px-5 py-4">
+          <div className="mx-auto max-w-6xl px-page py-4">
             <SettingChangePanel
               tournamentId={tournament.TournamentId}
               change={pendingChange}
@@ -678,7 +715,10 @@ export function TournamentView({
       ) : null}
 
       <div className="border-b border-surface-2 bg-nav">
-        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-5">
+        <div
+          className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-page"
+          {...helpTarget("tour-tabs")}
+        >
           {tabs
             .filter((t) => t.show)
             .map((t) => (
@@ -697,7 +737,7 @@ export function TournamentView({
         </div>
       </div>
 
-      <section className="mx-auto max-w-6xl px-5 py-10">
+      <section className="mx-auto max-w-6xl px-page py-10">
         {tab === "details" && (
           <Details tournament={tournament} champion={champion} />
         )}
@@ -734,7 +774,11 @@ export function TournamentView({
         )}
 
         {tab === "table" && tournament.TournamentMode === "LEAGUE" && (
-          <LeagueTable standings={standings} />
+          <LeagueTable
+            standings={standings}
+            scoreLabel={tournament.ScoreLabel}
+            allowDraw={tournament.AllowDraw !== false}
+          />
         )}
         {tab === "table" && tournament.TournamentMode === "BATTLEROYALE" && (
           <BrTable
@@ -771,6 +815,8 @@ export function TournamentView({
                     qualifiers={qualifiers}
                     manualSelection={canSelectQualifiers}
                     disqualifiedTeams={disqualifiedTeams}
+                    scoreLabel={tournament.ScoreLabel}
+                    allowDraw={tournament.AllowDraw !== false}
                   />
                 </div>
               ) : (
@@ -844,10 +890,11 @@ export function TournamentView({
                     {rosterSpotsLeft > 0 ? (
                       <>
                         <p className="mb-3 text-sm text-body">
-                          {rosterSpotsLeft} spot
-                          {rosterSpotsLeft === 1 ? "" : "s"} left on{" "}
+                          {rosterSpotsLeft} of {needed} player
+                          {needed === 1 ? "" : "s"} left on{" "}
                           {myTeam?.TeamName}. They are not on the team until they
-                          accept. One player cannot join two teams.
+                          accept. The host capped teams at {needed}. One player
+                          cannot join two teams.
                         </p>
                         <InviteSearch
                           tournamentId={tournament.TournamentId}
@@ -862,9 +909,10 @@ export function TournamentView({
                       </>
                     ) : (
                       <p className="mb-3 text-sm text-body">
-                        This roster is full. You can&apos;t send more invites.
-                        Outstanding invites will be rejected with Tournament
-                        full if someone tries to accept.
+                        This roster is full ({needed} player
+                        {needed === 1 ? "" : "s"}). You can&apos;t send more
+                        invites. Outstanding invites will be rejected if someone
+                        tries to accept.
                       </p>
                     )}
                     {pendingTeamInvites.length > 0 ? (
@@ -874,7 +922,7 @@ export function TournamentView({
                             Waiting for @
                             {invite.invitee_name || "player"} to accept
                             {rosterSpotsLeft === 0
-                              ? " · will be rejected (tournament full)"
+                              ? " · will be rejected (roster full)"
                               : ""}
                           </li>
                         ))}
@@ -1098,6 +1146,8 @@ export function TournamentView({
             <RegisterTeam
               tournamentId={tournament.TournamentId}
               teamSize={tournament.Team}
+              rosterCount={tournament.RosterCount}
+              usesInGameName={catalogKindFlags.usesInGameName}
               payment={tournament.Payment}
               currency={tournament.Currency}
               entryFee={tournament.RegistrationAmount}
@@ -1304,58 +1354,6 @@ function GuestRegisterPrompt({ tournamentId }: { tournamentId: string }) {
   );
 }
 
-function resolveChampion(
-  tournament: Tournament,
-  draws: Draw[],
-  participants: RegisterTournament[],
-): Teams | undefined {
-  const named = tournament.Winner;
-  const raw = named?.TeamName?.trim()
-    ? named
-    : championFromDraws(tournament, draws);
-  if (!raw?.TeamName?.trim()) return undefined;
-  if (raw.Icon) return raw;
-  const match = participants.find((p) => p.TeamName === raw.TeamName);
-  return match ? { ...raw, Icon: match.Icon, Players: match.Players } : raw;
-}
-
-function championFromDraws(
-  tournament: Tournament,
-  draws: Draw[],
-): Teams | undefined {
-  if (tournament.TournamentMode === "LEAGUE") return undefined;
-  if (tournament.TournamentMode === "BATTLEROYALE") {
-    const table = computeBrStandings(draws, {
-      PlacementPoints: tournament.BrPlacementPoints,
-      KillPoints: tournament.BrKillPoints,
-      FirstBloodPoints: tournament.BrFirstBloodPoints,
-    });
-    const champ = table[0];
-    if (!champ || (champ.Points <= 0 && champ.BestPlace === 0)) return undefined;
-    return {
-      TeamName: champ.TeamName,
-      Players: champ.Players,
-      Icon: "",
-      Points: champ.Points,
-      GoalsScored: 0,
-      GoalsReceived: 0,
-      GoalsDifference: 0,
-    };
-  }
-
-  const ties = groupKnockoutTies(draws, false);
-  if (ties.length === 0) return undefined;
-  const maxStage = Math.max(...ties.map((tie) => tie.stage));
-  const last = ties.filter((tie) => tie.stage === maxStage);
-  if (last.length !== 1) return undefined;
-  return (
-    knockoutTieWinner(
-      last[0].games,
-      formatForSeriesGames(last[0].games, tournament.KnockoutFormat),
-    ) ?? undefined
-  );
-}
-
 function knockoutHostPicks(
   mode: Tournament["TournamentMode"],
   draw: Draw,
@@ -1374,8 +1372,13 @@ function Details({
   tournament: Tournament;
   champion?: Teams;
 }) {
-  const rows: { label: string; value: string }[] = [
-    { label: "Game", value: tournament.GameName },
+  const scoreCols = scoreColumnLabels(tournament.ScoreLabel);
+  const kindLabel = kindPublicLabel(tournament.CatalogKind);
+  const rows: { label: string; value: string; href?: string }[] = [
+    {
+      label: kindLabel === "Sports" ? "Sport" : kindLabel === "Games" ? "Game" : kindLabel,
+      value: catalogSubtitle(tournament),
+    },
     ...(champion?.TeamName
       ? [{ label: "Champion", value: champion.TeamName }]
       : []),
@@ -1389,16 +1392,19 @@ function Details({
           },
           {
             label: "Points",
-            value: `${tournament.PointSystem?.Win ?? 3} for a win, ${
-              tournament.PointSystem?.Draw ?? 1
-            } for a draw`,
+            value:
+              tournament.AllowDraw === false
+                ? `${tournament.PointSystem?.Win ?? 3} for a win`
+                : `${tournament.PointSystem?.Win ?? 3} for a win, ${
+                    tournament.PointSystem?.Draw ?? 1
+                  } for a draw`,
           },
           {
             label: "Tie-break",
             value:
               tournament.TieBreaker === "HEAD_TO_HEAD"
                 ? "Head to head"
-                : "Goal difference",
+                : scoreCols.difference,
           },
         ]
       : []),
@@ -1459,7 +1465,9 @@ function Details({
     ...(tournament.CheckInRequired
       ? [{ label: "Check-in", value: "Required" }]
       : []),
-    { label: "Team size", value: tournament.Team },
+    { label: "Team size", value: tournament.RosterCount > 0
+      ? String(tournament.RosterCount)
+      : tournament.Team },
     {
       label: "Who can register",
       value:
@@ -1479,7 +1487,28 @@ function Details({
     { label: "Draw", value: tournament.Shuffle },
     { label: "Size", value: `${tournament.TournamentSize} teams` },
     { label: "Date", value: tournament.Date },
-    { label: "Platform", value: tournament.Platform || "-" },
+    ...(locationLabel(tournament)
+      ? [
+          {
+            label: "Location",
+            value: locationLabel(tournament),
+            href: venueMapsUrl({
+              country: tournament.VenueCountry,
+              location: eventCity(tournament),
+              lat: tournament.VenueLat,
+              lng: tournament.VenueLng,
+            }),
+          },
+        ]
+      : []),
+    ...venuesOf(tournament).map((row, index, all) => ({
+      label: all.length > 1 ? `Venue ${index + 1}` : "Venue",
+      value: formatVenueRow(row),
+      href: venueMapsUrl(row),
+    })),
+    ...(tournament.Platform
+      ? [{ label: "Platform", value: tournament.Platform }]
+      : []),
     ...(tournament.Payment === "PAID"
       ? [
           {
@@ -1563,7 +1592,7 @@ function Details({
   ];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5" {...helpTarget("tour-details")}>
       <div className="rounded-xl border border-surface-2 bg-surface p-5">
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
           About
@@ -1580,7 +1609,20 @@ function Details({
           {rows.map((r) => (
             <div key={r.label}>
               <dt className="text-xs text-body">{r.label}</dt>
-              <dd className="mt-0.5 font-medium text-white">{r.value}</dd>
+              <dd className="mt-0.5 font-medium text-white">
+                {r.href ? (
+                  <a
+                    href={r.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {r.value}
+                  </a>
+                ) : (
+                  r.value
+                )}
+              </dd>
             </div>
           ))}
         </dl>

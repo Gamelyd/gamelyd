@@ -2,8 +2,17 @@ import { CatalogImage } from "@/components/ui/CatalogImage";
 import type { LeagueStanding } from "@/lib/leagueStandings";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
+import { scoreColumnLabels } from "@/lib/catalog";
 
-export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
+export function LeagueTable({
+  standings,
+  scoreLabel = "Goals",
+  allowDraw = true,
+}: {
+  standings: LeagueStanding[];
+  scoreLabel?: "Goals" | "Points";
+  allowDraw?: boolean;
+}) {
   if (standings.length === 0) {
     return (
       <p className="py-16 text-center text-body">
@@ -11,6 +20,8 @@ export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
       </p>
     );
   }
+
+  const cols = scoreColumnLabels(scoreLabel);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-surface-2 bg-surface">
@@ -21,11 +32,13 @@ export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
             <th className="px-4 py-3 font-medium">Team</th>
             <th className="px-3 py-3 text-center font-medium">P</th>
             <th className="px-3 py-3 text-center font-medium">W</th>
-            <th className="px-3 py-3 text-center font-medium">D</th>
+            {allowDraw ? (
+              <th className="px-3 py-3 text-center font-medium">D</th>
+            ) : null}
             <th className="px-3 py-3 text-center font-medium">L</th>
-            <th className="px-3 py-3 text-center font-medium">GF</th>
-            <th className="px-3 py-3 text-center font-medium">GA</th>
-            <th className="px-3 py-3 text-center font-medium">GD</th>
+            <th className="px-3 py-3 text-center font-medium">{cols.for}</th>
+            <th className="px-3 py-3 text-center font-medium">{cols.against}</th>
+            <th className="px-3 py-3 text-center font-medium">{cols.diff}</th>
             <th className="px-4 py-3 text-right font-medium">Pts</th>
           </tr>
         </thead>
@@ -60,7 +73,9 @@ export function LeagueTable({ standings }: { standings: LeagueStanding[] }) {
                 </td>
                 <td className="px-3 py-3 text-center text-body">{row.Played}</td>
                 <td className="px-3 py-3 text-center text-body">{row.Won}</td>
-                <td className="px-3 py-3 text-center text-body">{row.Drawn}</td>
+                {allowDraw ? (
+                  <td className="px-3 py-3 text-center text-body">{row.Drawn}</td>
+                ) : null}
                 <td className="px-3 py-3 text-center text-body">{row.Lost}</td>
                 <td className="px-3 py-3 text-center text-body">{row.GoalsFor}</td>
                 <td className="px-3 py-3 text-center text-body">

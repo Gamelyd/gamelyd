@@ -5,6 +5,7 @@ import { Collections } from "./collections";
 import { ensureIndexes } from "./indexes";
 import type {
   ContactUsDoc,
+  CatalogKindDoc,
   DrawDoc,
   GameDoc,
   IconDoc,
@@ -104,6 +105,9 @@ export async function orgInvites(): Promise<Collection<OrgInviteDoc>> {
 }
 export async function games(): Promise<Collection<GameDoc>> {
   return (await getDb()).collection<GameDoc>(Collections.game);
+}
+export async function catalogKinds(): Promise<Collection<CatalogKindDoc>> {
+  return (await getDb()).collection<CatalogKindDoc>(Collections.catalogKind);
 }
 export async function platforms(): Promise<Collection<PlatformDoc>> {
   return (await getDb()).collection<PlatformDoc>(Collections.platform);
