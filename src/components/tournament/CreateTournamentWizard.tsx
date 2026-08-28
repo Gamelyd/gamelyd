@@ -369,6 +369,7 @@ export function CreateTournamentWizard() {
       ScoreLabel: scoreLabel,
       VenueCountry: kindFlags.usesVenue ? locationCountry : "",
       VenueCity: kindFlags.usesVenue ? locationCity.trim() : "",
+      VenueLocation: kindFlags.usesVenue ? locationCity.trim() : "",
       Venues: kindFlags.usesVenue
         ? venues.filter((v) => v.location.trim())
         : [],
