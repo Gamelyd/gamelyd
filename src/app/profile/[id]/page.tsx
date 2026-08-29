@@ -10,6 +10,15 @@ import {
 import { getUserById } from "@/server/services/userService";
 import { pageMeta, profileShareDescription } from "@/lib/seo";
 
+const TABS = [
+  "overview",
+  "teams",
+  "payouts",
+  "organizations",
+  "settings",
+] as const;
+type ProfileTab = (typeof TABS)[number];
+
 export async function generateMetadata({
   params,
 }: {
@@ -31,10 +40,12 @@ export async function generateMetadata({
 
 export default async function ProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
 
   const [userResult, createdResult, registeredResult] = await Promise.all([
     getUserAction(id),
@@ -44,12 +55,18 @@ export default async function ProfilePage({
 
   if (!userResult.ok || !userResult.data) notFound();
 
+  // Deep links like /profile/<id>?tab=payouts open straight to that section.
+  const initialTab = TABS.includes(tab as ProfileTab)
+    ? (tab as ProfileTab)
+    : "overview";
+
   return (
     <SiteLayout>
       <ProfileView
         profile={userResult.data}
         created={createdResult.ok ? createdResult.data : []}
         registered={registeredResult.ok ? registeredResult.data : []}
+        initialTab={initialTab}
       />
     </SiteLayout>
   );

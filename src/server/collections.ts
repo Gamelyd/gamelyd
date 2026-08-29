@@ -21,6 +21,11 @@ export const Collections = {
   icon: "icon",
   payment: "payment",
   payout: "payout",
+  payoutAccount: "payoutAccount",
+  savedTeam: "savedTeam",
+  savedTeamMember: "savedTeamMember",
+  savedTeamInvite: "savedTeamInvite",
+  settings: "settings",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];

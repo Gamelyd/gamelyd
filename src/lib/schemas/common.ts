@@ -22,6 +22,9 @@ export const currencySchema = z.enum([
 ]);
 export type Currency = z.infer<typeof currencySchema>;
 
+/** Every supported currency, for iterating without repeating the list. */
+export const CURRENCY_CODES = currencySchema.options;
+
 export const tournamentModeSchema = z.enum([
   "MULTIPLAYER",
   "BATTLEROYALE",
@@ -91,6 +94,10 @@ export const notificationKindSchema = z.enum([
   "TIME",
   "ANNOUNCEMENT",
   "SETTING_CHANGE",
+  /** Invite to join a saved team on someone's profile. */
+  "SAVED_TEAM_INVITE",
+  /** A teammate is asking their captain to enter a tournament. */
+  "TOURNAMENT_ALERT",
 ]);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 

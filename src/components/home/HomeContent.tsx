@@ -295,7 +295,7 @@ export function Audience() {
   );
 }
 
-export function HomeFaq() {
+export function HomeFaq({ feePct = 10 }: { feePct?: number }) {
   const items = [
     {
       q: "Do I need an organization to host?",
@@ -315,15 +315,27 @@ export function HomeFaq() {
     },
     {
       q: "How do paid and sponsored events work?",
-      a: "Paid: players pay the entry you set. 10% is Gamelyd's fee; 90% is held as the prize pot. Sponsored: you deposit the prize board plus 10% at launch so winners can receive the amounts you publish. The event stays off the public list until that deposit clears. Checkout stays in the currency you pick. We do not convert currencies.",
+      a: `Paid: the captain pays the entry you set, once for the whole team \u2014 teammates they invite join free. ${feePct}% is Gamelyd's fee; the remaining ${100 - feePct}% is held as the prize pot. Sponsored: you deposit the prize board plus ${feePct}% at launch so winners can receive the amounts you publish. The event stays off the public list until that deposit clears. Checkout stays in the currency you pick. We do not convert currencies.`,
     },
     {
       q: "When is prize money paid?",
-      a: "We hold paid entries and sponsored deposits until the tournament finishes. When there is a champion, we record what is owed to winners (and leftover to the host). Bank transfers follow once payout details are on the account.",
+      a: "We hold paid entries and sponsored deposits until the tournament finishes. When there is a champion, we record what each paid place is owed (and leftover to the host), then transfer it to the payout account on the winner's profile. Timing depends on Stripe or Paystack.",
+    },
+    {
+      q: "Who on the team gets the prize?",
+      a: "The captain, the player who registered the team. We pay one person per team, so how you split it afterwards is up to you. That is also why a captain has to connect a payout account before entering a paid event: add one under Payouts on your profile.",
     },
     {
       q: "Should I join every paid event?",
       a: "No. Anyone can host. Check the host, the rules, and the prize board before you pay. If you do not trust the lobby, skip it. Gamelyd holding the pot is not a guarantee that the host is honest.",
+    },
+    {
+      q: "What does the verified badge mean?",
+      a: "We checked that account's details and confirmed they are correct and that the person is reachable on them. It is not a rating of how good a host or player is. Verified accounts cannot change their own email or phone, so the badge keeps meaning something: a change has to be requested and checked by us first.",
+    },
+    {
+      q: "Something went wrong in a tournament. What do I do?",
+      a: "Open the tournament and use Report this tournament at the bottom of the details tab. Pick what it is about, tell us what happened, and it goes straight to our team. The host is not told who reported them.",
     },
     {
       q: "What proof should I keep?",

@@ -9,9 +9,12 @@ const navItems = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/orgs", label: "Organizations" },
   { href: "/admin/tournaments", label: "Tournaments" },
+  { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/games", label: "Catalog" },
   { href: "/admin/images", label: "Images" },
   { href: "/admin/platforms", label: "Platforms" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {

@@ -43,6 +43,7 @@ import type {
   OrgInviteStatus,
   TournamentInviteKind,
 } from "@/lib/schemas/common";
+import { notificationKindSchema } from "@/lib/schemas/common";
 import { parseCurrency } from "@/lib/currency";
 import {
   asRecord,
@@ -437,6 +438,10 @@ export function serializeDraw(doc: DrawDoc): Draw {
     SeriesId: readString(raw, ["SeriesId", "seriesid"]),
     Leg: readNumber(raw, ["Leg", "leg"]) || 1,
     Kind: readString(raw, ["Kind", "kind"]),
+    VenueName: readString(raw, ["VenueName", "venuename"]),
+    VenueCountry: readString(raw, ["VenueCountry", "venuecountry"]),
+    VenueLat: readNumber(raw, ["VenueLat", "venuelat"]),
+    VenueLng: readNumber(raw, ["VenueLng", "venuelng"]),
   };
 }
 
@@ -444,9 +449,10 @@ export function serializeRegistration(
   doc: RegisterTournamentDoc,
 ): RegisterTournament {
   const raw = asRecord(doc);
+  const players = readArray(raw, ["Players", "players"]).map(serializePlayer);
   return {
     _id: doc._id.toHexString(),
-    Players: readArray(raw, ["Players", "players"]).map(serializePlayer),
+    Players: players,
     Created_at: readDate(raw, ["Created_at", "created_at"]),
     Updated_at: readDate(raw, ["Updated_at", "updated_at"]),
     TournamentId: readString(raw, ["TournamentId", "tournamentid"]),
@@ -465,22 +471,22 @@ export function serializeRegistration(
     Icon: catalogUrl(readString(raw, ["Icon", "icon"])),
     CheckedIn: readBool(raw, ["CheckedIn", "checkedin"]),
     CheckedInAt: readString(raw, ["CheckedInAt", "checkedinat"]),
+    // Legacy documents predate the field; the first player was always the
+    // player who registered, so that is the correct backfill.
+    CaptainUserId:
+      readString(raw, ["CaptainUserId", "captainuserid"]) ||
+      players[0]?.User_id ||
+      "",
   };
 }
 
 export function serializeNotification(doc: NotificationDoc): Notification {
   const raw = asRecord(doc);
-  const kindRaw = readString(raw, ["kind"], "GENERIC").toUpperCase();
-  const kind: NotificationKind =
-    kindRaw === "TOURNAMENT_INVITE" ||
-    kindRaw === "TEAM_INVITE" ||
-    kindRaw === "DRAW" ||
-    kindRaw === "SCORE" ||
-    kindRaw === "TIME" ||
-    kindRaw === "ANNOUNCEMENT" ||
-    kindRaw === "SETTING_CHANGE"
-      ? kindRaw
-      : "GENERIC";
+  // Parse against the schema so new kinds only have to be added in one place.
+  const parsed = notificationKindSchema.safeParse(
+    readString(raw, ["kind"], "GENERIC").toUpperCase(),
+  );
+  const kind: NotificationKind = parsed.success ? parsed.data : "GENERIC";
   return {
     _id: doc._id.toHexString(),
     user_id: readString(raw, ["user_id"]),
@@ -490,6 +496,7 @@ export function serializeNotification(doc: NotificationDoc): Notification {
     kind,
     invite_id: readString(raw, ["invite_id"]),
     tournament_id: readString(raw, ["tournament_id"]),
+    team_id: readString(raw, ["team_id"]),
   };
 }
 
@@ -498,7 +505,17 @@ export function serializeContact(doc: ContactUsDoc): ContactUs {
 }
 
 export function serializeReport(doc: ReportAbuseDoc): ReportAbuse {
-  return { ...doc, _id: doc._id.toHexString() };
+  return {
+    ...doc,
+    _id: doc._id.toHexString(),
+    // Rows written before reports were categorised have none of these.
+    Kind: doc.Kind ?? "OTHER",
+    TournamentId: doc.TournamentId ?? "",
+    TournamentName: doc.TournamentName ?? "",
+    Reason: doc.Reason ?? "",
+    RequestedEmail: doc.RequestedEmail ?? "",
+    RequestedPhone: doc.RequestedPhone ?? "",
+  };
 }
 
 export function serializeInvite(doc: InviteTournamentDoc): InviteTournament {

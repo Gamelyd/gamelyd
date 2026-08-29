@@ -1,22 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { Loader } from "@/components/ui/Loader";
+import { RowMenu } from "@/components/ui/RowMenu";
+import {
+  BulkActionBar,
+  SelectCheckbox,
+  useRowSelection,
+} from "@/components/ui/TableSelection";
 import type { User } from "@/lib/schemas/user";
+import type { BulkUserOp } from "@/lib/schemas/admin";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
 import {
+  adminBulkUserAction,
   adminListUsersAction,
   adminSetUserTypeAction,
   adminSetUserVerifiedAction,
   adminToggleBanUserAction,
   adminToggleDeleteUserAction,
 } from "@/server/actions/adminActions";
+
+interface PendingAction {
+  id: string;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmVariant: "danger" | "default";
+  action: () => Promise<{ ok: boolean; message?: string; error?: string }>;
+}
 
 export default function AdminUsersPage() {
   const toast = useToast();
@@ -28,14 +45,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [busyId, setBusyId] = useState("");
-  const [pending, setPending] = useState<{
-    id: string;
-    title: string;
-    message: string;
-    confirmLabel: string;
-    confirmVariant: "danger" | "default";
-    action: () => Promise<{ ok: boolean; message?: string; error?: string }>;
-  } | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [bulk, setBulk] = useState<{ op: BulkUserOp; label: string } | null>(
+    null,
+  );
+
+  const rows = useMemo(() => data?.items ?? [], [data]);
+  const visibleIds = useMemo(() => rows.map((u) => u.user_id), [rows]);
+  const selection = useRowSelection(visibleIds);
 
   useEffect(() => {
     let activeReq = true;
@@ -49,6 +66,11 @@ export default function AdminUsersPage() {
       activeReq = false;
     };
   }, [search, page, reload, toast]);
+
+  const refresh = () => {
+    selection.clear();
+    setReload((r) => r + 1);
+  };
 
   const run = async (
     userId: string,
@@ -66,9 +88,29 @@ export default function AdminUsersPage() {
     }
   };
 
+  const runBulk = async () => {
+    if (!bulk) return;
+    setBusyId("bulk");
+    const result = await adminBulkUserAction(selection.ids, bulk.op);
+    setBusyId("");
+    setBulk(null);
+    if (result.ok) {
+      toast.success(result.message ?? "Done");
+      if (result.data.failed.length > 0) toast.error(result.data.failed[0]);
+      refresh();
+    } else {
+      toast.error(result.error);
+    }
+  };
+
   return (
     <div>
-      <h1 className="mb-6 font-display text-3xl text-white">Users</h1>
+      <div className="mb-6">
+        <h1 className="font-display text-3xl text-white">Users</h1>
+        <p className="mt-1 text-sm text-body">
+          Verify players, manage admin access, and moderate accounts.
+        </p>
+      </div>
 
       <form
         onSubmit={(e) => {
@@ -76,6 +118,7 @@ export default function AdminUsersPage() {
           setLoading(true);
           setPage(1);
           setSearch(term);
+          selection.clear();
         }}
         className="mb-6 flex gap-3"
       >
@@ -90,22 +133,42 @@ export default function AdminUsersPage() {
       </form>
 
       <div className="overflow-x-auto rounded-2xl border border-surface-2">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-180 text-left text-sm">
           <thead className="bg-surface-2 text-body">
             <tr>
+              <th className="w-10 px-4 py-3">
+                <SelectCheckbox
+                  label="Select all users on this page"
+                  checked={selection.allVisibleSelected}
+                  indeterminate={selection.someVisibleSelected}
+                  onChange={selection.toggleAll}
+                />
+              </th>
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="w-12 px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {data?.items.map((u) => {
+            {rows.map((u) => {
               const isSelf = u.user_id === me?.user_id;
               const isAdmin = u.user_type === "ADMIN";
               return (
-                <tr key={u.user_id} className="border-t border-surface-2">
+                <tr
+                  key={u.user_id}
+                  className={`border-t border-surface-2 ${
+                    selection.isSelected(u.user_id) ? "bg-primary/5" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3">
+                    <SelectCheckbox
+                      label={`Select ${u.user_name}`}
+                      checked={selection.isSelected(u.user_id)}
+                      onChange={() => selection.toggle(u.user_id)}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-white">
                     <VerifiedName
                       name={`${u.first_name} ${u.last_name}`.trim()}
@@ -113,6 +176,7 @@ export default function AdminUsersPage() {
                     />
                     <span className="block text-xs text-body">
                       @{u.user_name}
+                      {isSelf ? " · you" : ""}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-body">{u.email}</td>
@@ -137,90 +201,91 @@ export default function AdminUsersPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        loading={busyId === u.user_id}
-                        onClick={() =>
-                          run(u.user_id, () =>
-                            adminSetUserVerifiedAction(
-                              u.user_id,
-                              !u.verified,
+                    <RowMenu
+                      label={`Actions for ${u.user_name}`}
+                      actions={[
+                        {
+                          label: u.verified ? "Remove verification" : "Verify",
+                          onSelect: () =>
+                            void run(u.user_id, () =>
+                              adminSetUserVerifiedAction(
+                                u.user_id,
+                                !u.verified,
+                              ),
                             ),
-                          )
-                        }
-                      >
-                        {u.verified ? "Unverify" : "Verify"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        loading={busyId === u.user_id}
-                        disabled={isSelf}
-                        onClick={() =>
-                          run(u.user_id, () =>
-                            adminSetUserTypeAction(
-                              u.user_id,
-                              isAdmin ? "USER" : "ADMIN",
+                        },
+                        {
+                          label: isAdmin ? "Make member" : "Make admin",
+                          disabled: isSelf,
+                          hint: isSelf
+                            ? "You cannot change your own role"
+                            : undefined,
+                          onSelect: () =>
+                            void run(u.user_id, () =>
+                              adminSetUserTypeAction(
+                                u.user_id,
+                                isAdmin ? "USER" : "ADMIN",
+                              ),
                             ),
-                          )
-                        }
-                      >
-                        {isAdmin ? "Make member" : "Make admin"}
-                      </Button>
-                      <Button
-                        variant="dark"
-                        disabled={isSelf}
-                        onClick={() =>
-                          setPending({
-                            id: u.user_id,
-                            title: u.isSuspended ? "Unban this user?" : "Ban this user?",
-                            message: u.isSuspended
-                              ? "They will be able to sign in again."
-                              : "They will be signed out and blocked from signing in.",
-                            confirmLabel: u.isSuspended ? "Unban" : "Ban",
-                            confirmVariant: u.isSuspended ? "default" : "danger",
-                            action: () => adminToggleBanUserAction(u.user_id),
-                          })
-                        }
-                      >
-                        {u.isSuspended ? "Unban" : "Ban"}
-                      </Button>
-                      <Button
-                        variant="danger"
-                        disabled={isSelf}
-                        onClick={() =>
-                          setPending({
-                            id: u.user_id,
-                            title: u.isDeleted
-                              ? "Restore this user?"
-                              : "Delete this user?",
-                            message: u.isDeleted
-                              ? "The account will be restored."
-                              : "The account will be marked as deleted. You can restore it later.",
-                            confirmLabel: u.isDeleted ? "Restore" : "Delete",
-                            confirmVariant: u.isDeleted ? "default" : "danger",
-                            action: () =>
-                              adminToggleDeleteUserAction(u.user_id),
-                          })
-                        }
-                      >
-                        {u.isDeleted ? "Restore" : "Delete"}
-                      </Button>
-                    </div>
+                        },
+                        {
+                          label: u.isSuspended ? "Unban" : "Ban",
+                          danger: !u.isSuspended,
+                          disabled: isSelf,
+                          onSelect: () =>
+                            setPending({
+                              id: u.user_id,
+                              title: u.isSuspended
+                                ? "Unban this user?"
+                                : "Ban this user?",
+                              message: u.isSuspended
+                                ? "They will be able to sign in again."
+                                : "They will be signed out and blocked from signing in.",
+                              confirmLabel: u.isSuspended ? "Unban" : "Ban",
+                              confirmVariant: u.isSuspended
+                                ? "default"
+                                : "danger",
+                              action: () =>
+                                adminToggleBanUserAction(u.user_id),
+                            }),
+                        },
+                        {
+                          label: u.isDeleted ? "Restore" : "Delete",
+                          danger: !u.isDeleted,
+                          disabled: isSelf,
+                          onSelect: () =>
+                            setPending({
+                              id: u.user_id,
+                              title: u.isDeleted
+                                ? "Restore this user?"
+                                : "Delete this user?",
+                              message: u.isDeleted
+                                ? "The account will be restored."
+                                : "The account will be marked as deleted. You can restore it later.",
+                              confirmLabel: u.isDeleted ? "Restore" : "Delete",
+                              confirmVariant: u.isDeleted
+                                ? "default"
+                                : "danger",
+                              action: () =>
+                                adminToggleDeleteUserAction(u.user_id),
+                            }),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               );
             })}
             {loading && !data ? (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <Loader variant="compact" label="Loading users" />
                 </td>
               </tr>
             ) : null}
             {data && data.items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-body">
+                <td colSpan={6} className="px-4 py-8 text-center text-body">
                   No users found.
                 </td>
               </tr>
@@ -251,6 +316,43 @@ export default function AdminUsersPage() {
         </div>
       )}
 
+      <BulkActionBar
+        count={selection.count}
+        noun="user"
+        onClear={selection.clear}
+      >
+        <Button
+          variant="dark"
+          onClick={() => setBulk({ op: "VERIFY", label: "Verify" })}
+        >
+          Verify
+        </Button>
+        <Button
+          variant="dark"
+          onClick={() => setBulk({ op: "UNVERIFY", label: "Unverify" })}
+        >
+          Unverify
+        </Button>
+        <Button
+          variant="dark"
+          onClick={() => setBulk({ op: "UNBAN", label: "Unban" })}
+        >
+          Unban
+        </Button>
+        <Button
+          variant="danger"
+          onClick={() => setBulk({ op: "BAN", label: "Ban" })}
+        >
+          Ban
+        </Button>
+        <Button
+          variant="danger"
+          onClick={() => setBulk({ op: "DELETE", label: "Delete" })}
+        >
+          Delete
+        </Button>
+      </BulkActionBar>
+
       <Confirm
         open={pending !== null}
         title={pending?.title}
@@ -263,6 +365,25 @@ export default function AdminUsersPage() {
         }}
         onCancel={() => {
           if (!busyId) setPending(null);
+        }}
+      />
+
+      <Confirm
+        open={bulk !== null}
+        title={`${bulk?.label ?? ""} ${selection.count} user${selection.count === 1 ? "" : "s"}?`}
+        message={
+          bulk?.op === "DELETE" || bulk?.op === "BAN"
+            ? "Affected accounts are signed out immediately. You can undo this from the same menu."
+            : "This applies to every selected user."
+        }
+        confirmLabel={bulk?.label}
+        confirmVariant={
+          bulk?.op === "DELETE" || bulk?.op === "BAN" ? "danger" : "default"
+        }
+        loading={busyId === "bulk"}
+        onConfirm={() => void runBulk()}
+        onCancel={() => {
+          if (!busyId) setBulk(null);
         }}
       />
     </div>

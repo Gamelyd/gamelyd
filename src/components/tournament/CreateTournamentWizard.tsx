@@ -37,8 +37,15 @@ import type {
   TournamentMode,
   TournamentType,
 } from "@/lib/schemas/common";
-import { CURRENCY_OPTIONS } from "@/lib/currency";
+import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
 import { feePercent } from "@/lib/fees";
+import {
+  maxNetPot,
+  prizeBoardTotal,
+  teamsNeededForBoard,
+} from "@/lib/prizeBoard";
+import type { PaymentsStatus } from "@/lib/schemas/payment";
+import { paymentsStatusAction } from "@/server/actions/paymentActions";
 import { FeeSummary } from "@/components/tournament/FeeSummary";
 import { Loader } from "@/components/ui/Loader";
 import {
@@ -143,13 +150,60 @@ export function CreateTournamentWizard() {
   const [firstMatchAt, setFirstMatchAt] = useState("");
   const [locationCountry, setLocationCountry] = useState("");
   const [locationCity, setLocationCity] = useState("");
+  // Set when the host picks the city from search; tells the server the point is
+  // confirmed rather than something to geocode from free text.
+  const [locationPoint, setLocationPoint] = useState({ lat: 0, lng: 0 });
+  // Null until we know; paid/sponsored stay locked while we are unsure so a
+  // host never picks a money option this deployment cannot honour.
+  const [payments, setPayments] = useState<PaymentsStatus | null>(null);
   const [venues, setVenues] = useState<VenueDraft[]>([]);
   const [matchInterval, setMatchInterval] = useState(0);
   const [prizes, setPrizes] = useState<PrizePosition[]>([
-    { Position: 1, Amount: 0, Share: 70 },
-    { Position: 2, Amount: 0, Share: 20 },
-    { Position: 3, Amount: 0, Share: 10 },
+    { Position: 1, Amount: 0, Share: 0 },
+    { Position: 2, Amount: 0, Share: 0 },
+    { Position: 3, Amount: 0, Share: 0 },
   ]);
+  useEffect(() => {
+    void paymentsStatusAction().then((result) => {
+      if (!result.ok) return;
+      const status = result.data;
+      setPayments(status);
+      // The default is USD; if Stripe is not wired up, move to one we can charge.
+      setCurrency((prev) =>
+        status.currencies.includes(prev) ? prev : (status.currencies[0] ?? prev),
+      );
+      // If the option in hand became unavailable (paused, or no processor),
+      // fall back to Free rather than letting the host fill in a form that the
+      // server will reject on submit.
+      setPayment((prev) => {
+        const usable =
+          status.currencies.length > 0 &&
+          ((prev === "PAID" && status.paidEnabled) ||
+            (prev === "SPONSORED" && status.sponsoredEnabled));
+        if (prev === "FREE" || usable) return prev;
+        return "FREE";
+      });
+    });
+  }, []);
+
+  const moneyReady = Boolean(payments && payments.currencies.length > 0);
+  // The live admin-set rate this new tournament would be stamped with.
+  const feePct = feePercent(payments?.feeBps);
+
+  // Two different reasons a money option can be unavailable, and hosts deserve
+  // to know which: an admin paused it, or no processor is wired up at all.
+  const paidPaused = Boolean(payments && !payments.paidEnabled);
+  const sponsoredPaused = Boolean(payments && !payments.sponsoredEnabled);
+  const paidOff = paidPaused || !moneyReady;
+  const sponsoredOff = sponsoredPaused || !moneyReady;
+  const pausedBlurb = "This is paused for now and coming back soon.";
+  const moneyBlurb = payments
+    ? "No payment processor is set up yet. Ask an admin to add Stripe or Paystack keys."
+    : "Checking payment setup…";
+  const liveCurrencies = payments
+    ? CURRENCY_OPTIONS.filter((c) => payments.currencies.includes(c.value))
+    : [];
+
 
   const [details, setDetails] = useState({
     Name: "",
@@ -161,6 +215,26 @@ export function CreateTournamentWizard() {
     Amount: 0,
     RegistrationAmount: 0,
   });
+
+  const boardTotal = prizeBoardTotal(prizes);
+  // A paid board is funded by entries, so show whether it is reachable at all
+  // and how many paid teams it takes, the same rule the server enforces.
+  const potCeiling = maxNetPot(
+    Number(details.RegistrationAmount) || 0,
+    Number(details.TournamentSize) || 0,
+    payments?.feeBps,
+  );
+  const boardAffordable = boardTotal <= potCeiling;
+  const teamsNeeded = teamsNeededForBoard(
+    boardTotal,
+    Number(details.RegistrationAmount) || 0,
+    payments?.feeBps,
+  );
+  // What reaches the host after a full house pays and winners are settled.
+  const hostTakeHome = Math.max(
+    Math.round((potCeiling - boardTotal) * 100) / 100,
+    0,
+  );
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/signup?redirect=/tournament/new");
@@ -370,6 +444,8 @@ export function CreateTournamentWizard() {
       VenueCountry: kindFlags.usesVenue ? locationCountry : "",
       VenueCity: kindFlags.usesVenue ? locationCity.trim() : "",
       VenueLocation: kindFlags.usesVenue ? locationCity.trim() : "",
+      VenueLat: kindFlags.usesVenue ? locationPoint.lat : 0,
+      VenueLng: kindFlags.usesVenue ? locationPoint.lng : 0,
       Venues: kindFlags.usesVenue
         ? venues.filter((v) => v.location.trim())
         : [],
@@ -891,16 +967,44 @@ export function CreateTournamentWizard() {
                   />
                   <ChoiceTile
                     title="Paid"
-                    blurb={`Players pay to join. ${feePercent()}% platform fee. Rest held for prizes.`}
-                    active={false}
-                    soon
+                    blurb={
+                      paidPaused
+                        ? pausedBlurb
+                        : moneyReady
+                          ? `One fee per team, paid by the captain. ${feePct}% platform fee. Rest held for prizes.`
+                          : moneyBlurb
+                    }
+                    active={payment === "PAID"}
+                    disabled={paidOff}
+                    disabledLabel={
+                      !payments
+                        ? "Checking…"
+                        : paidPaused
+                          ? "Coming back soon"
+                          : "Unavailable"
+                    }
+                    onClick={() => setPayment("PAID")}
                     delay={1}
                   />
                   <ChoiceTile
                     title="Sponsored"
-                    blurb={`You fund the prize board plus ${feePercent()}% at launch.`}
-                    active={false}
-                    soon
+                    blurb={
+                      sponsoredPaused
+                        ? pausedBlurb
+                        : moneyReady
+                          ? `You fund the prize board plus ${feePct}% at launch.`
+                          : moneyBlurb
+                    }
+                    active={payment === "SPONSORED"}
+                    disabled={sponsoredOff}
+                    disabledLabel={
+                      !payments
+                        ? "Checking…"
+                        : sponsoredPaused
+                          ? "Coming back soon"
+                          : "Unavailable"
+                    }
+                    onClick={() => setPayment("SPONSORED")}
                     delay={2}
                   />
                 </div>
@@ -909,10 +1013,8 @@ export function CreateTournamentWizard() {
                 <Select
                   label="Currency"
                   value={currency}
-                  options={CURRENCY_OPTIONS}
-                  onChange={(e) =>
-                    setCurrency(e.target.value as Currency)
-                  }
+                  options={liveCurrencies}
+                  onChange={(e) => setCurrency(e.target.value as Currency)}
                 />
               ) : null}
               {payment === "PAID" ? (
@@ -921,7 +1023,7 @@ export function CreateTournamentWizard() {
                     type="number"
                     min={0}
                     step="0.01"
-                    label={`Entry fee (${currency})`}
+                    label={`Entry fee per team (${currency})`}
                     value={details.RegistrationAmount}
                     onChange={(e) =>
                       setDetails((prev) => ({
@@ -932,12 +1034,13 @@ export function CreateTournamentWizard() {
                   />
                   <div className="rounded-2xl border border-primary/25 bg-surface p-5">
                     <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
-                      Winner shares
+                      Prize board
                     </h3>
                     <p className="mb-4 text-sm text-body">
-                      Percent of the net pot after the platform fee. Champion
-                      is paid first; leftover stays owed to you until other
-                      places are assigned.
+                      What each place wins, in {currency}. Paid to that
+                      team&apos;s captain when the event ends. Entry fees fund
+                      it, so the event cannot start until enough teams have
+                      paid. Anything left over comes back to you.
                     </p>
                     <div className="flex flex-col gap-3">
                       {prizes.map((prize, index) => (
@@ -961,15 +1064,19 @@ export function CreateTournamentWizard() {
                           />
                           <Input
                             type="number"
-                            label={index === 0 ? "Share %" : undefined}
-                            value={prize.Share}
+                            label={
+                              index === 0
+                                ? `${placeLabel(prize.Position)} prize (${currency})`
+                                : undefined
+                            }
+                            value={prize.Amount}
                             min={0}
-                            max={100}
+                            step="0.01"
                             onChange={(e) => {
                               const next = [...prizes];
                               next[index] = {
                                 ...prize,
-                                Share: Number(e.target.value) || 0,
+                                Amount: Number(e.target.value) || 0,
                               };
                               setPrizes(next);
                             }}
@@ -990,6 +1097,59 @@ export function CreateTournamentWizard() {
                         </div>
                       ))}
                     </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <Button
+                        type="button"
+                        variant="dark"
+                        onClick={() =>
+                          setPrizes([
+                            ...prizes,
+                            {
+                              Position:
+                                Math.max(
+                                  ...prizes.map((p) => p.Position),
+                                  0,
+                                ) + 1,
+                              Amount: 0,
+                              Share: 0,
+                            },
+                          ])
+                        }
+                      >
+                        Add position
+                      </Button>
+                      <p
+                        className={`text-sm ${boardAffordable ? "text-body" : "text-lose"}`}
+                      >
+                        {boardTotal > 0
+                          ? boardAffordable
+                            ? `${formatMoney(boardTotal, currency)} board · needs ${teamsNeeded} paid team${teamsNeeded === 1 ? "" : "s"} to cover`
+                            : `${formatMoney(boardTotal, currency)} board · a full ${details.TournamentSize} teams only raise ${formatMoney(potCeiling, currency)}`
+                          : "Set what each place wins"}
+                      </p>
+                    </div>
+                    {boardTotal > 0 && boardAffordable && potCeiling > 0 ? (
+                      <div className="mt-4 rounded-xl border border-win/35 bg-win/10 p-4 text-sm">
+                        <p className="font-semibold text-white">
+                          What you keep
+                        </p>
+                        <p className="mt-1 text-body">
+                          If all {details.TournamentSize} teams pay, entries
+                          raise {formatMoney(potCeiling, currency)} after the{" "}
+                          {feePct}% platform fee. Winners take{" "}
+                          {formatMoney(boardTotal, currency)}, and the
+                          remaining{" "}
+                          <span className="font-semibold text-white">
+                            {formatMoney(hostTakeHome, currency)}
+                          </span>{" "}
+                          is transferred to you once the event ends.
+                        </p>
+                        <p className="mt-1 text-xs text-body">
+                          Fewer teams means a smaller remainder. Winners are
+                          always paid first.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -999,7 +1159,7 @@ export function CreateTournamentWizard() {
                     Prize board
                   </h3>
                   <p className="mb-4 text-sm text-body">
-                    Amount winners receive ({currency}). The {feePercent()}%
+                    Amount winners receive ({currency}). The {feePct}%
                     fee is in the summary below.
                   </p>
                   <div className="flex flex-col gap-3">
@@ -1078,8 +1238,11 @@ export function CreateTournamentWizard() {
               ) : null}
               {payment === "PAID" || payment === "SPONSORED" ? (
                 <FeeSummary
+                  audience="host"
                   kind={payment}
+                  teamCount={Number(details.TournamentSize) || 0}
                   currency={currency}
+                  feeBps={payments?.feeBps}
                   entryFee={details.RegistrationAmount}
                   prizeTotal={prizes.reduce(
                     (sum, row) => sum + (row.Amount || 0),
@@ -1103,9 +1266,9 @@ export function CreateTournamentWizard() {
                   teamLabel,
                   type === "PUBLIC" ? "Anyone can join" : "Invite only",
                   payment === "SPONSORED"
-                    ? `Sponsored · ${currency} · ${feePercent()}% fee`
+                    ? `Sponsored · ${currency} · ${feePct}% fee`
                     : payment === "PAID"
-                      ? `Paid · ${currency} · ${feePercent()}% fee`
+                      ? `Paid · ${currency} · ${feePct}% fee`
                       : "Free",
                 ].map((chip) => (
                   <li
@@ -1234,8 +1397,15 @@ export function CreateTournamentWizard() {
                   <PlaceEditor
                     country={locationCountry}
                     city={locationCity}
+                    cityLat={locationPoint.lat}
+                    cityLng={locationPoint.lng}
                     onCountry={setLocationCountry}
                     onCity={setLocationCity}
+                    onCityPlace={(place) => {
+                      setLocationCity(place.city);
+                      if (place.country) setLocationCountry(place.country);
+                      setLocationPoint({ lat: place.lat, lng: place.lng });
+                    }}
                     venues={venues}
                     onVenues={setVenues}
                   />
@@ -1285,8 +1455,11 @@ export function CreateTournamentWizard() {
               />
               {payment === "PAID" || payment === "SPONSORED" ? (
                 <FeeSummary
+                  audience="host"
                   kind={payment}
+                  teamCount={Number(details.TournamentSize) || 0}
                   currency={currency}
+                  feeBps={payments?.feeBps}
                   entryFee={details.RegistrationAmount}
                   prizeTotal={prizes.reduce(
                     (sum, row) => sum + (row.Amount || 0),
@@ -1301,7 +1474,7 @@ export function CreateTournamentWizard() {
                 </Link>
                 {payment === "FREE"
                   ? "."
-                  : ` and the ${feePercent()}% platform fee on held funds.`}
+                  : ` and the ${feePct}% platform fee on held funds.`}
               </p>
               <div
                 className="create-action-bar flex flex-wrap gap-3"
@@ -1383,9 +1556,9 @@ export function CreateTournamentWizard() {
                 label="Stakes"
                 value={
                   payment === "SPONSORED"
-                    ? `Sponsored · ${feePercent()}% fee`
+                    ? `Sponsored · ${feePct}% fee`
                     : payment === "PAID"
-                      ? `Paid · ${feePercent()}% fee`
+                      ? `Paid · ${feePct}% fee`
                       : "Free"
                 }
               />
@@ -1490,6 +1663,8 @@ function ChoiceTile({
   delay = 0,
   glyph,
   soon = false,
+  disabled = false,
+  disabledLabel,
 }: {
   title: string;
   blurb: string;
@@ -1498,15 +1673,20 @@ function ChoiceTile({
   delay?: number;
   glyph?: ReactNode;
   soon?: boolean;
+  /** Selectable in principle, but unavailable in this deployment right now. */
+  disabled?: boolean;
+  disabledLabel?: string;
 }) {
+  const off = soon || disabled;
+  const badge = soon ? "Coming soon" : disabled ? disabledLabel : undefined;
   return (
     <button
       type="button"
-      disabled={soon}
-      onClick={soon ? undefined : onClick}
+      disabled={off}
+      onClick={off ? undefined : onClick}
       style={{ animationDelay: `${delay * 60}ms` }}
       className={`create-tile create-hud-tile rounded-2xl border px-5 py-4 text-left transition-colors ${
-        soon
+        off
           ? "cursor-not-allowed border-surface-2 bg-surface/60 opacity-60"
           : active
             ? "is-on border-primary bg-primary/15"
@@ -1525,14 +1705,14 @@ function ChoiceTile({
       <span className="flex flex-wrap items-center gap-2">
         <span
           className={`font-display text-xl leading-none ${
-            soon ? "text-white/70" : active ? "text-primary" : "text-white"
+            off ? "text-white/70" : active ? "text-primary" : "text-white"
           }`}
         >
           {title}
         </span>
-        {soon ? (
+        {badge ? (
           <span className="rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
-            Coming soon
+            {badge}
           </span>
         ) : null}
       </span>

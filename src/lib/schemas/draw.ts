@@ -62,6 +62,11 @@ export const drawSchema = z.object({
   SeriesId: z.string().default(""),
   Leg: z.number().int().min(1).default(1),
   Kind: z.string().default(""),
+  /** Per-match venue, set by the host. Empty when the match has no place yet. */
+  VenueName: z.string().default(""),
+  VenueCountry: z.string().default(""),
+  VenueLat: z.number().default(0),
+  VenueLng: z.number().default(0),
 });
 export type Draw = z.infer<typeof drawSchema>;
 
@@ -97,6 +102,18 @@ export const addLinkInputSchema = z.object({
   Link: z.string().min(1),
 });
 export type AddLinkInput = z.infer<typeof addLinkInputSchema>;
+
+/**
+ * Set (or clear) where a match is played. An empty name clears it; lat/lng are
+ * only non-zero when the host picked the place from search.
+ */
+export const setDrawVenueInputSchema = z.object({
+  VenueName: z.string().trim().max(200).default(""),
+  VenueCountry: z.string().trim().max(2).default(""),
+  VenueLat: z.coerce.number().min(-90).max(90).default(0),
+  VenueLng: z.coerce.number().min(-180).max(180).default(0),
+});
+export type SetDrawVenueInput = z.infer<typeof setDrawVenueInputSchema>;
 
 export const updateBrDrawInputSchema = z.object({
   Players: z.array(brTeamsSchema),

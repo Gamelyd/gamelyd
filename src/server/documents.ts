@@ -8,6 +8,8 @@ import type {
   UserType,
 } from "@/lib/schemas/common";
 import type { Player, Teams, BRTeams } from "@/lib/schemas/draw";
+import type { SavedTeamRole } from "@/lib/schemas/savedTeam";
+import type { ReportKind } from "@/lib/schemas/misc";
 import type {
   PointSystem,
   PrizePosition,
@@ -179,6 +181,15 @@ export interface DrawDoc {
   SeriesId?: string;
   Leg?: number;
   Kind?: string;
+  /**
+   * Where this specific match is played. Independent of the tournament venues:
+   * a host can point one fixture at a different pitch.
+   */
+  VenueName?: string;
+  VenueCountry?: string;
+  VenueLat?: number;
+  VenueLng?: number;
+  VenueGeo?: { type: "Point"; coordinates: [number, number] };
 }
 
 export interface RegisterTournamentDoc {
@@ -198,6 +209,8 @@ export interface RegisterTournamentDoc {
   Icon: string;
   CheckedIn?: boolean;
   CheckedInAt?: string;
+  /** Who registered the team. Missing on legacy docs - falls back to Players[0]. */
+  CaptainUserId?: string;
 }
 
 export interface InviteTournamentDoc {
@@ -226,6 +239,7 @@ export interface NotificationDoc {
   kind?: NotificationKind;
   invite_id?: string;
   tournament_id?: string;
+  team_id?: string;
 }
 
 export interface ContactUsDoc {
@@ -254,6 +268,16 @@ export interface ReportAbuseDoc {
   Achived: boolean;
   IsDeleted: boolean;
   IsCompleted: boolean;
+  /** What the report is about. Missing on older rows, treated as OTHER. */
+  Kind?: ReportKind;
+  /** Set when a player raises an issue about a specific event. */
+  TournamentId?: string;
+  TournamentName?: string;
+  /** Short category the reporter picked, e.g. "Result is wrong". */
+  Reason?: string;
+  /** For CONTACT_CHANGE: what the verified user is asking to change to. */
+  RequestedEmail?: string;
+  RequestedPhone?: string;
 }
 
 export interface OrgDoc {
@@ -334,6 +358,63 @@ export interface PlatformDoc {
   updated_at: string;
 }
 
+/**
+ * A roster a player keeps on their profile and reuses across tournaments,
+ * independent of any single event. Mirrors the org/orgMember/orgInvite shape.
+ */
+export interface SavedTeamDoc {
+  _id: ObjectId;
+  team_id: string;
+  name: string;
+  icon: string;
+  captain_id: string;
+  created_at: string;
+  updated_at: string;
+  isDeleted: boolean;
+}
+
+export interface SavedTeamMemberDoc {
+  _id: ObjectId;
+  team_id: string;
+  user_id: string;
+  role: SavedTeamRole;
+  /** Remembered so entering a tournament does not re-ask for it. */
+  game_user_name: string;
+  created_at: string;
+}
+
+export interface SavedTeamInviteDoc {
+  _id: ObjectId;
+  invite_id: string;
+  team_id: string;
+  team_name: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: OrgInviteStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Single-document store for platform-wide settings. Keyed so future settings
+ * can live alongside the fee without another collection.
+ */
+export interface SettingsDoc {
+  _id: ObjectId;
+  key: "platform";
+  /** Basis points, so 1000 = 10%. Stamped onto each new tournament. */
+  platformFeeBps: number;
+  /**
+   * Whether hosts can create paid / sponsored events right now. Turning these
+   * off only stops NEW events; ones already running keep taking entries and
+   * settling, so nobody is stranded mid-tournament.
+   */
+  paidEnabled?: boolean;
+  sponsoredEnabled?: boolean;
+  updated_at: string;
+  updated_by: string;
+}
+
 export type IconKind = "tournament" | "team" | "player";
 
 export interface IconDoc {
@@ -369,6 +450,8 @@ export interface PaymentDoc {
     Players: Player[];
     TeamName: string;
     Icon: string;
+    /** Set when the captain paid to enter a roster saved on their profile. */
+    SavedTeamId?: string;
   };
   created_at: string;
   updated_at: string;
@@ -379,12 +462,49 @@ export interface PayoutDoc {
   _id: ObjectId;
   payout_id: string;
   tournamentId: string;
+  tournamentName: string;
+  /** 1/2/3 for podium places, 0 for money returned to the host. */
   place: number;
   teamName: string;
+  /** Who the money is owed to: the team captain, or the host for place 0. */
+  userId: string;
+  userName: string;
   amount: number;
   currency: string;
-  status: "OWED" | "PAID" | "FAILED";
+  status: "OWED" | "PROCESSING" | "PAID" | "FAILED";
   note: string;
+  /** Set once a transfer is attempted. */
+  processor: "STRIPE" | "PAYSTACK" | "";
+  transferRef: string;
+  failureReason: string;
+  paidBy: string;
+  paid_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Where a user's prize money is sent. One per user per processor: Paystack
+ * settles the African currencies against a bank account we resolve into a
+ * transfer recipient, Stripe settles USD/GBP/EUR into a Connect account that
+ * Stripe onboards and verifies itself.
+ */
+export interface PayoutAccountDoc {
+  _id: ObjectId;
+  account_id: string;
+  user_id: string;
+  processor: "STRIPE" | "PAYSTACK";
+  status: "PENDING" | "VERIFIED" | "FAILED";
+  /** Paystack `recipient_code`, or the Stripe connected account id. */
+  recipient_code: string;
+  bank_name: string;
+  bank_code: string;
+  /** Only the last four digits are retained; the recipient code does the work. */
+  account_last4: string;
+  account_name: string;
+  currency: string;
+  country: string;
+  detail: string;
   created_at: string;
   updated_at: string;
 }

@@ -199,3 +199,36 @@ export function formatDistanceKm(km: number): string {
   if (km < 10) return `${km.toFixed(1)} km`;
   return `${Math.round(km)} km`;
 }
+
+/**
+ * Map pins for an event: its named venues when it has any, otherwise the event
+ * location itself. Only places with real coordinates can be pinned, so a venue
+ * the host typed but never picked from search is skipped.
+ */
+export function mapPinsOf(t: {
+  Name?: string;
+  Venues?: { country?: string; location?: string; lat?: number; lng?: number }[];
+  VenueCity?: string;
+  VenueLocation?: string;
+  VenueCountry?: string;
+  VenueLat?: number;
+  VenueLng?: number;
+}): { label: string; country: string; lat: number; lng: number }[] {
+  const country = (t.VenueCountry ?? "").trim().toUpperCase();
+
+  const venues = venuesOf(t)
+    .filter((row) => row.lat !== 0 || row.lng !== 0)
+    .map((row) => ({
+      label: row.location,
+      country: row.country || country,
+      lat: row.lat,
+      lng: row.lng,
+    }));
+  if (venues.length > 0) return venues;
+
+  const lat = t.VenueLat ?? 0;
+  const lng = t.VenueLng ?? 0;
+  if (lat === 0 && lng === 0) return [];
+  const label = locationLabel(t) || eventCity(t);
+  return label ? [{ label, country, lat, lng }] : [];
+}

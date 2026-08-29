@@ -15,10 +15,15 @@ import type {
   OrgInviteDoc,
   OrgMemberDoc,
   PaymentDoc,
+  PayoutAccountDoc,
   PayoutDoc,
   PlatformDoc,
   RegisterTournamentDoc,
   ReportAbuseDoc,
+  SavedTeamDoc,
+  SavedTeamInviteDoc,
+  SavedTeamMemberDoc,
+  SettingsDoc,
   TournamentDoc,
   UserDoc,
 } from "./documents";
@@ -120,4 +125,29 @@ export async function payments(): Promise<Collection<PaymentDoc>> {
 }
 export async function payouts(): Promise<Collection<PayoutDoc>> {
   return (await getDb()).collection<PayoutDoc>(Collections.payout);
+}
+export async function payoutAccounts(): Promise<Collection<PayoutAccountDoc>> {
+  return (await getDb()).collection<PayoutAccountDoc>(
+    Collections.payoutAccount,
+  );
+}
+export async function settings(): Promise<Collection<SettingsDoc>> {
+  return (await getDb()).collection<SettingsDoc>(Collections.settings);
+}
+export async function savedTeams(): Promise<Collection<SavedTeamDoc>> {
+  return (await getDb()).collection<SavedTeamDoc>(Collections.savedTeam);
+}
+export async function savedTeamMembers(): Promise<
+  Collection<SavedTeamMemberDoc>
+> {
+  return (await getDb()).collection<SavedTeamMemberDoc>(
+    Collections.savedTeamMember,
+  );
+}
+export async function savedTeamInvites(): Promise<
+  Collection<SavedTeamInviteDoc>
+> {
+  return (await getDb()).collection<SavedTeamInviteDoc>(
+    Collections.savedTeamInvite,
+  );
 }

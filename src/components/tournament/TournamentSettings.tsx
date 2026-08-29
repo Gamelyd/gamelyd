@@ -5,6 +5,7 @@ import type { Tournament, TournamentManager } from "@/lib/schemas/tournament";
 import { isSeriousSettingPatch } from "@/lib/settingChange";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
+import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
 import { Input } from "@/components/ui/Input";
 import { DateInput, DateTimeInput } from "@/components/ui/DateTimePicker";
 import { Select } from "@/components/ui/Select";
@@ -147,11 +148,12 @@ export function EditTournamentSettings({
     tournament.VenueCountry || "",
   );
   const [locationCity, setLocationCity] = useState(eventCity(tournament));
-  const [venues, setVenues] = useState<VenueDraft[]>(
-    venuesOf(tournament).map(({ country, location }) => ({
-      country,
-      location,
-    })),
+  const [locationPoint, setLocationPoint] = useState({
+    lat: tournament.VenueLat || 0,
+    lng: tournament.VenueLng || 0,
+  });
+  const [venues, setVenues] = useState<VenueDraft[]>(() =>
+    venueDraftsOf(tournament),
   );
   const [pendingSave, setPendingSave] = useState<{
     field: BusyField;
@@ -190,12 +192,11 @@ export function EditTournamentSettings({
     setMatchInterval(String(tournament.MatchIntervalMinutes || 0));
     setLocationCountry(tournament.VenueCountry || "");
     setLocationCity(eventCity(tournament));
-    setVenues(
-      venuesOf(tournament).map(({ country, location }) => ({
-        country,
-        location,
-      })),
-    );
+    setLocationPoint({
+      lat: tournament.VenueLat || 0,
+      lng: tournament.VenueLng || 0,
+    });
+    setVenues(venueDraftsOf(tournament));
   }, [tournament]);
 
   const save = async (field: BusyField, patch: Record<string, unknown>) => {
@@ -361,10 +362,7 @@ export function EditTournamentSettings({
     const nextCountry = locationCountry.trim().toUpperCase();
     const nextCity = locationCity.trim();
     const nextVenues = venues.filter((v) => v.location.trim());
-    const currentVenues = venuesOf(tournament).map(({ country, location }) => ({
-      country,
-      location,
-    }));
+    const currentVenues = venueDraftsOf(tournament);
     const key = (rows: VenueDraft[]) =>
       JSON.stringify(
         rows.map((v) => [v.country.toUpperCase(), v.location.trim()]),
@@ -381,17 +379,18 @@ export function EditTournamentSettings({
       {
         VenueCountry: nextCountry,
         VenueCity: nextCity,
+        VenueLat: locationPoint.lat,
+        VenueLng: locationPoint.lng,
         Venues: nextVenues,
       },
       () => {
         setLocationCountry(tournament.VenueCountry || "");
         setLocationCity(eventCity(tournament));
-        setVenues(
-          venuesOf(tournament).map(({ country, location }) => ({
-            country,
-            location,
-          })),
-        );
+        setLocationPoint({
+          lat: tournament.VenueLat || 0,
+          lng: tournament.VenueLng || 0,
+        });
+        setVenues(venueDraftsOf(tournament));
       },
     );
   };
@@ -466,537 +465,568 @@ export function EditTournamentSettings({
         onSaved={onSaved}
       />
 
-      {showCore ? (
-        <>
-          <Input
-            label={busyField === "name" ? "Name (saving…)" : "Name"}
-            value={name}
-            disabled={locked}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={saveName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                saveName();
-              }
-            }}
-          />
-
-          <DateInput
-            label={busyField === "date" ? "Date (saving…)" : "Date"}
-            value={date}
-            disabled={locked}
-            onChange={(e) => setDate(e.target.value)}
-            onBlur={saveDate}
-          />
-
-          <TextArea
-            label={busyField === "note" ? "Briefing (saving…)" : "Briefing"}
-            rows={3}
-            value={note}
-            disabled={locked}
-            onChange={(e) => setNote(e.target.value)}
-            onBlur={saveNote}
-          />
-
-          {kindUses([], tournament.CatalogKind).usesVenue ? (
-            <div className="flex flex-col gap-3">
-              <PlaceEditor
-                country={locationCountry}
-                city={locationCity}
-                onCountry={setLocationCountry}
-                onCity={setLocationCity}
-                venues={venues}
-                onVenues={setVenues}
+      <CollapsiblePanel
+        title="Event details"
+        description="Name, date, description, size, and who can register."
+        scroll={false}
+      >
+        <div className="flex flex-col gap-4">
+          {showCore ? (
+            <>
+              <Input
+                label={busyField === "name" ? "Name (saving…)" : "Name"}
+                value={name}
                 disabled={locked}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveName();
+                  }
+                }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                className="self-start"
+
+              <DateInput
+                label={busyField === "date" ? "Date (saving…)" : "Date"}
+                value={date}
                 disabled={locked}
-                loading={busyField === "venue"}
-                onClick={saveVenue}
-              >
-                Save location
-              </Button>
-            </div>
-          ) : null}
+                onChange={(e) => setDate(e.target.value)}
+                onBlur={saveDate}
+              />
 
-          <Select
-            label={
-              busyField === "shuffle" ? "Draw order (saving…)" : "Draw order"
-            }
-            value={shuffle}
-            disabled={locked}
-            onChange={(e) =>
-              changeShuffle(e.target.value as Tournament["Shuffle"])
-            }
-            options={[
-              { label: "Automatic", value: "AUTOMATIC" },
-              { label: "Manual", value: "MANUAL" },
-            ]}
-          />
+              <TextArea
+                label={busyField === "note" ? "Briefing (saving…)" : "Briefing"}
+                rows={3}
+                value={note}
+                disabled={locked}
+                onChange={(e) => setNote(e.target.value)}
+                onBlur={saveNote}
+              />
 
-          <Select
-            label={
-              busyField === "type"
-                ? "Who can register (saving…)"
-                : "Who can register"
-            }
-            value={type}
-            disabled={locked}
-            onChange={(e) =>
-              changeType(e.target.value as Tournament["TournamentType"])
-            }
-            options={[
-              { label: "Invite only", value: "PRIVATE" },
-              { label: "Anyone can join", value: "PUBLIC" },
-            ]}
-          />
+              {kindUses([], tournament.CatalogKind).usesVenue ? (
+                <div className="flex flex-col gap-3">
+                  <PlaceEditor
+                    country={locationCountry}
+                    city={locationCity}
+                    cityLat={locationPoint.lat}
+                    cityLng={locationPoint.lng}
+                    onCountry={setLocationCountry}
+                    onCity={setLocationCity}
+                    onCityPlace={(place) => {
+                      setLocationCity(place.city);
+                      if (place.country) setLocationCountry(place.country);
+                      setLocationPoint({ lat: place.lat, lng: place.lng });
+                    }}
+                    venues={venues}
+                    onVenues={setVenues}
+                    disabled={locked}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="self-start"
+                    disabled={locked}
+                    loading={busyField === "venue"}
+                    onClick={saveVenue}
+                  >
+                    Save location
+                  </Button>
+                </div>
+              ) : null}
 
-          <Input
-            label={
-              busyField === "size"
-                ? "Tournament size (saving…)"
-                : "Tournament size"
-            }
-            type="number"
-            min={Math.max(registeredCount, 1)}
-            value={size}
-            disabled={locked}
-            onChange={(e) => setSize(e.target.value)}
-            onBlur={saveSize}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                saveSize();
-              }
-            }}
-          />
+              <Select
+                label={
+                  busyField === "shuffle" ? "Draw order (saving…)" : "Draw order"
+                }
+                value={shuffle}
+                disabled={locked}
+                onChange={(e) =>
+                  changeShuffle(e.target.value as Tournament["Shuffle"])
+                }
+                options={[
+                  { label: "Automatic", value: "AUTOMATIC" },
+                  { label: "Manual", value: "MANUAL" },
+                ]}
+              />
 
-          <Input
-            label={
-              busyField === "roster"
-                ? "Players per team (saving…)"
-                : "Players per team"
-            }
-            type="number"
-            min={1}
-            max={32}
-            value={roster}
-            disabled={locked}
-            onChange={(e) => setRoster(e.target.value)}
-            onBlur={saveRoster}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                saveRoster();
-              }
-            }}
-          />
-        </>
-      ) : null}
+              <Select
+                label={
+                  busyField === "type"
+                    ? "Who can register (saving…)"
+                    : "Who can register"
+                }
+                value={type}
+                disabled={locked}
+                onChange={(e) =>
+                  changeType(e.target.value as Tournament["TournamentType"])
+                }
+                options={[
+                  { label: "Invite only", value: "PRIVATE" },
+                  { label: "Anyone can join", value: "PUBLIC" },
+                ]}
+              />
 
-      {showReturnLeg ? (
-        <Select
-          label={
-            busyField === "returnLeg" ? "Return leg (saving…)" : "Return leg"
-          }
-          value={returnLeg ? "true" : "false"}
-          disabled={locked}
-          onChange={(e) => changeReturnLeg(e.target.value === "true")}
-          options={[
-            { label: "Single round", value: "false" },
-            { label: "Home and away", value: "true" },
-          ]}
-        />
-      ) : null}
+              <Input
+                label={
+                  busyField === "size"
+                    ? "Tournament size (saving…)"
+                    : "Tournament size"
+                }
+                type="number"
+                min={Math.max(registeredCount, 1)}
+                value={size}
+                disabled={locked}
+                onChange={(e) => setSize(e.target.value)}
+                onBlur={saveSize}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveSize();
+                  }
+                }}
+              />
 
-      {showPoints ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            type="number"
-            min={0}
-            max={20}
-            label={busyField === "points" ? "Win points (saving…)" : "Win points"}
-            value={pointsWin}
-            disabled={locked}
-            onChange={(e) => setPointsWin(e.target.value)}
-            onBlur={savePoints}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                savePoints();
-              }
-            }}
-          />
-          {tournament.AllowDraw !== false ? (
-          <Input
-            type="number"
-            min={0}
-            max={20}
-            label={
-              busyField === "points" ? "Draw points (saving…)" : "Draw points"
-            }
-            value={pointsDraw}
-            disabled={locked}
-            onChange={(e) => setPointsDraw(e.target.value)}
-            onBlur={savePoints}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                savePoints();
-              }
-            }}
-          />
+              <Input
+                label={
+                  busyField === "roster"
+                    ? "Players per team (saving…)"
+                    : "Players per team"
+                }
+                type="number"
+                min={1}
+                max={32}
+                value={roster}
+                disabled={locked}
+                onChange={(e) => setRoster(e.target.value)}
+                onBlur={saveRoster}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveRoster();
+                  }
+                }}
+              />
+            </>
           ) : null}
         </div>
-      ) : null}
+      </CollapsiblePanel>
 
-      {showGroupCount ? (
-        <Select
-          label={
-            busyField === "groups"
-              ? "Number of groups (saving…)"
-              : "Number of groups"
-          }
-          value={groupCount}
-          disabled={locked}
-          onChange={(e) => changeGroupCount(Number(e.target.value))}
-          options={[
-            { label: "Auto (about four teams each)", value: "0" },
-            ...[2, 3, 4, 5, 6, 7, 8].map((n) => ({
-              label: String(n),
-              value: String(n),
-            })),
-          ]}
-        />
-      ) : null}
-
-      {showAdvance ? (
-        <Input
-          type="number"
-          min={1}
-          max={8}
-          label={
-            busyField === "advance"
-              ? "Advance per group (saving…)"
-              : "Advance per group"
-          }
-          value={advancePerGroup}
-          disabled={locked}
-          onChange={(e) => setAdvancePerGroup(e.target.value)}
-          onBlur={saveAdvance}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              saveAdvance();
-            }
-          }}
-        />
-      ) : null}
-
-      {showQualifiers ? (
-        <Select
-          label={
-            busyField === "qualifiers"
-              ? "Ties on the table (saving…)"
-              : "Ties on the table"
-          }
-          value={pickQualifiers ? "true" : "false"}
-          disabled={locked}
-          onChange={(e) => changeQualifiers(e.target.value === "true")}
-          options={[
-            { label: "Table order decides", value: "false" },
-            { label: "Host picks if teams are level", value: "true" },
-          ]}
-        />
-      ) : null}
-
-      {showTieBreaker ? (
-        <Select
-          label={busyField === "tie" ? "Tie-break (saving…)" : "Table tie-break"}
-          value={tieBreaker}
-          disabled={locked}
-          onChange={(e) => {
-            const next = e.target.value as Tournament["TieBreaker"];
-            if (next === tournament.TieBreaker || locked) return;
-            setTieBreaker(next);
-            askToSave("tie", { TieBreaker: next }, () =>
-              setTieBreaker(tournament.TieBreaker || "GOAL_DIFF"),
-            );
-          }}
-          options={[
-            { label: "Goal difference", value: "GOAL_DIFF" },
-            { label: "Head to head", value: "HEAD_TO_HEAD" },
-          ]}
-        />
-      ) : null}
-
-      {showKnockout ? (
-        <>
-          <Select
-            label={
-              busyField === "knockout"
-                ? "Knockout ties (saving…)"
-                : "Knockout ties"
-            }
-            value={knockoutFormat}
-            disabled={locked}
-            onChange={(e) => {
-              const next = e.target.value as Tournament["KnockoutFormat"];
-              if (next === (tournament.KnockoutFormat || "SINGLE") || locked)
-                return;
-              setKnockoutFormat(next);
-              if (next === "SINGLE") setKnockoutFinalsSeries(false);
-              askToSave(
-                "knockout",
-                {
-                  KnockoutFormat: next,
-                  ...(next === "SINGLE" ? { KnockoutFinalsSeries: false } : {}),
-                },
-                () => {
-                  setKnockoutFormat(tournament.KnockoutFormat || "SINGLE");
-                  setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries);
-                },
-              );
-            }}
-            options={[
-              { label: "Single match", value: "SINGLE" },
-              { label: "Two legs (aggregate)", value: "TWO_LEG" },
-              { label: "Best of 3", value: "BO3" },
-              { label: "Best of 5", value: "BO5" },
-            ]}
-          />
-          {knockoutFormat !== "SINGLE" ? (
+      <CollapsiblePanel
+        title="Format and rules"
+        description="How matches are played, scored, and how teams advance."
+        scroll={false}
+      >
+        <div className="flex flex-col gap-4">
+          {showReturnLeg ? (
             <Select
               label={
-                busyField === "finals"
-                  ? "Final (saving…)"
-                  : "Final"
+                busyField === "returnLeg" ? "Return leg (saving…)" : "Return leg"
               }
-              value={knockoutFinalsSeries ? "true" : "false"}
+              value={returnLeg ? "true" : "false"}
               disabled={locked}
-              onChange={(e) => {
-                const next = e.target.value === "true";
-                if (next === tournament.KnockoutFinalsSeries || locked) return;
-                setKnockoutFinalsSeries(next);
-                askToSave("finals", { KnockoutFinalsSeries: next }, () =>
-                  setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries),
-                );
-              }}
+              onChange={(e) => changeReturnLeg(e.target.value === "true")}
               options={[
-                { label: "One match", value: "false" },
-                {
-                  label:
-                    knockoutFormat === "TWO_LEG"
-                      ? "Two legs"
-                      : knockoutFormat === "BO3"
-                        ? "Best of 3"
-                        : "Best of 5",
-                  value: "true",
-                },
+                { label: "Single round", value: "false" },
+                { label: "Home and away", value: "true" },
               ]}
             />
           ) : null}
-          <Select
-            label={
-              busyField === "third" ? "Third place (saving…)" : "Third place"
-            }
-            value={thirdPlace ? "true" : "false"}
-            disabled={locked}
-            onChange={(e) => {
-              const next = e.target.value === "true";
-              if (next === tournament.ThirdPlace || locked) return;
-              setThirdPlace(next);
-              askToSave("third", { ThirdPlace: next }, () =>
-                setThirdPlace(tournament.ThirdPlace),
-              );
-            }}
-            options={[
-              { label: "No 3rd place match", value: "false" },
-              { label: "Play for 3rd", value: "true" },
-            ]}
-          />
-        </>
-      ) : null}
 
-      {showBr ? (
-        <>
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            label={busyField === "br" ? "Lobbies (saving…)" : "Lobbies"}
-            value={brLobbies}
-            disabled={locked}
-            onChange={(e) => setBrLobbies(e.target.value)}
-            onBlur={() => {
-              const value = Math.min(20, Math.max(1, Number(brLobbies) || 1));
-              if (value === (tournament.BrLobbyCount || 1) || locked) return;
-              askToSave("br", { BrLobbyCount: value }, () =>
-                setBrLobbies(String(tournament.BrLobbyCount || 1)),
-              );
-            }}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
+          {showPoints ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                type="number"
+                min={0}
+                max={20}
+                label={busyField === "points" ? "Win points (saving…)" : "Win points"}
+                value={pointsWin}
+                disabled={locked}
+                onChange={(e) => setPointsWin(e.target.value)}
+                onBlur={savePoints}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    savePoints();
+                  }
+                }}
+              />
+              {tournament.AllowDraw !== false ? (
+              <Input
+                type="number"
+                min={0}
+                max={20}
+                label={
+                  busyField === "points" ? "Draw points (saving…)" : "Draw points"
+                }
+                value={pointsDraw}
+                disabled={locked}
+                onChange={(e) => setPointsDraw(e.target.value)}
+                onBlur={savePoints}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    savePoints();
+                  }
+                }}
+              />
+              ) : null}
+            </div>
+          ) : null}
+
+          {showGroupCount ? (
+            <Select
+              label={
+                busyField === "groups"
+                  ? "Number of groups (saving…)"
+                  : "Number of groups"
+              }
+              value={groupCount}
+              disabled={locked}
+              onChange={(e) => changeGroupCount(Number(e.target.value))}
+              options={[
+                { label: "Auto (about four teams each)", value: "0" },
+                ...[2, 3, 4, 5, 6, 7, 8].map((n) => ({
+                  label: String(n),
+                  value: String(n),
+                })),
+              ]}
+            />
+          ) : null}
+
+          {showAdvance ? (
             <Input
               type="number"
-              min={0}
-              label="Points per kill"
-              value={brKillPoints}
+              min={1}
+              max={8}
+              label={
+                busyField === "advance"
+                  ? "Advance per group (saving…)"
+                  : "Advance per group"
+              }
+              value={advancePerGroup}
               disabled={locked}
-              onChange={(e) => setBrKillPoints(e.target.value)}
-              onBlur={() => {
-                const value = Math.max(0, Number(brKillPoints) || 0);
-                if (value === (tournament.BrKillPoints ?? 1) || locked) return;
-                askToSave("br", { BrKillPoints: value }, () =>
-                  setBrKillPoints(String(tournament.BrKillPoints ?? 1)),
-                );
-              }}
-            />
-            <Input
-              type="number"
-              min={0}
-              label="First blood points"
-              value={brFirstBlood}
-              disabled={locked}
-              onChange={(e) => setBrFirstBlood(e.target.value)}
-              onBlur={() => {
-                const value = Math.max(0, Number(brFirstBlood) || 0);
-                if (value === (tournament.BrFirstBloodPoints ?? 0) || locked)
-                  return;
-                askToSave("br", { BrFirstBloodPoints: value }, () =>
-                  setBrFirstBlood(String(tournament.BrFirstBloodPoints ?? 0)),
-                );
-              }}
-            />
-          </div>
-          <Input
-            label="Placement points (1st, 2nd, …)"
-            value={brPlacement}
-            disabled={locked}
-            onChange={(e) => setBrPlacement(e.target.value)}
-            onBlur={() => {
-              if (locked) return;
-              const pts = brPlacement
-                .split(/[,\s]+/)
-                .map((n) => Number(n))
-                .filter((n) => Number.isFinite(n));
-              const current = tournament.BrPlacementPoints ?? [
-                12, 9, 7, 5, 4, 3, 2, 1,
-              ];
-              if (pts.join(",") === current.join(",")) return;
-              askToSave("br", { BrPlacementPoints: pts }, () =>
-                setBrPlacement(current.join(",")),
-              );
-            }}
-          />
-        </>
-      ) : null}
-
-      {showCore ? (
-        <>
-          <DateInput
-            label={
-              busyField === "deadline"
-                ? "Registration closes (saving…)"
-                : "Registration closes"
-            }
-            value={deadline}
-            disabled={locked}
-            onChange={(e) => setDeadline(e.target.value)}
-            onBlur={() => {
-              if (
-                locked ||
-                deadline ===
-                  dateInputValue(tournament.RegistrationDeadline || "")
-              )
-                return;
-              askToSave("deadline", { RegistrationDeadline: deadline }, () =>
-                setDeadline(
-                  dateInputValue(tournament.RegistrationDeadline || ""),
-                ),
-              );
-            }}
-          />
-          <Select
-            label={busyField === "checkin" ? "Check-in (saving…)" : "Check-in"}
-            value={checkInRequired ? "true" : "false"}
-            disabled={locked}
-            onChange={(e) => {
-              const next = e.target.value === "true";
-              if (next === tournament.CheckInRequired || locked) return;
-              setCheckInRequired(next);
-              askToSave("checkin", { CheckInRequired: next }, () =>
-                setCheckInRequired(tournament.CheckInRequired),
-              );
-            }}
-            options={[
-              { label: "No check-in", value: "false" },
-              { label: "Teams must check in", value: "true" },
-            ]}
-          />
-          {checkInRequired ? (
-            <DateInput
-              label="Check-in closes"
-              value={checkInCloses}
-              disabled={locked}
-              onChange={(e) => setCheckInCloses(e.target.value)}
-              onBlur={() => {
-                if (
-                  locked ||
-                  checkInCloses ===
-                    dateInputValue(tournament.CheckInCloses || "")
-                )
-                  return;
-                askToSave("checkin", { CheckInCloses: checkInCloses }, () =>
-                  setCheckInCloses(
-                    dateInputValue(tournament.CheckInCloses || ""),
-                  ),
-                );
+              onChange={(e) => setAdvancePerGroup(e.target.value)}
+              onBlur={saveAdvance}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveAdvance();
+                }
               }}
             />
           ) : null}
-        </>
-      ) : null}
 
-      {showSchedule ? (
-        <>
-          <DateTimeInput
-            label={
-              busyField === "schedule" ? "First match (saving…)" : "First match"
-            }
-            value={firstMatchAt}
-            disabled={locked}
-            onChange={(e) => setFirstMatchAt(e.target.value)}
-            onBlur={() => {
-              if (locked || firstMatchAt === (tournament.FirstMatchAt || ""))
-                return;
-              askToSave("schedule", { FirstMatchAt: firstMatchAt }, () =>
-                setFirstMatchAt(tournament.FirstMatchAt || ""),
-              );
-            }}
-          />
-          <Input
-            type="number"
-            min={0}
-            label="Minutes between matches"
-            value={matchInterval}
-            disabled={locked}
-            onChange={(e) => setMatchInterval(e.target.value)}
-            onBlur={() => {
-              const value = Math.max(0, Number(matchInterval) || 0);
-              if (value === (tournament.MatchIntervalMinutes || 0) || locked)
-                return;
-              askToSave("schedule", { MatchIntervalMinutes: value }, () =>
-                setMatchInterval(String(tournament.MatchIntervalMinutes || 0)),
-              );
-            }}
-          />
-        </>
-      ) : null}
+          {showQualifiers ? (
+            <Select
+              label={
+                busyField === "qualifiers"
+                  ? "Ties on the table (saving…)"
+                  : "Ties on the table"
+              }
+              value={pickQualifiers ? "true" : "false"}
+              disabled={locked}
+              onChange={(e) => changeQualifiers(e.target.value === "true")}
+              options={[
+                { label: "Table order decides", value: "false" },
+                { label: "Host picks if teams are level", value: "true" },
+              ]}
+            />
+          ) : null}
+
+          {showTieBreaker ? (
+            <Select
+              label={busyField === "tie" ? "Tie-break (saving…)" : "Table tie-break"}
+              value={tieBreaker}
+              disabled={locked}
+              onChange={(e) => {
+                const next = e.target.value as Tournament["TieBreaker"];
+                if (next === tournament.TieBreaker || locked) return;
+                setTieBreaker(next);
+                askToSave("tie", { TieBreaker: next }, () =>
+                  setTieBreaker(tournament.TieBreaker || "GOAL_DIFF"),
+                );
+              }}
+              options={[
+                { label: "Goal difference", value: "GOAL_DIFF" },
+                { label: "Head to head", value: "HEAD_TO_HEAD" },
+              ]}
+            />
+          ) : null}
+
+          {showKnockout ? (
+            <>
+              <Select
+                label={
+                  busyField === "knockout"
+                    ? "Knockout ties (saving…)"
+                    : "Knockout ties"
+                }
+                value={knockoutFormat}
+                disabled={locked}
+                onChange={(e) => {
+                  const next = e.target.value as Tournament["KnockoutFormat"];
+                  if (next === (tournament.KnockoutFormat || "SINGLE") || locked)
+                    return;
+                  setKnockoutFormat(next);
+                  if (next === "SINGLE") setKnockoutFinalsSeries(false);
+                  askToSave(
+                    "knockout",
+                    {
+                      KnockoutFormat: next,
+                      ...(next === "SINGLE" ? { KnockoutFinalsSeries: false } : {}),
+                    },
+                    () => {
+                      setKnockoutFormat(tournament.KnockoutFormat || "SINGLE");
+                      setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries);
+                    },
+                  );
+                }}
+                options={[
+                  { label: "Single match", value: "SINGLE" },
+                  { label: "Two legs (aggregate)", value: "TWO_LEG" },
+                  { label: "Best of 3", value: "BO3" },
+                  { label: "Best of 5", value: "BO5" },
+                ]}
+              />
+              {knockoutFormat !== "SINGLE" ? (
+                <Select
+                  label={
+                    busyField === "finals"
+                      ? "Final (saving…)"
+                      : "Final"
+                  }
+                  value={knockoutFinalsSeries ? "true" : "false"}
+                  disabled={locked}
+                  onChange={(e) => {
+                    const next = e.target.value === "true";
+                    if (next === tournament.KnockoutFinalsSeries || locked) return;
+                    setKnockoutFinalsSeries(next);
+                    askToSave("finals", { KnockoutFinalsSeries: next }, () =>
+                      setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries),
+                    );
+                  }}
+                  options={[
+                    { label: "One match", value: "false" },
+                    {
+                      label:
+                        knockoutFormat === "TWO_LEG"
+                          ? "Two legs"
+                          : knockoutFormat === "BO3"
+                            ? "Best of 3"
+                            : "Best of 5",
+                      value: "true",
+                    },
+                  ]}
+                />
+              ) : null}
+              <Select
+                label={
+                  busyField === "third" ? "Third place (saving…)" : "Third place"
+                }
+                value={thirdPlace ? "true" : "false"}
+                disabled={locked}
+                onChange={(e) => {
+                  const next = e.target.value === "true";
+                  if (next === tournament.ThirdPlace || locked) return;
+                  setThirdPlace(next);
+                  askToSave("third", { ThirdPlace: next }, () =>
+                    setThirdPlace(tournament.ThirdPlace),
+                  );
+                }}
+                options={[
+                  { label: "No 3rd place match", value: "false" },
+                  { label: "Play for 3rd", value: "true" },
+                ]}
+              />
+            </>
+          ) : null}
+
+          {showBr ? (
+            <>
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                label={busyField === "br" ? "Lobbies (saving…)" : "Lobbies"}
+                value={brLobbies}
+                disabled={locked}
+                onChange={(e) => setBrLobbies(e.target.value)}
+                onBlur={() => {
+                  const value = Math.min(20, Math.max(1, Number(brLobbies) || 1));
+                  if (value === (tournament.BrLobbyCount || 1) || locked) return;
+                  askToSave("br", { BrLobbyCount: value }, () =>
+                    setBrLobbies(String(tournament.BrLobbyCount || 1)),
+                  );
+                }}
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  type="number"
+                  min={0}
+                  label="Points per kill"
+                  value={brKillPoints}
+                  disabled={locked}
+                  onChange={(e) => setBrKillPoints(e.target.value)}
+                  onBlur={() => {
+                    const value = Math.max(0, Number(brKillPoints) || 0);
+                    if (value === (tournament.BrKillPoints ?? 1) || locked) return;
+                    askToSave("br", { BrKillPoints: value }, () =>
+                      setBrKillPoints(String(tournament.BrKillPoints ?? 1)),
+                    );
+                  }}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  label="First blood points"
+                  value={brFirstBlood}
+                  disabled={locked}
+                  onChange={(e) => setBrFirstBlood(e.target.value)}
+                  onBlur={() => {
+                    const value = Math.max(0, Number(brFirstBlood) || 0);
+                    if (value === (tournament.BrFirstBloodPoints ?? 0) || locked)
+                      return;
+                    askToSave("br", { BrFirstBloodPoints: value }, () =>
+                      setBrFirstBlood(String(tournament.BrFirstBloodPoints ?? 0)),
+                    );
+                  }}
+                />
+              </div>
+              <Input
+                label="Placement points (1st, 2nd, …)"
+                value={brPlacement}
+                disabled={locked}
+                onChange={(e) => setBrPlacement(e.target.value)}
+                onBlur={() => {
+                  if (locked) return;
+                  const pts = brPlacement
+                    .split(/[,\s]+/)
+                    .map((n) => Number(n))
+                    .filter((n) => Number.isFinite(n));
+                  const current = tournament.BrPlacementPoints ?? [
+                    12, 9, 7, 5, 4, 3, 2, 1,
+                  ];
+                  if (pts.join(",") === current.join(",")) return;
+                  askToSave("br", { BrPlacementPoints: pts }, () =>
+                    setBrPlacement(current.join(",")),
+                  );
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel
+        title="Schedule and check-in"
+        description="Registration deadline, check-in window, and match times."
+        scroll={false}
+      >
+        <div className="flex flex-col gap-4">
+          {showCore ? (
+            <>
+              <DateInput
+                label={
+                  busyField === "deadline"
+                    ? "Registration closes (saving…)"
+                    : "Registration closes"
+                }
+                value={deadline}
+                disabled={locked}
+                onChange={(e) => setDeadline(e.target.value)}
+                onBlur={() => {
+                  if (
+                    locked ||
+                    deadline ===
+                      dateInputValue(tournament.RegistrationDeadline || "")
+                  )
+                    return;
+                  askToSave("deadline", { RegistrationDeadline: deadline }, () =>
+                    setDeadline(
+                      dateInputValue(tournament.RegistrationDeadline || ""),
+                    ),
+                  );
+                }}
+              />
+              <Select
+                label={busyField === "checkin" ? "Check-in (saving…)" : "Check-in"}
+                value={checkInRequired ? "true" : "false"}
+                disabled={locked}
+                onChange={(e) => {
+                  const next = e.target.value === "true";
+                  if (next === tournament.CheckInRequired || locked) return;
+                  setCheckInRequired(next);
+                  askToSave("checkin", { CheckInRequired: next }, () =>
+                    setCheckInRequired(tournament.CheckInRequired),
+                  );
+                }}
+                options={[
+                  { label: "No check-in", value: "false" },
+                  { label: "Teams must check in", value: "true" },
+                ]}
+              />
+              {checkInRequired ? (
+                <DateInput
+                  label="Check-in closes"
+                  value={checkInCloses}
+                  disabled={locked}
+                  onChange={(e) => setCheckInCloses(e.target.value)}
+                  onBlur={() => {
+                    if (
+                      locked ||
+                      checkInCloses ===
+                        dateInputValue(tournament.CheckInCloses || "")
+                    )
+                      return;
+                    askToSave("checkin", { CheckInCloses: checkInCloses }, () =>
+                      setCheckInCloses(
+                        dateInputValue(tournament.CheckInCloses || ""),
+                      ),
+                    );
+                  }}
+                />
+              ) : null}
+            </>
+          ) : null}
+
+          {showSchedule ? (
+            <>
+              <DateTimeInput
+                label={
+                  busyField === "schedule" ? "First match (saving…)" : "First match"
+                }
+                value={firstMatchAt}
+                disabled={locked}
+                onChange={(e) => setFirstMatchAt(e.target.value)}
+                onBlur={() => {
+                  if (locked || firstMatchAt === (tournament.FirstMatchAt || ""))
+                    return;
+                  askToSave("schedule", { FirstMatchAt: firstMatchAt }, () =>
+                    setFirstMatchAt(tournament.FirstMatchAt || ""),
+                  );
+                }}
+              />
+              <Input
+                type="number"
+                min={0}
+                label="Minutes between matches"
+                value={matchInterval}
+                disabled={locked}
+                onChange={(e) => setMatchInterval(e.target.value)}
+                onBlur={() => {
+                  const value = Math.max(0, Number(matchInterval) || 0);
+                  if (value === (tournament.MatchIntervalMinutes || 0) || locked)
+                    return;
+                  askToSave("schedule", { MatchIntervalMinutes: value }, () =>
+                    setMatchInterval(String(tournament.MatchIntervalMinutes || 0)),
+                  );
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+      </CollapsiblePanel>
 
       <Confirm
         open={Boolean(pendingSave)}
@@ -1205,4 +1235,17 @@ export function ManagerSettings({
       )}
     </div>
   );
+}
+
+/**
+ * Venue rows as editable drafts. `venuesOf` already carries the saved
+ * coordinates, so a venue the host picked earlier stays pinned through an edit.
+ */
+function venueDraftsOf(t: Tournament): VenueDraft[] {
+  return venuesOf(t).map(({ country, location, lat, lng }) => ({
+    country,
+    location,
+    lat,
+    lng,
+  }));
 }

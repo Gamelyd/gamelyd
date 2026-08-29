@@ -37,11 +37,18 @@ import {
   settingChangeEmail,
 } from "../email/templates";
 import { createNotifications } from "./notificationService";
-import type { Tournament, PendingSettingChange } from "@/lib/schemas/tournament";
+import type {
+  Tournament,
+  PendingSettingChange,
+  PrizePosition,
+} from "@/lib/schemas/tournament";
+import { placeLabel } from "@/lib/schemas/tournament";
 import { browseStatusClause, tournamentBrowsePhase } from "@/lib/tournamentStatus";
 import { catalogKindClause } from "@/lib/catalog";
 import { parseCountryCode } from "@/lib/countries";
-import { geocodeVenue } from "../geocode";
+import { geocodeVenue, type GeoPoint } from "../geocode";
+import { paymentsStatus } from "../payments/status";
+import { parseCurrency } from "@/lib/currency";
 import type { BrowseLocation } from "@/lib/venue";
 import { nearestVenueKm } from "@/lib/venue";
 import type { RegisterTournament } from "@/lib/schemas/register";
@@ -61,13 +68,14 @@ import type {
   UpdateTournamentInput,
 } from "@/lib/schemas/tournament";
 import { editTournamentInputSchema } from "@/lib/schemas/tournament";
-import type { RegisterTournamentInput } from "@/lib/schemas/register";
+import type { RegisterTournamentPayload } from "@/lib/schemas/register";
 import {
   rosterOverCapMessage,
   rosterSize,
   rosterSpotsLeftMessage,
 } from "@/lib/schemas/common";
-import { PLATFORM_FEE_BPS } from "@/lib/fees";
+import { getPlatformFeeBps } from "./settingsService";
+import { maxNetPot, prizeBoardTotal } from "@/lib/prizeBoard";
 import {
   asDisqualifiedSet,
   groupQualifiersComplete,
@@ -101,20 +109,40 @@ type ResolvedPlace = {
   VenueGeo?: { type: "Point"; coordinates: [number, number] };
 };
 
+/** A coordinate pair the host actually confirmed, rather than 0/0 padding. */
+function pickedPoint(
+  lat: number | undefined,
+  lng: number | undefined,
+): GeoPoint | null {
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat === 0 && lng === 0) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
 async function resolveEventPlace(
   countryRaw: string | undefined,
   cityRaw: string | undefined,
-  rows: { country?: string; location?: string }[],
+  rows: { country?: string; location?: string; lat?: number; lng?: number }[],
+  cityLat?: number,
+  cityLng?: number,
 ): Promise<ResolvedPlace> {
   const country = parseCountryCode(countryRaw);
   const city = (cityRaw ?? "").trim();
-  const point = city ? await geocodeVenue(city, country) : null;
+  // Coordinates that came from a search result the host selected are already
+  // correct; only fall back to geocoding free text they never confirmed.
+  const point =
+    pickedPoint(cityLat, cityLng) ??
+    (city ? await geocodeVenue(city, country) : null);
   const venues: VenueDoc[] = [];
   for (const row of rows) {
     const place = (row.location ?? "").trim();
     if (!place) continue;
     const rowCountry = parseCountryCode(row.country) || country;
-    const venuePoint = await geocodeVenue(place, rowCountry);
+    const venuePoint =
+      pickedPoint(row.lat, row.lng) ??
+      (await geocodeVenue(place, rowCountry));
     venues.push({
       Country: rowCountry,
       Location: place,
@@ -198,6 +226,55 @@ function fundedPublicClause(): Record<string, unknown> {
   };
 }
 
+/**
+ * The prize board decides who gets paid what at settlement, so it has to be
+ * coherent before the event exists. PAID events split the net pot by percent -
+ * shares over 100% would promise money that was never collected.
+ */
+function assertPrizeBoard(
+  payment: "PAID" | "SPONSORED",
+  prizes: PrizePosition[],
+  context: { entryFee: number; teamCount: number; feeBps: number },
+): void {
+  if (prizes.length === 0) {
+    throw new ServiceError("Add at least one prize position");
+  }
+  const seen = new Set<number>();
+  for (const prize of prizes) {
+    if (prize.Position < 1) {
+      throw new ServiceError("Prize positions start at 1st place");
+    }
+    if (seen.has(prize.Position)) {
+      throw new ServiceError(
+        `${placeLabel(prize.Position)} place is listed twice`,
+      );
+    }
+    seen.add(prize.Position);
+  }
+
+  if (prizes.some((prize) => (prize.Amount || 0) < 0)) {
+    throw new ServiceError("Prize amounts cannot be negative");
+  }
+  const total = prizeBoardTotal(prizes);
+  if (total <= 0) {
+    throw new ServiceError("Set prize amounts greater than zero");
+  }
+  if (payment === "SPONSORED") return;
+
+  // A paid event can only pay out what entries bring in. Reject a board that
+  // could not be covered even by a completely full tournament, rather than
+  // letting the host advertise prize money that can never exist.
+  const ceiling = maxNetPot(context.entryFee, context.teamCount, context.feeBps);
+  if (ceiling <= 0) {
+    throw new ServiceError("Set an entry fee and tournament size first");
+  }
+  if (total > ceiling) {
+    throw new ServiceError(
+      `Your prizes total ${total.toLocaleString()} but ${context.teamCount} teams at this entry fee can only raise ${ceiling.toLocaleString()} after the platform fee. Lower the prizes, raise the entry fee, or allow more teams.`,
+    );
+  }
+}
+
 export async function saveTournament(
   uid: string,
   input: SaveTournamentInput,
@@ -224,23 +301,53 @@ export async function saveTournament(
     orgVerified = org.verified;
   }
 
+  const feeBps = await getPlatformFeeBps();
+
+  // Client-side gating can be bypassed, so refuse money events this deployment
+  // could never charge or pay out.
+  if (input.Payment === "PAID" || input.Payment === "SPONSORED") {
+    const status = await paymentsStatus();
+    // Admin switch. Only blocks new events; ones already running keep taking
+    // entries and settling normally.
+    if (input.Payment === "PAID" && !status.paidEnabled) {
+      throw new ServiceError(
+        "Paid tournaments are paused right now. They are coming back soon.",
+      );
+    }
+    if (input.Payment === "SPONSORED" && !status.sponsoredEnabled) {
+      throw new ServiceError(
+        "Sponsored tournaments are paused right now. They are coming back soon.",
+      );
+    }
+    const live = status.currencies;
+    if (live.length === 0) {
+      throw new ServiceError(
+        "Paid and sponsored tournaments are unavailable until a payment processor is set up",
+      );
+    }
+    if (!live.includes(parseCurrency(input.Currency))) {
+      throw new ServiceError(
+        `${input.Currency} is not available for paid events yet. Pick ${live.join(", ")}.`,
+      );
+    }
+  }
   if (input.Payment === "PAID" && input.RegistrationAmount <= 0) {
     throw new ServiceError("Set an entry fee greater than zero");
   }
-  if (input.Payment === "SPONSORED") {
-    const total = (input.Prizes ?? []).reduce(
-      (sum, prize) => sum + (prize.Amount || 0),
-      0,
-    );
-    if (total <= 0) {
-      throw new ServiceError("Set prize amounts greater than zero");
-    }
+  if (input.Payment === "PAID" || input.Payment === "SPONSORED") {
+    assertPrizeBoard(input.Payment, input.Prizes ?? [], {
+      entryFee: input.RegistrationAmount,
+      teamCount: input.TournamentSize,
+      feeBps,
+    });
   }
 
   const venue = await resolveEventPlace(
     input.VenueCountry,
     input.VenueCity || input.VenueLocation,
     input.Venues ?? [],
+    input.VenueLat,
+    input.VenueLng,
   );
 
   const doc: TournamentDoc = {
@@ -282,7 +389,9 @@ export async function saveTournament(
     Prizes: input.Payment === "SPONSORED" || input.Payment === "PAID"
       ? (input.Prizes ?? [])
       : [],
-    PlatformFeeBps: PLATFORM_FEE_BPS,
+    // Locked at creation: changing the platform rate later must never rewrite
+    // the terms an existing event was advertised and paid under.
+    PlatformFeeBps: feeBps,
     PurseFunded: input.Payment !== "SPONSORED",
     PotNet: 0,
     FeeCollected: 0,
@@ -805,7 +914,7 @@ async function userHasPrivateAccess(
 
 export async function registerForTournament(
   tournamentId: string,
-  input: RegisterTournamentInput,
+  input: RegisterTournamentPayload,
   options?: {
     allowPartialRoster?: boolean;
     autoCheckIn?: boolean;
@@ -924,6 +1033,7 @@ export async function registerForTournament(
     CheckedIn: !tournament.CheckInRequired || Boolean(options?.autoCheckIn),
     CheckedInAt:
       !tournament.CheckInRequired || options?.autoCheckIn ? now : "",
+    CaptainUserId: actor || input.Players[0]?.User_id || "",
   };
 
   await rCol.insertOne(doc);
@@ -2169,7 +2279,11 @@ async function applyTournamentSettings(
         : (current.Venues ?? []).map((row) => ({
             country: row.country,
             location: row.location,
+            lat: row.lat,
+            lng: row.lng,
           })),
+      input.VenueLat !== undefined ? input.VenueLat : current.VenueLat,
+      input.VenueLng !== undefined ? input.VenueLng : current.VenueLng,
     );
     set.Venues = venue.Venues;
     set.venues = venue.Venues;

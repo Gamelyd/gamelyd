@@ -6,6 +6,7 @@ import {
   addLinkInputSchema,
   addScoreInputSchema,
   addTimeInputSchema,
+  setDrawVenueInputSchema,
   addWinnerInputSchema,
   newDrawInputSchema,
   updateBrDrawInputSchema,
@@ -16,6 +17,7 @@ import {
   addLink,
   addScore,
   addTime,
+  setDrawVenue,
   addWinner,
   advanceGroupStage,
   drawBr,
@@ -186,6 +188,27 @@ export async function addTimeAction(
   if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
   try {
     return ok(await addTime(drawId, parsed.data), "Match time set");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function setDrawVenueAction(
+  drawId: string,
+  input: unknown,
+): Promise<ActionResult<Draw>> {
+  const denied = await guardDraw(drawId);
+  if (denied) return denied;
+  const parsed = parseInput(setDrawVenueInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    return ok(
+      await setDrawVenue(drawId, parsed.data),
+      parsed.data.VenueName.trim()
+        ? "Match location set"
+        : "Match location cleared",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     return fail("Something went wrong");

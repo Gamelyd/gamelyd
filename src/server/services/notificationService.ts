@@ -16,6 +16,7 @@ export async function createNotification(
     kind?: NotificationKind;
     invite_id?: string;
     tournament_id?: string;
+    team_id?: string;
   },
 ): Promise<Notification> {
   const col = await notifications();
@@ -28,6 +29,7 @@ export async function createNotification(
     kind: extra?.kind ?? "GENERIC",
     invite_id: extra?.invite_id ?? "",
     tournament_id: extra?.tournament_id ?? "",
+    team_id: extra?.team_id ?? "",
   };
   await col.insertOne(doc);
   return serializeNotification(doc);
@@ -40,6 +42,7 @@ export async function createNotifications(
     kind?: NotificationKind;
     invite_id?: string;
     tournament_id?: string;
+    team_id?: string;
   },
 ): Promise<void> {
   const unique = [...new Set(userIds.filter((id) => id.length > 0))];
@@ -56,6 +59,7 @@ export async function createNotifications(
       kind: extra?.kind ?? "GENERIC",
       invite_id: extra?.invite_id ?? "",
       tournament_id: extra?.tournament_id ?? "",
+      team_id: extra?.team_id ?? "",
     })),
   );
 }

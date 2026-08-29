@@ -282,6 +282,24 @@ export async function updateUser(
 ): Promise<User> {
   const col = await users();
 
+  const current = await col.findOne({ user_id: uid });
+  if (!current) throw new ServiceError("Account not found");
+
+  // A verified account is one whose contact details we confirmed, so those
+  // details cannot be self-edited afterwards. Changing them has to go through
+  // a request we check, otherwise verification would mean nothing.
+  if (current.verified) {
+    const emailChanged =
+      input.email !== undefined && input.email !== current.email;
+    const phoneChanged =
+      input.phone !== undefined && input.phone !== current.phone;
+    if (emailChanged || phoneChanged) {
+      throw new ServiceError(
+        "Your account is verified, so your email and phone are locked. Request a change from your profile settings and we will verify the new details.",
+      );
+    }
+  }
+
   if (input.email) {
     const taken = await col.countDocuments({
       email: input.email,
@@ -446,42 +464,54 @@ export async function setUserVerified(
   return serializeUser(updated);
 }
 
-export async function toggleSuspendUser(userId: string): Promise<boolean> {
+/**
+ * Explicit setters, so a bulk action over mixed rows lands every row in the
+ * same state instead of flipping each one independently. Locking an account
+ * also clears its tokens, signing the user out.
+ */
+async function setAccountFlag(
+  userId: string,
+  field: "isSuspended" | "isDeleted",
+  value: boolean,
+): Promise<boolean> {
   const col = await users();
   const found = await col.findOne({ user_id: userId });
   if (!found) throw new ServiceError("User not found");
-  const next = !found.isSuspended;
   await col.updateOne(
     { user_id: userId },
     {
       $set: {
-        isSuspended: next,
-        ...(next
-          ? { token: "", refresh_token: "" }
-          : {}),
+        [field]: value,
+        ...(value ? { token: "", refresh_token: "" } : {}),
         updated_at: new Date().toISOString(),
       },
     },
   );
-  return next;
+  return value;
+}
+
+export async function setUserSuspended(
+  userId: string,
+  suspended: boolean,
+): Promise<boolean> {
+  return setAccountFlag(userId, "isSuspended", suspended);
+}
+
+export async function setUserDeleted(
+  userId: string,
+  deleted: boolean,
+): Promise<boolean> {
+  return setAccountFlag(userId, "isDeleted", deleted);
+}
+
+export async function toggleSuspendUser(userId: string): Promise<boolean> {
+  const found = await (await users()).findOne({ user_id: userId });
+  if (!found) throw new ServiceError("User not found");
+  return setUserSuspended(userId, !found.isSuspended);
 }
 
 export async function toggleDeleteUser(userId: string): Promise<boolean> {
-  const col = await users();
-  const found = await col.findOne({ user_id: userId });
+  const found = await (await users()).findOne({ user_id: userId });
   if (!found) throw new ServiceError("User not found");
-  const next = !found.isDeleted;
-  await col.updateOne(
-    { user_id: userId },
-    {
-      $set: {
-        isDeleted: next,
-        ...(next
-          ? { token: "", refresh_token: "" }
-          : {}),
-        updated_at: new Date().toISOString(),
-      },
-    },
-  );
-  return next;
+  return setUserDeleted(userId, !found.isDeleted);
 }

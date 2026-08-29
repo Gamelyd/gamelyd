@@ -2,6 +2,7 @@
 
 import type { RegisterTournament } from "@/lib/schemas/register";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
+import { captainUserId } from "@/lib/captain";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 
 export function TeamCard({
@@ -17,6 +18,7 @@ export function TeamCard({
   const players = team.Players ?? [];
   const size = Math.max(seats ?? players.length, 1);
   const waiting = players.length < size;
+  const captain = captainUserId(team);
 
   return (
     <article className="rounded-xl border border-surface-2 bg-surface p-3">
@@ -71,6 +73,14 @@ export function TeamCard({
                   <span className="text-body"> · {player.GameUserName}</span>
                 ) : null}
               </span>
+              {player.User_id && player.User_id === captain ? (
+                <span
+                  title="Registered the team. Prize money is paid to the captain."
+                  className="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
+                >
+                  Captain
+                </span>
+              ) : null}
             </li>
           ))
         )}

@@ -19,7 +19,9 @@ const sections: LegalSection[] = [
     body: [
       "Account: name, username, email, phone, password (stored hashed, never in plain text), profile photo, and optional social links.",
       "Tournaments: events you host or join, team names, in-game names, scores, and messages you post in tournament notes.",
-      "Payments: amount, currency, tournament, status, and a reference from Stripe or Paystack. After an event ends we also store prize amounts owed. We do not store full card numbers.",
+      "Payments: amount, currency, tournament, status, and a reference from Stripe or Paystack. After an event ends we also store prize amounts owed and who they are owed to. We do not store full card numbers.",
+      "Payout accounts: for bank payouts we store your bank name, the last four digits of the account number, the account name the bank returned, and the transfer recipient reference Paystack gives us. We do not keep your full account number. For Stripe payouts we store only your Stripe account reference and whether Stripe has approved you for payouts; Stripe collects and holds those bank details itself.",
+      "Teams you save on your profile: the team name and crest, and which players are on it.",
       "Technical: sign-in cookies, device and IP used to keep the session honest, and basic logs to fix errors.",
     ],
   },
@@ -40,7 +42,7 @@ const sections: LegalSection[] = [
   {
     heading: "Who we share with",
     body: [
-      "Stripe and Paystack, to charge tournament payments. If prize money is sent, they receive what they need to pay you (for example email and amount).",
+      "Stripe and Paystack, to charge tournament payments and to send prize money. To pay you they receive what the transfer needs, such as your name, email, amount, and the bank or Stripe account you connected.",
       "Email delivery (our mail provider), to send the messages above.",
       "Hosting and database providers that store the site and files you upload (covers, crests, avatars).",
       "We share with others only if the law requires it, or to protect the service from abuse.",

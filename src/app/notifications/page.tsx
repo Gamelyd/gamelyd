@@ -18,7 +18,22 @@ import {
   markAllNotificationsReadAction,
 } from "@/server/actions/notificationActions";
 import { acceptSettingChangeAction } from "@/server/actions/tournamentActions";
+import { enterSavedTeamAction } from "@/server/actions/savedTeamActions";
 import type { InviteTournament, Notification } from "@/lib/schemas/misc";
+import type { NotificationKind } from "@/lib/schemas/common";
+
+/** Kinds that get a coloured eyebrow above the message. */
+const KIND_LABEL: Partial<Record<NotificationKind, string>> = {
+  SCORE: "Score",
+  TIME: "Time",
+  DRAW: "Draw",
+  ANNOUNCEMENT: "Announcement",
+  SETTING_CHANGE: "Setting change",
+  TOURNAMENT_INVITE: "Invite",
+  TEAM_INVITE: "Invite",
+  SAVED_TEAM_INVITE: "Team invite",
+  TOURNAMENT_ALERT: "From your team",
+};
 
 export default function NotificationsPage() {
   const { isAuthenticated } = useAuth();
@@ -69,6 +84,26 @@ export default function NotificationsPage() {
     }
     toast.success(result.message ?? "Done");
     setInvites((prev) => prev.filter((i) => i.invite_id !== invite.invite_id));
+  };
+
+  const enterTeam = async (note: Notification) => {
+    if (!note.tournament_id || !note.team_id) return;
+    setBusyId(note._id);
+    const result = await enterSavedTeamAction(
+      note.team_id,
+      note.tournament_id,
+    );
+    setBusyId(null);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(result.message ?? "Registered");
+    if (result.data.checkoutUrl) {
+      window.location.href = result.data.checkoutUrl;
+      return;
+    }
+    router.push(`/tournament/${note.tournament_id}?tab=teams`);
   };
 
   const acceptChange = async (note: Notification) => {
@@ -160,25 +195,9 @@ export default function NotificationsPage() {
                   key={note._id}
                   className="rounded-xl border border-white/10 bg-surface px-4 py-3 text-sm text-white"
                 >
-                  {note.kind === "DRAW" ||
-                  note.kind === "SCORE" ||
-                  note.kind === "TIME" ||
-                  note.kind === "ANNOUNCEMENT" ||
-                  note.kind === "SETTING_CHANGE" ||
-                  note.kind === "TOURNAMENT_INVITE" ||
-                  note.kind === "TEAM_INVITE" ? (
+                  {KIND_LABEL[note.kind] ? (
                     <p className="mb-1 text-[11px] uppercase tracking-wider text-primary">
-                      {note.kind === "SCORE"
-                        ? "Score"
-                        : note.kind === "TIME"
-                          ? "Time"
-                          : note.kind === "DRAW"
-                            ? "Draw"
-                            : note.kind === "ANNOUNCEMENT"
-                              ? "Announcement"
-                              : note.kind === "SETTING_CHANGE"
-                                ? "Setting change"
-                                : "Invite"}
+                      {KIND_LABEL[note.kind]}
                     </p>
                   ) : null}
                   <p>{note.message}</p>
@@ -191,6 +210,19 @@ export default function NotificationsPage() {
                       onClick={() => void acceptChange(note)}
                     >
                       Accept
+                    </Button>
+                  ) : null}
+                  {/* A teammate asked their captain to enter an event: the
+                      captain can put the whole roster in from right here. */}
+                  {note.kind === "TOURNAMENT_ALERT" &&
+                  note.tournament_id &&
+                  note.team_id ? (
+                    <Button
+                      className="mt-2"
+                      loading={busyId === note._id}
+                      onClick={() => void enterTeam(note)}
+                    >
+                      Register my team
                     </Button>
                   ) : null}
                   {note.tournament_id ? (

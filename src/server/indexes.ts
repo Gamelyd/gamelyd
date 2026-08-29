@@ -112,6 +112,27 @@ export const INDEX_SPECS: Record<string, IndexDescription[]> = {
   [Collections.payout]: [
     { key: { payout_id: 1 }, unique: true },
     { key: { tournamentId: 1, place: 1 } },
+    { key: { status: 1, _id: -1 } },
+    { key: { userId: 1, _id: -1 } },
+  ],
+  [Collections.payoutAccount]: [
+    { key: { account_id: 1 }, unique: true },
+    { key: { user_id: 1, processor: 1 }, unique: true },
+    { key: { recipient_code: 1 }, sparse: true },
+  ],
+  [Collections.savedTeam]: [
+    { key: { team_id: 1 }, unique: true },
+    { key: { captain_id: 1, isDeleted: 1 } },
+  ],
+  [Collections.savedTeamMember]: [
+    { key: { team_id: 1, user_id: 1 }, unique: true },
+    { key: { user_id: 1 } },
+  ],
+  [Collections.settings]: [{ key: { key: 1 }, unique: true }],
+  [Collections.savedTeamInvite]: [
+    { key: { invite_id: 1 }, unique: true },
+    { key: { invitee_id: 1, status: 1, _id: -1 } },
+    { key: { team_id: 1, invitee_id: 1, status: 1 } },
   ],
 };
 

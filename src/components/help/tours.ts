@@ -48,7 +48,7 @@ export const GAMES_TOUR: HelpTour = {
     {
       target: "catalog-kinds",
       title: "Games and sports",
-      body: "Switch catalog here. Pick a title when you create a tournament — this list is the catalog, not a live stream.",
+      body: "Switch catalog here. Pick a title when you create a tournament. This list is the catalog, not a live stream.",
     },
     {
       target: "catalog-search",
@@ -90,7 +90,7 @@ export const CREATE_FORMAT_TOUR: HelpTour = {
     {
       target: "create-pitch-format",
       title: "Pitch format",
-      body: "Sports like football can suggest 5, 7, or 11-a-side. That is only a starting point — you still choose the roster.",
+      body: "Sports like football can suggest 5, 7, or 11-a-side. That is only a starting point. You still choose the roster.",
     },
     {
       target: "create-modes",
@@ -168,34 +168,36 @@ export const TOURNAMENT_TOUR: HelpTour = {
   ],
 };
 
+// Managing is split across four tabs, so each step names the tab it lives on -
+// the spotlight only lands when that tab is the one on screen.
 export const MANAGE_TOUR: HelpTour = {
   id: "manage",
   steps: [
     {
-      target: "manage-announce",
-      title: "Talk to the lobby",
-      body: "Announcements show on the tournament page and notify everyone in this event.",
-    },
-    {
-      target: "manage-invite",
-      title: "Fill the lobby",
-      body: "Invite players by name. Invite-only events need this before someone can register.",
-    },
-    {
       target: "tour-stages",
-      title: "Start and draw",
+      title: "Run event",
       body: "Start when the lobby is ready. That locks registration and builds fixtures. Later buttons advance groups or the next knockout round.",
     },
     {
+      target: "manage-invite",
+      title: "Roster tab",
+      body: "Invite players by name, add them directly, or remove a team. Invite-only events need an invite before someone can register.",
+    },
+    {
+      target: "manage-announce",
+      title: "Announcements tab",
+      body: "Posts show on the tournament page and notify everyone in this event.",
+    },
+    {
       target: "manage-settings",
-      title: "Settings before start",
-      body: "Name, date, location, size, and format options. After it starts, serious changes ask registered players to accept.",
+      title: "Settings tab",
+      body: "Name, date, location, size, format options, co-managers, and deletion. After it starts, serious changes ask registered players to accept.",
     },
   ],
 };
 
-export const DASHBOARD_TOUR: HelpTour = {
-  id: "dashboard",
+export const PROFILE_TOUR: HelpTour = {
+  id: "profile",
   steps: [
     {
       target: "dash-create",
@@ -210,7 +212,7 @@ export const DASHBOARD_TOUR: HelpTour = {
     {
       target: "dash-joined",
       title: "You play these",
-      body: "Events you registered for. Check fixtures and announcements there.",
+      body: "Events you registered for. Your teams, payout account, organizations and account settings are in the tabs at the top of this page.",
     },
   ],
 };
@@ -252,7 +254,7 @@ export const FALLBACK_TOUR: HelpTour = {
     {
       target: "nav-games",
       title: "Catalog",
-      body: "Games and Sports are catalogs you host from — not a stream. Pick a title when you create an event.",
+      body: "Games and Sports are catalogs you host from, not a stream. Pick a title when you create an event.",
     },
   ],
 };

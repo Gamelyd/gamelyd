@@ -18,6 +18,8 @@ export const registerTournamentSchema = z.object({
   Icon: z.string(),
   CheckedIn: z.boolean().default(false),
   CheckedInAt: z.string().default(""),
+  /** Player who registered the team. Prize money for the team goes to them. */
+  CaptainUserId: z.string().default(""),
 });
 export type RegisterTournament = z.infer<typeof registerTournamentSchema>;
 
@@ -28,7 +30,22 @@ export const registerTournamentInputSchema = z.object({
   RefNumber: z.string().optional().default(""),
   PaymentChannel: z.string().optional().default(""),
   Amount: z.coerce.number().optional().default(0),
+  /**
+   * Enter a roster saved on the captain's profile. The server resolves the
+   * players from the saved team, so the whole roster joins at once instead of
+   * each teammate needing a separate invite.
+   */
+  SavedTeamId: z.string().optional().default(""),
 });
 export type RegisterTournamentInput = z.infer<
   typeof registerTournamentInputSchema
+>;
+
+/**
+ * What the registration service actually consumes. `SavedTeamId` is resolved
+ * into `Players` at the action boundary, so it never reaches the service.
+ */
+export type RegisterTournamentPayload = Omit<
+  RegisterTournamentInput,
+  "SavedTeamId"
 >;

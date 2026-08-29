@@ -11,8 +11,12 @@ import {
   addScoreAction,
   addTimeAction,
   addWinnerAction,
+  setDrawVenueAction,
   updateBrDrawAction,
 } from "@/server/actions/drawActions";
+import { PlaceSearch } from "@/components/ui/PlaceSearch";
+import type { TournamentVenue } from "@/lib/schemas/tournament";
+import { venueMapsUrl } from "@/lib/venue";
 import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
 import {
   isSoloVerified,
@@ -44,7 +48,7 @@ const scoreClass: Record<"win" | "lose" | "draw", string> = {
   draw: "bg-yellow",
 };
 
-type EditMode = "score" | "time" | "link" | null;
+type EditMode = "score" | "time" | "link" | "venue" | null;
 
 export function Fixture({
   draw,
@@ -53,6 +57,7 @@ export function Fixture({
   knockoutFormat,
   seriesGames,
   hostPicksLevel,
+  eventVenues = [],
 }: {
   draw: Draw;
   canManage: boolean;
@@ -60,6 +65,8 @@ export function Fixture({
   knockoutFormat?: KnockoutFormat;
   seriesGames?: Draw[];
   hostPicksLevel?: boolean;
+  /** The tournament's own venues, offered as one-tap picks. */
+  eventVenues?: TournamentVenue[];
 }) {
   if (draw.BRTeams.length > 0) {
     return <BrFixture draw={draw} canManage={canManage} onUpdated={onUpdated} />;
@@ -72,6 +79,7 @@ export function Fixture({
       knockoutFormat={knockoutFormat}
       seriesGames={seriesGames}
       hostPicksLevel={hostPicksLevel}
+      eventVenues={eventVenues}
     />
   );
 }
@@ -83,6 +91,7 @@ function MpFixture({
   knockoutFormat,
   seriesGames,
   hostPicksLevel,
+  eventVenues = [],
 }: {
   draw: Draw;
   canManage: boolean;
@@ -90,6 +99,7 @@ function MpFixture({
   knockoutFormat?: KnockoutFormat;
   seriesGames?: Draw[];
   hostPicksLevel?: boolean;
+  eventVenues?: TournamentVenue[];
 }) {
   const toast = useToast();
   const [mode, setMode] = useState<EditMode>(null);
@@ -163,6 +173,34 @@ function MpFixture({
     setSaving(false);
     if (result.ok) {
       toast.success("Time added");
+      onUpdated(result.data);
+      setMode(null);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  // Coordinates give an exact pin; otherwise fall back to a text search.
+  const mapsUrl = draw.VenueName
+    ? venueMapsUrl({
+        country: draw.VenueCountry,
+        location: draw.VenueName,
+        lat: draw.VenueLat,
+        lng: draw.VenueLng,
+      })
+    : undefined;
+
+  const saveVenue = async (venue: {
+    VenueName: string;
+    VenueCountry: string;
+    VenueLat: number;
+    VenueLng: number;
+  }) => {
+    setSaving(true);
+    const result = await setDrawVenueAction(draw.DrawId, venue);
+    setSaving(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Location saved");
       onUpdated(result.data);
       setMode(null);
     } else {
@@ -307,6 +345,78 @@ function MpFixture({
               </a>
             ) : null}
           </div>
+        ) : mode === "venue" ? (
+          <div className="flex w-full max-w-md flex-col gap-3 text-left font-normal">
+            {eventVenues.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-sm text-label">
+                  Use a venue from this event
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {eventVenues.map((venue, i) => (
+                    <button
+                      key={`${venue.location}-${i}`}
+                      type="button"
+                      disabled={saving}
+                      onClick={() =>
+                        void saveVenue({
+                          VenueName: venue.location,
+                          VenueCountry: venue.country,
+                          VenueLat: venue.lat,
+                          VenueLng: venue.lng,
+                        })
+                      }
+                      className="cursor-pointer rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs text-white transition-colors hover:bg-primary/20 disabled:opacity-60"
+                    >
+                      {venue.location}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <PlaceSearch
+              label={
+                eventVenues.length > 0 ? "Or search somewhere else" : "Location"
+              }
+              value=""
+              disabled={saving}
+              placeholder="Search a stadium, pitch, or address"
+              onSelect={(place) =>
+                void saveVenue({
+                  VenueName: place.label,
+                  VenueCountry: place.country,
+                  VenueLat: place.lat,
+                  VenueLng: place.lng,
+                })
+              }
+            />
+            <div className="flex gap-2">
+              {draw.VenueName ? (
+                <Button
+                  type="button"
+                  variant="dark"
+                  loading={saving}
+                  onClick={() =>
+                    void saveVenue({
+                      VenueName: "",
+                      VenueCountry: "",
+                      VenueLat: 0,
+                      VenueLng: 0,
+                    })
+                  }
+                >
+                  Clear location
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMode(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         ) : mode === "score" ? (
           <div className="flex flex-wrap items-end justify-center gap-3">
             <Input
@@ -370,6 +480,38 @@ function MpFixture({
             ) : (
               <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
             )}
+            {draw.VenueName || canManage ? (
+              <>
+                <span className="text-white/40">|</span>
+                {canManage ? (
+                  <button
+                    type="button"
+                    onClick={() => setMode("venue")}
+                    className="inline-block max-w-55 cursor-pointer truncate align-bottom hover:text-primary"
+                    title={draw.VenueName || "Add a location for this match"}
+                  >
+                    {draw.VenueName || "Add location"}
+                  </button>
+                ) : mapsUrl ? (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block max-w-55 truncate align-bottom text-primary hover:underline"
+                    title={draw.VenueName}
+                  >
+                    {draw.VenueName}
+                  </a>
+                ) : (
+                  <span
+                    className="inline-block max-w-55 truncate align-bottom"
+                    title={draw.VenueName}
+                  >
+                    {draw.VenueName}
+                  </span>
+                )}
+              </>
+            ) : null}
             {draw.Link || canManage ? (
               <>
                 <span className="text-white/40">|</span>

@@ -4,6 +4,7 @@ import { CatalogImage } from "@/components/ui/CatalogImage";
 import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { Modal } from "@/components/ui/Modal";
 import { Confirm } from "@/components/ui/Confirm";
 import { Select } from "@/components/ui/Select";
@@ -434,31 +435,40 @@ export default function AdminGamesPage() {
                   {game.active ? "Active" : "Inactive"}
                 </span>
               </div>
-              <div className="p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
-                  {kindLabel(game.kind || GAMES_KIND)}
-                </p>
-                <h3 className="text-white">{game.name}</h3>
-                {game.formats.length > 0 ? (
-                  <p className="mt-1 text-xs text-body">
-                    {game.formats.map((f) => f.label).join(" · ")}
+              <div className="flex items-start gap-2 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+                    {kindLabel(game.kind || GAMES_KIND)}
                   </p>
-                ) : game.platforms.length > 0 ? (
-                  <p className="mt-1 text-xs text-body">
-                    {game.platforms.join(" · ")}
-                  </p>
-                ) : null}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => openEdit(game)}>
-                    Edit
-                  </Button>
-                  <Button variant="dark" onClick={() => toggleActive(game)}>
-                    {game.active ? "Deactivate" : "Activate"}
-                  </Button>
-                  <Button variant="danger" onClick={() => setDeleteTarget(game)}>
-                    Delete
-                  </Button>
+                  <h3 className="truncate text-white">{game.name}</h3>
+                  {game.formats.length > 0 ? (
+                    <p className="mt-1 text-xs text-body">
+                      {game.formats.map((f) => f.label).join(" · ")}
+                    </p>
+                  ) : game.platforms.length > 0 ? (
+                    <p className="mt-1 text-xs text-body">
+                      {game.platforms.join(" · ")}
+                    </p>
+                  ) : null}
                 </div>
+                <RowMenu
+                  label={`Actions for ${game.name}`}
+                  actions={[
+                    { label: "Edit", onSelect: () => openEdit(game) },
+                    {
+                      label: game.active ? "Deactivate" : "Activate",
+                      hint: game.active
+                        ? "Hides it when creating tournaments"
+                        : undefined,
+                      onSelect: () => void toggleActive(game),
+                    },
+                    {
+                      label: "Delete",
+                      danger: true,
+                      onSelect: () => setDeleteTarget(game),
+                    },
+                  ]}
+                />
               </div>
             </div>
           ))}

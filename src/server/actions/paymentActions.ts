@@ -3,16 +3,17 @@
 import { parseInput } from "@/lib/validate";
 import { ok, fail, type ActionResult } from "@/lib/result";
 import { startEntryCheckoutInputSchema } from "@/lib/schemas/payment";
-import type { PayoutRecord } from "@/lib/schemas/payment";
+import type { PaymentsStatus, PayoutRecord } from "@/lib/schemas/payment";
 import { getSessionClaims } from "@/server/auth/session";
 import { ServiceError } from "@/server/services/userService";
 import {
   fulfillByProcessorRef,
-  listTournamentPayouts,
+  listPayoutsForViewer,
   startEntryCheckout,
   startSponsorCheckout,
 } from "@/server/services/paymentService";
-import { parseCurrency } from "@/lib/currency";
+import { serializePayout } from "@/server/services/payoutService";
+import { paymentsStatus } from "@/server/payments/status";
 
 export async function startEntryCheckoutAction(
   tournamentId: string,
@@ -45,23 +46,30 @@ export async function startSponsorCheckoutAction(
   }
 }
 
+/**
+ * What this deployment can charge in. Read by the create wizard so paid and
+ * sponsored events are only offered when a processor is actually wired up.
+ */
+export async function paymentsStatusAction(): Promise<
+  ActionResult<PaymentsStatus>
+> {
+  try {
+    return ok(await paymentsStatus());
+  } catch (error) {
+    console.error(error);
+    return fail("Could not check payment configuration");
+  }
+}
+
 export async function listTournamentPayoutsAction(
   tournamentId: string,
 ): Promise<ActionResult<PayoutRecord[]>> {
+  const claims = await getSessionClaims();
+  // The board names winners and amounts - signed-out visitors see nothing.
+  if (!claims) return ok([]);
   try {
-    const rows = await listTournamentPayouts(tournamentId);
-    return ok(
-      rows.map((row) => ({
-        payout_id: row.payout_id,
-        tournamentId: row.tournamentId,
-        place: row.place,
-        teamName: row.teamName,
-        amount: row.amount,
-        currency: parseCurrency(row.currency),
-        status: row.status,
-        note: row.note,
-      })),
-    );
+    const rows = await listPayoutsForViewer(tournamentId, claims.uid);
+    return ok(rows.map((row) => serializePayout(row)));
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);

@@ -71,3 +71,70 @@ export async function retrieveStripeSession(
 ): Promise<Stripe.Checkout.Session> {
   return stripe().checkout.sessions.retrieve(sessionId);
 }
+
+/**
+ * Express Connect account for a winner. Stripe collects and verifies the bank
+ * details itself on the hosted onboarding flow, so we never touch them.
+ */
+export async function createStripeConnectAccount(input: {
+  email: string;
+  country: string;
+}): Promise<string> {
+  const account = await stripe().accounts.create({
+    type: "express",
+    email: input.email || undefined,
+    country: (input.country || "US").toUpperCase(),
+    capabilities: { transfers: { requested: true } },
+  });
+  return account.id;
+}
+
+export async function createStripeAccountLink(input: {
+  accountId: string;
+  refreshUrl: string;
+  returnUrl: string;
+}): Promise<string> {
+  const link = await stripe().accountLinks.create({
+    account: input.accountId,
+    refresh_url: input.refreshUrl,
+    return_url: input.returnUrl,
+    type: "account_onboarding",
+  });
+  return link.url;
+}
+
+export async function stripeAccountStatus(accountId: string): Promise<{
+  payoutsEnabled: boolean;
+  detail: string;
+}> {
+  const account = await stripe().accounts.retrieve(accountId);
+  const due = account.requirements?.currently_due ?? [];
+  return {
+    payoutsEnabled: Boolean(account.payouts_enabled),
+    detail: account.payouts_enabled
+      ? ""
+      : due.length > 0
+        ? `Stripe still needs: ${due.slice(0, 3).join(", ")}`
+        : "Stripe is still reviewing this account",
+  };
+}
+
+export async function stripeTransfer(input: {
+  destination: string;
+  amount: number;
+  currency: Currency;
+  reference: string;
+  description: string;
+}): Promise<{ transferId: string }> {
+  const transfer = await stripe().transfers.create(
+    {
+      amount: toMinor(input.amount, input.currency),
+      currency: input.currency.toLowerCase(),
+      destination: input.destination,
+      description: input.description,
+      metadata: { payout_id: input.reference },
+    },
+    { idempotencyKey: `payout_${input.reference}` },
+  );
+  return { transferId: transfer.id };
+}

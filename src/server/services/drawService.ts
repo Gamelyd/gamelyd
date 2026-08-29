@@ -29,11 +29,16 @@ import {
   scorePostedEmail,
 } from "../email/templates";
 import type { Draw, Player, Teams } from "@/lib/schemas/draw";
+import type { Tournament } from "@/lib/schemas/tournament";
+import { prizeBoardTotal, teamsNeededForBoard } from "@/lib/prizeBoard";
+import { roundMoney } from "@/lib/fees";
+import { formatMoney } from "@/lib/currency";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
 import { hydrateDraw, hydrateDraws } from "../hydrateVerified";
 import type {
   AddScoreInput,
   AddTimeInput,
+  SetDrawVenueInput,
   UpdateBrDrawInput,
 } from "@/lib/schemas/draw";
 import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
@@ -207,6 +212,28 @@ function flagMissingFixtures(
   return `These fixtures still need a winner: ${list}. If the match ended level (including 0-0), pick who goes through, then try again.`;
 }
 
+/**
+ * A paid event promises fixed cash prizes, so it must not start until entry
+ * fees have actually covered the board. Otherwise the host advertises money
+ * that was never collected and settlement pays out short.
+ */
+function assertBoardFunded(tournament: Tournament): void {
+  if (tournament.Payment !== "PAID") return;
+  const board = prizeBoardTotal(tournament.Prizes);
+  if (board <= 0) return;
+  const pot = tournament.PotNet || 0;
+  if (pot >= board) return;
+  const short = roundMoney(board - pot);
+  const need = teamsNeededForBoard(
+    board,
+    tournament.RegistrationAmount,
+    tournament.PlatformFeeBps,
+  );
+  throw new ServiceError(
+    `Entries have raised ${formatMoney(pot, tournament.Currency)} of the ${formatMoney(board, tournament.Currency)} prize board, ${formatMoney(short, tournament.Currency)} short. You need about ${need} paid teams before this can start. Lower the prizes in settings, or wait for more entries.`,
+  );
+}
+
 export async function newDraw(tournamentId: string): Promise<Draw[]> {
   const tCol = await tournaments();
   const ids = await relatedTournamentIds(tournamentId);
@@ -215,6 +242,7 @@ export async function newDraw(tournamentId: string): Promise<Draw[]> {
   );
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+  assertBoardFunded(tournament);
 
   if (tournament.TournamentMode === "GROUPS") {
     throw new ServiceError(
@@ -321,6 +349,7 @@ export async function drawBr(tournamentId: string): Promise<Draw[]> {
   );
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+  assertBoardFunded(tournament);
 
   const dCol = await draws();
   const existing = await dCol.countDocuments(
@@ -416,6 +445,7 @@ export async function drawLeague(tournamentId: string): Promise<Draw[]> {
   );
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+  assertBoardFunded(tournament);
 
   if (tournament.TournamentMode !== "LEAGUE") {
     throw new ServiceError("This tournament is not a league");
@@ -514,6 +544,7 @@ export async function drawGroupStage(tournamentId: string): Promise<Draw[]> {
   );
   if (!tournamentDoc) throw new ServiceError("Tournament not found");
   const tournament = serializeTournament(tournamentDoc);
+  assertBoardFunded(tournament);
 
   if (tournament.TournamentMode !== "GROUPS") {
     throw new ServiceError("This tournament is not a group tournament");
@@ -946,6 +977,64 @@ export async function addTime(
   return hydrateDraw(mapped);
 }
 
+/**
+ * Point one fixture at a place. Passing an empty name clears it, so a host can
+ * undo a mistake without deleting the match.
+ */
+export async function setDrawVenue(
+  drawId: string,
+  input: SetDrawVenueInput,
+): Promise<Draw> {
+  const col = await draws();
+  const name = input.VenueName.trim();
+  const hasPoint =
+    Number.isFinite(input.VenueLat) &&
+    Number.isFinite(input.VenueLng) &&
+    !(input.VenueLat === 0 && input.VenueLng === 0);
+
+  const updated = await col.findOneAndUpdate(
+    asDocFilter<DrawDoc>(byDrawId(drawId)),
+    name
+      ? {
+          $set: {
+            VenueName: name,
+            VenueCountry: input.VenueCountry.toUpperCase(),
+            VenueLat: hasPoint ? input.VenueLat : 0,
+            VenueLng: hasPoint ? input.VenueLng : 0,
+            Updated_at: new Date().toISOString(),
+            ...(hasPoint
+              ? {
+                  VenueGeo: {
+                    type: "Point" as const,
+                    coordinates: [input.VenueLng, input.VenueLat] as [
+                      number,
+                      number,
+                    ],
+                  },
+                }
+              : {}),
+          },
+          ...(hasPoint ? {} : { $unset: { VenueGeo: "" } }),
+        }
+      : {
+          $set: {
+            VenueName: "",
+            VenueCountry: "",
+            VenueLat: 0,
+            VenueLng: 0,
+            Updated_at: new Date().toISOString(),
+          },
+          $unset: { VenueGeo: "" },
+        },
+    { returnDocument: "after" },
+  );
+  if (!updated) throw new ServiceError("Draw not found");
+
+  const mapped = serializeDraw(updated);
+  if (name) void notifyVenueSet(mapped);
+  return hydrateDraw(mapped);
+}
+
 export async function addScore(
   drawId: string,
   input: AddScoreInput,
@@ -1326,6 +1415,31 @@ async function notifyScorePosted(draw: Draw): Promise<void> {
     }
   } catch (error) {
     console.error(error);
+  }
+}
+
+/** Tells both teams where they are playing. In-app only, no email needed. */
+async function notifyVenueSet(draw: Draw): Promise<void> {
+  try {
+    const venue = draw.VenueName.trim();
+    if (!venue) return;
+    const tournamentDoc = await (
+      await tournaments()
+    ).findOne(asDocFilter<TournamentDoc>(byTournamentId(draw.TournamentId)));
+    const tournamentName = tournamentDoc
+      ? serializeTournament(tournamentDoc).Name
+      : "your tournament";
+    const fixture =
+      draw.Team1?.TeamName && draw.Team2?.TeamName
+        ? `${draw.Team1.TeamName} vs ${draw.Team2.TeamName}`
+        : "Your match";
+    await createNotifications(
+      uniquePlayers([draw]).map((player) => player.User_id),
+      `${fixture} in ${tournamentName} will be played at ${venue}.`,
+      { kind: "TIME", tournament_id: draw.TournamentId },
+    );
+  } catch (error) {
+    console.error("[draw] venue notification failed:", error);
   }
 }
 

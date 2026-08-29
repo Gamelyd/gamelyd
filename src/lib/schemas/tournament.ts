@@ -116,6 +116,12 @@ export type TournamentVenue = z.infer<typeof tournamentVenueSchema>;
 export const tournamentVenueInputSchema = z.object({
   country: z.string().max(2).optional().default(""),
   location: z.string().max(200).optional().default(""),
+  /**
+   * Set when the host picked the venue from search. Zero means "not chosen",
+   * and the server falls back to geocoding the text.
+   */
+  lat: z.coerce.number().min(-90).max(90).optional().default(0),
+  lng: z.coerce.number().min(-180).max(180).optional().default(0),
 });
 export type TournamentVenueInput = z.infer<typeof tournamentVenueInputSchema>;
 
@@ -286,6 +292,8 @@ export const saveTournamentInputSchema = z.object({
   VenueCountry: z.string().max(2).optional().default(""),
   VenueCity: z.string().max(80).optional().default(""),
   VenueLocation: z.string().max(200).optional().default(""),
+  VenueLat: z.coerce.number().min(-90).max(90).optional().default(0),
+  VenueLng: z.coerce.number().min(-180).max(180).optional().default(0),
   Venues: z.array(tournamentVenueInputSchema).max(8).optional().default([]),
 });
 export type SaveTournamentInput = z.infer<typeof saveTournamentInputSchema>;
@@ -344,6 +352,8 @@ export const editTournamentInputSchema = z
     VenueCountry: z.string().max(2).optional(),
     VenueCity: z.string().max(80).optional(),
     VenueLocation: z.string().max(200).optional(),
+    VenueLat: z.coerce.number().min(-90).max(90).optional(),
+    VenueLng: z.coerce.number().min(-180).max(180).optional(),
     Venues: z.array(tournamentVenueInputSchema).max(8).optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {

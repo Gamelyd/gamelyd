@@ -40,7 +40,7 @@ function writeStore(store: Store) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch {
-    // Private mode or quota — skip persistence.
+    // Private mode or quota, so skip persistence.
   }
 }
 

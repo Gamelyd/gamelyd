@@ -1,19 +1,51 @@
 import "server-only";
 import { ObjectId } from "mongodb";
-import { payments, payouts, tournaments } from "@/server/db";
-import type { PaymentDoc, PayoutDoc, TournamentDoc } from "@/server/documents";
-import { serializeTournament } from "@/server/serialize";
+import {
+  draws,
+  payments,
+  payouts,
+  registrations,
+  tournaments,
+} from "@/server/db";
+import type {
+  DrawDoc,
+  PaymentDoc,
+  PayoutDoc,
+  RegisterTournamentDoc,
+  TournamentDoc,
+} from "@/server/documents";
+import {
+  serializeDraw,
+  serializeRegistration,
+  serializeTournament,
+} from "@/server/serialize";
 import { asDocFilter, byTournamentId } from "@/server/legacy";
 import { ServiceError, getUserById } from "@/server/services/userService";
-import { registerForTournament } from "@/server/services/tournamentService";
+import {
+  canManageTournamentById,
+  registerForTournament,
+} from "@/server/services/tournamentService";
+import { canReceivePayout } from "@/server/services/payoutAccountService";
+import { createNotification } from "@/server/services/notificationService";
+import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService";
+import { rosterSize } from "@/lib/schemas/common";
 import {
   playerOnATeam,
   userMayJoinTournament,
 } from "@/server/services/inviteService";
 import type { Currency } from "@/lib/schemas/common";
-import type { RegisterTournamentInput } from "@/lib/schemas/register";
+import type { Draw } from "@/lib/schemas/draw";
+import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Tournament } from "@/lib/schemas/tournament";
+import { placeLabel } from "@/lib/schemas/tournament";
 import type { StartEntryCheckoutInput } from "@/lib/schemas/payment";
+import { captainUserId } from "@/lib/captain";
+import { resolvePodium } from "@/lib/podium";
+import {
+  allocateBoard,
+  prizeBoardTotal,
+  usesLegacyShares,
+} from "@/lib/prizeBoard";
 import {
   PLATFORM_FEE_BPS,
   processorForCurrency,
@@ -22,7 +54,7 @@ import {
   splitEntry,
   type Processor,
 } from "@/lib/fees";
-import { parseCurrency } from "@/lib/currency";
+import { formatMoney, parseCurrency } from "@/lib/currency";
 import { env } from "@/server/env";
 import { createStripeCheckout, stripeEnabled } from "@/server/payments/stripe";
 import {
@@ -115,18 +147,43 @@ export async function startEntryCheckout(
   if (await playerOnATeam(tournament.TournamentId, uid)) {
     throw new ServiceError("You are already on a team in this event");
   }
-  if (
-    input.Players.length !== 1 ||
-    input.Players[0]?.User_id !== uid
-  ) {
-    throw new ServiceError(
-      "Register yourself first, then invite teammates after you pay.",
-    );
+  // A saved team enters as a whole roster - the entry fee is per team, and its
+  // members already agreed to play together, so no per-event invites are needed.
+  const roster = input.SavedTeamId
+    ? await resolveSavedTeamRegistration(
+        uid,
+        input.SavedTeamId,
+        rosterSize(tournament.Team, tournament.RosterCount),
+      )
+    : { Players: input.Players, TeamName: input.TeamName, Icon: input.Icon };
+
+  if (!input.SavedTeamId) {
+    if (roster.Players.length !== 1 || roster.Players[0]?.User_id !== uid) {
+      throw new ServiceError(
+        "Register yourself first, then invite teammates after you pay.",
+      );
+    }
+  } else {
+    for (const player of roster.Players) {
+      if (await playerOnATeam(tournament.TournamentId, player.User_id)) {
+        throw new ServiceError(
+          `${player.UserName} is already on a team in this event`,
+        );
+      }
+    }
   }
+
   const gross = tournament.RegistrationAmount;
   if (gross <= 0) throw new ServiceError("Entry fee is not set");
   const split = splitEntry(gross, tournament.PlatformFeeBps);
   const currency = parseCurrency(tournament.Currency);
+  // The captain both pays the entry and receives the team's prize money, so a
+  // working payout account is a precondition for taking their money.
+  if (!(await canReceivePayout(uid, currency))) {
+    throw new ServiceError(
+      "Add a payout account before you register. Prize money for your team is paid to you as captain.",
+    );
+  }
   const processor = processorForCurrency(currency);
   const email = await userEmail(uid);
   const now = new Date().toISOString();
@@ -149,9 +206,10 @@ export async function startEntryCheckout(
     checkoutUrl: "",
     email,
     registration: {
-      Players: input.Players,
-      TeamName: input.TeamName,
-      Icon: input.Icon,
+      Players: roster.Players,
+      TeamName: roster.TeamName,
+      Icon: roster.Icon,
+      SavedTeamId: input.SavedTeamId ?? "",
     },
     created_at: now,
     updated_at: now,
@@ -290,7 +348,13 @@ export async function fulfillPayment(paymentId: string): Promise<void> {
           PaymentChannel: claimed.processor,
           Amount: claimed.amount,
         },
-        { paidPaymentId: claimed.payment_id, actorUid: claimed.userId, captainOnly: true, allowPartialRoster: true },
+        {
+          paidPaymentId: claimed.payment_id,
+          actorUid: claimed.userId,
+          // A saved team was already validated at checkout and enters whole.
+          captainOnly: !claimed.registration.SavedTeamId,
+          allowPartialRoster: true,
+        },
       );
       await tCol.updateOne(
         asDocFilter<TournamentDoc>(byTournamentId(claimed.tournamentId)),
@@ -335,82 +399,192 @@ export async function listTournamentPayouts(
     .toArray();
 }
 
+/**
+ * The payout board names people and amounts, so it is not public. Hosts,
+ * co-managers and admins see the whole board; a player sees only the line for
+ * their own team.
+ */
+export async function listPayoutsForViewer(
+  tournamentId: string,
+  uid: string,
+): Promise<PayoutDoc[]> {
+  const tournament = await loadTournament(tournamentId);
+  const rows = await listTournamentPayouts(tournament.TournamentId);
+  if (rows.length === 0) return [];
+  if (await canManageTournamentById(uid, tournament.TournamentId)) return rows;
+
+  const regDocs = await (await registrations())
+    .find(
+      asDocFilter<RegisterTournamentDoc>(
+        byTournamentId(tournament.TournamentId),
+      ),
+    )
+    .toArray();
+  const mine = regDocs
+    .map(serializeRegistration)
+    .find((team) => team.Players.some((player) => player.User_id === uid));
+  if (!mine) return [];
+  return rows.filter(
+    (row) => row.teamName === mine.TeamName || row.userId === uid,
+  );
+}
+
+/**
+ * Loads the finished bracket without going through drawService, which imports
+ * this module to trigger settlement.
+ */
+async function loadResults(
+  tournamentId: string,
+): Promise<{ draws: Draw[]; participants: RegisterTournament[] }> {
+  const filter = byTournamentId(tournamentId);
+  const [drawDocs, regDocs] = await Promise.all([
+    (await draws()).find(asDocFilter<DrawDoc>(filter)).toArray(),
+    (await registrations())
+      .find(asDocFilter<RegisterTournamentDoc>(filter))
+      .toArray(),
+  ]);
+  return {
+    draws: drawDocs.map(serializeDraw),
+    participants: regDocs.map(serializeRegistration),
+  };
+}
+
+interface SettlementLine {
+  place: number;
+  teamName: string;
+  userId: string;
+  amount: number;
+  note: string;
+}
+
+/**
+ * Splits the money once a champion is known. Every configured prize position
+ * is paid to the captain of the team that finished there; anything that cannot
+ * be placed (a position with no result, e.g. no third-place match) falls back
+ * to the host so no money is stranded.
+ */
 export async function settleEndedTournament(tournamentId: string): Promise<void> {
   const tournament = await loadTournament(tournamentId);
   if (tournament.Payment === "FREE") return;
-  if (tournament.SettlementStatus === "SETTLED" || tournament.SettlementStatus === "OPEN") {
+  if (
+    tournament.SettlementStatus === "SETTLED" ||
+    tournament.SettlementStatus === "OPEN"
+  ) {
     return;
   }
   if (!tournament.Winner?.TeamName?.trim()) return;
 
   const currency = parseCurrency(tournament.Currency);
-  const champ = tournament.Winner.TeamName.trim();
-  const lines: { place: number; teamName: string; amount: number; note: string }[] =
-    [];
+  const { draws: drawRows, participants } = await loadResults(
+    tournament.TournamentId,
+  );
+  const podium = resolvePodium(tournament, drawRows, participants);
+  if (!podium) return;
 
-  if (tournament.Payment === "SPONSORED") {
-    const first = tournament.Prizes.find((p) => p.Position === 1);
-    const rest = tournament.Prizes.filter((p) => p.Position !== 1);
-    if (first && first.Amount > 0) {
-      lines.push({
-        place: 1,
-        teamName: champ,
-        amount: roundMoney(first.Amount),
-        note: "1st place",
-      });
+  const byPlace = new Map<number, string>();
+  if (podium.first?.TeamName?.trim()) byPlace.set(1, podium.first.TeamName.trim());
+  if (podium.second?.TeamName?.trim()) byPlace.set(2, podium.second.TeamName.trim());
+  if (podium.third?.TeamName?.trim()) byPlace.set(3, podium.third.TeamName.trim());
+
+  const captainFor = (teamName: string): string =>
+    captainUserId(participants.find((p) => p.TeamName === teamName));
+
+  // A sponsor's deposit is exactly the board; a paid event holds whatever the
+  // entry fees actually collected.
+  const pot =
+    tournament.Payment === "SPONSORED"
+      ? prizeBoardTotal(tournament.Prizes)
+      : roundMoney(tournament.PotNet);
+
+  const { byPosition, remaining } = allocateBoard(
+    tournament.Prizes,
+    pot,
+    tournament.Payment,
+  );
+  const legacyShares =
+    tournament.Payment === "PAID" && usesLegacyShares(tournament.Prizes);
+
+  const lines: SettlementLine[] = [];
+  let unassigned = 0;
+
+  for (const [position, amount] of [...byPosition.entries()].sort(
+    (a, b) => a[0] - b[0],
+  )) {
+    if (amount <= 0) continue;
+    const teamName = byPlace.get(position);
+    const captain = teamName ? captainFor(teamName) : "";
+    if (!teamName || !captain) {
+      unassigned = roundMoney(unassigned + amount);
+      continue;
     }
-    const leftover = rest.reduce((sum, row) => sum + (row.Amount || 0), 0);
-    if (leftover > 0) {
-      lines.push({
-        place: 0,
-        teamName: "Host",
-        amount: roundMoney(leftover),
-        note: "Unassigned places returned to host until standings are paid out",
-      });
-    }
-  } else {
-    const pot = tournament.PotNet;
-    const shares = tournament.Prizes.filter((p) => (p.Share || 0) > 0);
-    const shareTotal = shares.reduce((sum, row) => sum + row.Share, 0) || 100;
-    const firstShare =
-      shares.find((p) => p.Position === 1)?.Share ??
-      (shareTotal > 0 ? shareTotal : 100);
-    const firstAmount = roundMoney((pot * firstShare) / shareTotal);
     lines.push({
-      place: 1,
-      teamName: champ,
-      amount: firstAmount,
-      note: "Champion share of net pot",
+      place: position,
+      teamName,
+      userId: captain,
+      amount,
+      note: legacyShares
+        ? `${placeLabel(position)} place · share of the net pot`
+        : `${placeLabel(position)} place prize`,
     });
-    const remainder = roundMoney(pot - firstAmount);
-    if (remainder > 0) {
-      lines.push({
-        place: 0,
-        teamName: "Host",
-        amount: remainder,
-        note: "Remaining net pot (other places unpaid until assigned)",
-      });
-    }
+  }
+
+  // Money the board did not promise, plus prizes for places nobody reached.
+  const hostAmount = roundMoney(unassigned + remaining);
+  if (hostAmount > 0) {
+    lines.push({
+      place: 0,
+      teamName: "Host",
+      userId: tournament.User_id,
+      amount: hostAmount,
+      note:
+        unassigned > 0
+          ? "Unclaimed places and unallocated funds returned to the host"
+          : "Funds left over after the prize board, returned to the host",
+    });
   }
 
   const now = new Date().toISOString();
   const col = await payouts();
   for (const line of lines) {
     if (line.amount <= 0) continue;
+    const user = line.userId ? await getUserById(line.userId) : null;
     const payoutId = new ObjectId().toHexString();
     await col.insertOne({
       _id: new ObjectId(payoutId),
       payout_id: payoutId,
       tournamentId: tournament.TournamentId,
+      tournamentName: tournament.Name,
       place: line.place,
       teamName: line.teamName,
+      userId: line.userId,
+      userName: user?.user_name || "",
       amount: line.amount,
       currency,
       status: "OWED",
       note: line.note,
+      processor: "",
+      transferRef: "",
+      failureReason: "",
+      paidBy: "",
+      paid_at: "",
       created_at: now,
       updated_at: now,
     });
+
+    // Tell them the money exists, and whether we can actually send it. Without
+    // this a winner has no idea a missing payout account is holding it up.
+    if (line.userId) {
+      const ready = await canReceivePayout(line.userId, currency).catch(
+        () => false,
+      );
+      void createNotification(
+        line.userId,
+        ready
+          ? `You won ${formatMoney(line.amount, currency)} from ${tournament.Name}. It is queued for transfer to your payout account.`
+          : `You won ${formatMoney(line.amount, currency)} from ${tournament.Name}. Add a payout account on your profile so we can send it.`,
+        { kind: "GENERIC", tournament_id: tournament.TournamentId },
+      ).catch(() => undefined);
+    }
   }
   await (await tournaments()).updateOne(
     asDocFilter<TournamentDoc>(byTournamentId(tournament.TournamentId)),

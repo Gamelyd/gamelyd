@@ -24,6 +24,7 @@ import {
 } from "../email/templates";
 import type { InviteTournament } from "@/lib/schemas/misc";
 import { rosterOverCapMessage, rosterSize } from "@/lib/schemas/common";
+import { isCaptain } from "@/lib/captain";
 import { playerIconForUser } from "./iconService";
 
 function pendingForUser(userId: string): Filter<InviteTournamentDoc> {
@@ -216,8 +217,7 @@ export async function inviteToTeam(
   if (!team) {
     throw new ServiceError("Register your team before inviting teammates");
   }
-  const captainId = team.Players[0]?.User_id;
-  if (captainId !== actorUid) {
+  if (!isCaptain(team, actorUid)) {
     throw new ServiceError("Only the player who registered the team can invite");
   }
   if (team.Players.length >= needed) {
@@ -427,7 +427,7 @@ export async function listPendingTeamInvites(
       $and: [byAnyTournamentId(ids), byPlayerUserId(actorUid)],
     }),
   );
-  if (!team || team.Players[0]?.User_id !== actorUid) return [];
+  if (!team || !isCaptain(team, actorUid)) return [];
   const docs = await (await invites())
     .find({
       register_id: team.RegisterTournamentId,

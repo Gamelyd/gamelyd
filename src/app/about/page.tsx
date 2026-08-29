@@ -22,7 +22,7 @@ const STEPS = [
   {
     n: "02",
     title: "Fill the roster",
-    body: "Players register as captain, then invite teammates. Teammates are not on the roster until they accept. A player can only be on one team.",
+    body: "Players register as captain, then invite teammates. Teammates are not on the roster until they accept. A player can only be on one team. Prize money for a team is paid to its captain.",
   },
   {
     n: "03",

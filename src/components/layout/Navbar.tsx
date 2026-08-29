@@ -22,7 +22,6 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
     },
     { href: "/games", label: "Games" },
     { href: "/games?kind=sports", label: "Sports" },
-    { href: "/dashboard", label: "Dashboard", auth: true },
     { href: "/org", label: "Organizations", auth: true },
     { href: "/about", label: "About" },
     { href: "/contact-us", label: "Contact" },
@@ -61,11 +60,19 @@ export function Navbar() {
   };
 
   const isAdmin = user?.user_type === "ADMIN";
-  const visibleLinks = links.filter((l) => {
-    if (l.admin) return isAdmin;
-    if (l.auth) return isAuthenticated;
-    return true;
-  });
+  // Profile replaced the old dashboard, and its href needs the signed-in id, so
+  // it is spliced in here rather than living in the static list above.
+  const visibleLinks = links
+    .filter((l) => {
+      if (l.admin) return isAdmin;
+      if (l.auth) return isAuthenticated;
+      return true;
+    })
+    .flatMap((l) =>
+      l.href === "/org" && user
+        ? [{ href: `/profile/${user.user_id}`, label: "Profile" }, l]
+        : [l],
+    );
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";

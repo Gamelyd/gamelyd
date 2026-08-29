@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { Modal } from "@/components/ui/Modal";
 import { Confirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
@@ -123,12 +124,12 @@ export default function AdminPlatformsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-surface-2">
-          <table className="w-full min-w-[480px] text-left text-sm">
+          <table className="w-full min-w-120 text-left text-sm">
             <thead className="bg-surface-2 text-body">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="w-12 px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -149,27 +150,28 @@ export default function AdminPlatformsPage() {
                       {platform.active ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => openEdit(platform)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="dark"
-                        onClick={() => toggleActive(platform)}
-                      >
-                        {platform.active ? "Deactivate" : "Activate"}
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => setDeleteTarget(platform)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
+                  <td className="px-4 py-3">
+                    <RowMenu
+                      label={`Actions for ${platform.name}`}
+                      actions={[
+                        {
+                          label: "Edit",
+                          onSelect: () => openEdit(platform),
+                        },
+                        {
+                          label: platform.active ? "Deactivate" : "Activate",
+                          hint: platform.active
+                            ? "Hides it when creating tournaments"
+                            : undefined,
+                          onSelect: () => void toggleActive(platform),
+                        },
+                        {
+                          label: "Delete",
+                          danger: true,
+                          onSelect: () => setDeleteTarget(platform),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

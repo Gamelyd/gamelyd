@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { useToast } from "@/components/ui/Toast";
 import { Loader } from "@/components/ui/Loader";
 import type { Org } from "@/lib/schemas/org";
@@ -17,13 +19,16 @@ import {
 
 export default function AdminOrgsPage() {
   const toast = useToast();
+  const router = useRouter();
   const [term, setTerm] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Paginated<Org> | null>(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
-  const [busyId, setBusyId] = useState("");
+  // Only the setter is used: row feedback now comes from the toast, not a
+  // per-button spinner, but the guard still prevents overlapping writes.
+  const [, setBusyId] = useState("");
 
   useEffect(() => {
     let activeReq = true;
@@ -86,13 +91,13 @@ export default function AdminOrgsPage() {
       </form>
 
       <div className="overflow-x-auto rounded-2xl border border-surface-2">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-160 text-left text-sm">
           <thead className="bg-surface-2 text-body">
             <tr>
               <th className="px-4 py-3 font-medium">Organization</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Created</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="w-12 px-4 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -124,25 +129,26 @@ export default function AdminOrgsPage() {
                     : "-"}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Link href={`/admin/orgs/${org.org_id}`}>
-                      <Button variant="outline">Manage</Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      loading={busyId === org.org_id}
-                      onClick={() => toggleVerified(org)}
-                    >
-                      {org.verified ? "Unverify" : "Verify"}
-                    </Button>
-                    <Button
-                      variant={org.isDeleted ? "dark" : "danger"}
-                      loading={busyId === org.org_id}
-                      onClick={() => toggleDelete(org)}
-                    >
-                      {org.isDeleted ? "Restore" : "Delete"}
-                    </Button>
-                  </div>
+                  <RowMenu
+                    label={`Actions for ${org.name}`}
+                    actions={[
+                      {
+                        label: "Manage",
+                        onSelect: () => router.push(`/admin/orgs/${org.org_id}`),
+                      },
+                      {
+                        label: org.verified
+                          ? "Remove verification"
+                          : "Verify",
+                        onSelect: () => toggleVerified(org),
+                      },
+                      {
+                        label: org.isDeleted ? "Restore" : "Delete",
+                        danger: !org.isDeleted,
+                        onSelect: () => toggleDelete(org),
+                      },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}

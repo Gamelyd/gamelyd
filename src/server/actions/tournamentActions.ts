@@ -57,6 +57,8 @@ import {
   userRegisteredTournamentsLimit,
 } from "@/server/services/tournamentService";
 import { startSponsorCheckout } from "@/server/services/paymentService";
+import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService";
+import { rosterSize } from "@/lib/schemas/common";
 import { ServiceError } from "@/server/services/userService";
 import { getSessionClaims } from "@/server/auth/session";
 import {
@@ -169,6 +171,25 @@ export async function registerForTournamentAction(
   if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
 
   try {
+    // Entering a saved team brings the whole roster in at once: those players
+    // already agreed to be on the team, so no per-tournament invite is needed.
+    if (parsed.data.SavedTeamId) {
+      const tournament = await getTournamentById(tournamentId);
+      if (!tournament) return fail("Tournament not found");
+      const roster = await resolveSavedTeamRegistration(
+        claims.uid,
+        parsed.data.SavedTeamId,
+        rosterSize(tournament.Team, tournament.RosterCount),
+      );
+      return ok(
+        await registerForTournament(
+          tournamentId,
+          { ...parsed.data, ...roster },
+          { actorUid: claims.uid, allowPartialRoster: true },
+        ),
+        "Team registered",
+      );
+    }
     return ok(
       await registerForTournament(tournamentId, parsed.data, {
         actorUid: claims.uid,

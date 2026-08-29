@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CatalogImage } from "@/components/ui/CatalogImage";
@@ -26,6 +26,7 @@ import {
 } from "./SelectQualifiers";
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
+import { AlertCaptain } from "./AlertCaptain";
 import { InviteSearch } from "./InviteSearch";
 import { HostInvitePanel } from "./HostInvitePanel";
 import { startSponsorCheckoutAction, listTournamentPayoutsAction } from "@/server/actions/paymentActions";
@@ -42,6 +43,8 @@ import { NextStageModal } from "./NextStageModal";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
+import { usesLegacyShares } from "@/lib/prizeBoard";
+import { isCaptain as isTeamCaptain } from "@/lib/captain";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { setTournamentGroupsAction } from "@/server/actions/tournamentActions";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
@@ -77,7 +80,17 @@ import {
   kindUses,
   scoreColumnLabels,
 } from "@/lib/catalog";
-import { eventCity, formatVenueRow, locationLabel, venueLabel, venueMapsUrl, venuesOf } from "@/lib/venue";
+import {
+  eventCity,
+  formatVenueRow,
+  locationLabel,
+  mapPinsOf,
+  venueLabel,
+  venueMapsUrl,
+  venuesOf,
+} from "@/lib/venue";
+import { VenueMap } from "./VenueMap";
+import { ReportTournament } from "./ReportTournament";
 import {
   nextStageAfterScore,
   type NextStagePrompt,
@@ -145,6 +158,8 @@ export function TournamentView({
     tournament.PendingSettingChange,
   );
   const isKnockout = tournament.TournamentMode === "MULTIPLAYER";
+  // Offered as one-tap picks when a host sets the location of a single match.
+  const eventVenues = useMemo(() => venuesOf(tournament), [tournament]);
   const [teamsPanel, setTeamsPanel] = useState<TeamsPanel>(() => {
     if (tournament.TournamentMode === "MULTIPLAYER" && tournament.Start) {
       return "bracket";
@@ -187,10 +202,17 @@ export function TournamentView({
   );
   const canManage = isOwner || isAdmin || isManager;
 
+  // Announce the checkout result exactly once, then strip the query param so a
+  // refresh or a back-navigation does not replay it.
+  const checkoutAnnounced = useRef(false);
   useEffect(() => {
+    if (checkoutAnnounced.current) return;
+    if (checkout !== "success" && checkout !== "cancel") return;
+    checkoutAnnounced.current = true;
     if (checkout === "success") toast.success("Payment received");
-    if (checkout === "cancel") toast.error("Payment cancelled");
-  }, [checkout, toast]);
+    else toast.error("Payment cancelled");
+    router.replace(`/tournament/${tournament.TournamentId}`, { scroll: false });
+  }, [checkout, toast, router, tournament.TournamentId]);
   const canAdminister = isOwner || isAdmin;
   const canReshuffle =
     isAdmin || (canManage && tournament.OwnerCanReshuffleGroups);
@@ -219,12 +241,16 @@ export function TournamentView({
   const groupsCreated = groups.length > 0;
   const needed = rosterSize(tournament.Team, tournament.RosterCount);
   const catalogKindFlags = kindUses([], tournament.CatalogKind);
-  const isCaptain = Boolean(
-    user?.user_id && myTeam?.Players?.[0]?.User_id === user.user_id,
-  );
+  const isCaptain = isTeamCaptain(myTeam, user?.user_id);
   const rosterSpotsLeft = myTeam
     ? Math.max(needed - (myTeam.Players ?? []).length, 0)
     : 0;
+  /** Captain has registered but the team still has empty seats to fill. */
+  const rosterIncomplete =
+    isCaptain &&
+    rosterSpotsLeft > 0 &&
+    registrationOpen(tournament) &&
+    !tournament.Start;
 
   const isGroups = tournament.TournamentMode === "GROUPS";
 
@@ -522,7 +548,8 @@ export function TournamentView({
       {tournament.Payment === "SPONSORED" && !tournament.PurseFunded ? (
         <div className="border-b border-yellow/30 bg-yellow/10 px-page py-4 text-center text-sm text-white">
           Prize pool is not funded yet. This event stays off the public list
-          until the host pays the board plus a {feePercent()}% fee.
+          until the host pays the board plus a{" "}
+          {feePercent(tournament.PlatformFeeBps)}% fee.
           {canManage ? (
             <FundPrizeButton tournamentId={tournament.TournamentId} />
           ) : null}
@@ -714,6 +741,42 @@ export function TournamentView({
         />
       ) : null}
 
+      {/* A half-empty roster is the single most common reason a captain's team
+          never makes it to the draw, so this sits above the tabs rather than
+          buried under the team list. */}
+      {rosterIncomplete ? (
+        <button
+          type="button"
+          onClick={() => {
+            setTab("teams");
+            if (isKnockout || isGroups) setTeamsPanel("teams");
+          }}
+          className="w-full border-b border-yellow/40 bg-yellow/15 text-left transition-colors hover:bg-yellow/25"
+        >
+          <span className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-page py-3.5">
+            <span className="shrink-0 rounded-full bg-yellow/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
+              Captain
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-white">
+                {myTeam?.TeamName} needs {rosterSpotsLeft} more player
+                {rosterSpotsLeft === 1 ? "" : "s"}
+              </span>
+              <span className="mt-0.5 block text-xs text-body">
+                {pendingTeamInvites.length > 0
+                  ? `${pendingTeamInvites.length} invite${pendingTeamInvites.length === 1 ? "" : "s"} still waiting to be accepted. `
+                  : ""}
+                Teammates only join once they accept, so invite them before the
+                draw.
+              </span>
+            </span>
+            <span className="shrink-0 rounded-lg bg-yellow px-4 py-2 text-sm font-semibold text-[#221a00]">
+              Invite players
+            </span>
+          </span>
+        </button>
+      ) : null}
+
       <div className="border-b border-surface-2 bg-nav">
         <div
           className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-page"
@@ -883,18 +946,33 @@ export function TournamentView({
               isCaptain &&
               (rosterSpotsLeft > 0 || pendingTeamInvites.length > 0) ? (
                 <div className="mx-auto max-w-lg">
-                  <div className="rounded-xl border border-primary/25 bg-surface p-5">
-                    <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
-                      Invite teammates
+                  <div
+                    className={`rounded-xl border p-5 ${
+                      rosterSpotsLeft > 0
+                        ? "border-yellow/40 bg-yellow/10"
+                        : "border-primary/25 bg-surface"
+                    }`}
+                  >
+                    <h3
+                      className={`mb-2 font-display text-xl ${
+                        rosterSpotsLeft > 0 ? "text-yellow" : "text-white"
+                      }`}
+                    >
+                      {rosterSpotsLeft > 0
+                        ? `Invite ${rosterSpotsLeft} more player${rosterSpotsLeft === 1 ? "" : "s"}`
+                        : "Invite teammates"}
                     </h3>
                     {rosterSpotsLeft > 0 ? (
                       <>
                         <p className="mb-3 text-sm text-body">
-                          {rosterSpotsLeft} of {needed} player
-                          {needed === 1 ? "" : "s"} left on{" "}
-                          {myTeam?.TeamName}. They are not on the team until they
-                          accept. The host capped teams at {needed}. One player
-                          cannot join two teams.
+                          {myTeam?.TeamName} has {rosterSpotsLeft} of {needed}{" "}
+                          seat{rosterSpotsLeft === 1 ? "" : "s"} open. Players
+                          are not on your team until they accept, so invite
+                          early. The host capped teams at {needed}, and one
+                          player cannot join two teams.
+                          {tournament.Payment === "PAID"
+                            ? " You already paid for the whole team, so the players you invite join free."
+                            : ""}
                         </p>
                         <InviteSearch
                           tournamentId={tournament.TournamentId}
@@ -935,8 +1013,8 @@ export function TournamentView({
             if (!(isKnockout || isGroups)) {
               return (
                 <div className="space-y-8">
-                  {teamsContent}
                   {invitePanels}
+                  {teamsContent}
                 </div>
               );
             }
@@ -956,8 +1034,8 @@ export function TournamentView({
                 />
                 {teamsPanel === "teams" ? (
                   <div className="space-y-8">
-                    {teamsContent}
                     {invitePanels}
+                    {teamsContent}
                   </div>
                 ) : (
                   bracketContent
@@ -997,6 +1075,7 @@ export function TournamentView({
                       <div className="flex flex-col items-center gap-8">
                         {cupDraws.map((d) => (
                           <Fixture
+                            eventVenues={eventVenues}
                             key={d.DrawId || d._id}
                             draw={d}
                             canManage={canManage}
@@ -1022,6 +1101,7 @@ export function TournamentView({
                           <div className="flex flex-col items-center gap-8">
                             {thirdDraws.map((d) => (
                               <Fixture
+                            eventVenues={eventVenues}
                                 key={d.DrawId || d._id}
                                 draw={d}
                                 canManage={canManage}
@@ -1048,6 +1128,7 @@ export function TournamentView({
                     >
                       {sectionDraws.map((d) => (
                         <Fixture
+                            eventVenues={eventVenues}
                           key={d.DrawId || d._id}
                           draw={d}
                           canManage={canManage}
@@ -1083,6 +1164,7 @@ export function TournamentView({
                     <div className="flex flex-col items-center gap-8">
                         {stageDraws.map((d) => (
                           <Fixture
+                            eventVenues={eventVenues}
                             key={d.DrawId || d._id}
                             draw={d}
                             canManage={canManage}
@@ -1143,21 +1225,24 @@ export function TournamentView({
               </Link>
             </div>
           ) : user ? (
-            <RegisterTeam
-              tournamentId={tournament.TournamentId}
-              teamSize={tournament.Team}
-              rosterCount={tournament.RosterCount}
-              usesInGameName={catalogKindFlags.usesInGameName}
-              payment={tournament.Payment}
-              currency={tournament.Currency}
-              entryFee={tournament.RegistrationAmount}
-              feeBps={tournament.PlatformFeeBps}
-              onRegistered={(reg) => {
-                setParticipants((prev) => [...prev, reg]);
-                toast.success("Team registered");
-                setTab("teams");
-              }}
-            />
+            <div className="flex max-w-lg flex-col gap-5">
+              <RegisterTeam
+                tournamentId={tournament.TournamentId}
+                teamSize={tournament.Team}
+                rosterCount={tournament.RosterCount}
+                usesInGameName={catalogKindFlags.usesInGameName}
+                payment={tournament.Payment}
+                currency={tournament.Currency}
+                entryFee={tournament.RegistrationAmount}
+                feeBps={tournament.PlatformFeeBps}
+                onRegistered={(reg) => {
+                  setParticipants((prev) => [...prev, reg]);
+                  toast.success("Team registered");
+                  setTab("teams");
+                }}
+              />
+              <AlertCaptain tournamentId={tournament.TournamentId} />
+            </div>
           ) : (
             <GuestRegisterPrompt tournamentId={tournament.TournamentId} />
           ))}
@@ -1584,8 +1669,10 @@ function Details({
       : []),
     ...(tournament.Prizes ?? []).map((prize) => ({
       label: `${placeLabel(prize.Position)} prize`,
+      // Paid events now advertise cash; only those created under the old
+      // percentage split still describe themselves that way.
       value:
-        tournament.Payment === "PAID"
+        tournament.Payment === "PAID" && usesLegacyShares(tournament.Prizes)
           ? `${prize.Share || 0}% of net pot`
           : formatMoney(prize.Amount, tournament.Currency),
     })),
@@ -1626,6 +1713,13 @@ function Details({
             </div>
           ))}
         </dl>
+      </div>
+      <VenueMap pins={mapPinsOf(tournament)} />
+      <div className="flex justify-center pt-2">
+        <ReportTournament
+          tournamentId={tournament.TournamentId}
+          tournamentName={tournament.Name}
+        />
       </div>
       {tournament.Payment !== "FREE" ? (
         <PrizeSettlement tournamentId={tournament.TournamentId} />
@@ -1673,9 +1767,8 @@ function PrizeSettlement({ tournamentId }: { tournamentId: string }) {
         Prize settlement
       </h3>
       <p className="mb-3 text-sm text-body">
-        Held until the event ends. Owed lines are the payout board - bank
-        transfers to winners ship next once payout accounts are on each
-        profile.
+        Held until the event ends. Each place is paid to that team&apos;s
+        captain, using the payout account on their profile.
       </p>
       <ul className="space-y-2 text-sm">
         {rows.map((row) => (

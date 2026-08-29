@@ -1,6 +1,7 @@
 import { apiFail, apiOk } from "@/lib/apiJson";
 import { verifyPaystackSignature } from "@/server/payments/paystack";
 import { fulfillByProcessorRef } from "@/server/services/paymentService";
+import { resolveTransferOutcome } from "@/server/services/payoutService";
 
 export const runtime = "nodejs";
 
@@ -10,19 +11,39 @@ export async function POST(req: Request) {
   if (!verifyPaystackSignature(raw, signature)) {
     return apiFail("Invalid Paystack signature", 400);
   }
-  let payload: { event?: string; data?: { reference?: string } };
+  let payload: {
+    event?: string;
+    data?: { reference?: string; transfer_code?: string; reason?: string };
+  };
   try {
     payload = JSON.parse(raw) as typeof payload;
   } catch {
     return apiFail("Invalid JSON", 400);
   }
-  if (payload.event === "charge.success" && payload.data?.reference) {
-    try {
+
+  try {
+    if (payload.event === "charge.success" && payload.data?.reference) {
       await fulfillByProcessorRef(payload.data.reference);
-    } catch (error) {
-      console.error(error);
-      return apiFail("Fulfillment failed", 500);
     }
+    // Paystack transfers settle asynchronously; these events are what actually
+    // decide whether a winner got paid.
+    if (payload.event === "transfer.success" && payload.data?.reference) {
+      await resolveTransferOutcome(payload.data.reference, "PAID", "");
+    }
+    if (
+      (payload.event === "transfer.failed" ||
+        payload.event === "transfer.reversed") &&
+      payload.data?.reference
+    ) {
+      await resolveTransferOutcome(
+        payload.data.reference,
+        "FAILED",
+        payload.data.reason || "Paystack reported the transfer failed",
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    return apiFail("Webhook handling failed", 500);
   }
   return apiOk({ received: true });
 }

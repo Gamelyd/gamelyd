@@ -4,6 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -36,8 +39,19 @@ const accents: Record<ToastType, string> = {
   info: "bg-yellow",
 };
 
+/** Never let toasts cover the screen, however they were triggered. */
+const MAX_VISIBLE = 4;
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending) clearTimeout(timer);
+    };
+  }, []);
 
   const dismiss = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -45,18 +59,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const push = useCallback((type: ToastType, message: string) => {
     const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, type, message }]);
+    setToasts((prev) => [...prev, { id, type, message }].slice(-MAX_VISIBLE));
     const ms = type === "error" && message.length > 80 ? 9000 : 5000;
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, ms);
+    timers.current.push(
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, ms),
+    );
   }, []);
 
-  const value: ToastContextValue = {
-    success: (m) => push("success", m),
-    error: (m) => push("error", m),
-    info: (m) => push("info", m),
-  };
+  /**
+   * Memoised so `toast` keeps a stable identity. A fresh object here would
+   * change on every render, and any effect listing `toast` in its dependencies
+   * would re-run, toast again, and re-render, an infinite loop.
+   */
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      success: (m) => push("success", m),
+      error: (m) => push("error", m),
+      info: (m) => push("info", m),
+    }),
+    [push],
+  );
 
   return (
     <ToastContext.Provider value={value}>

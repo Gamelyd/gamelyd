@@ -5,5 +5,6 @@ export * from "./tournament";
 export * from "./register";
 export * from "./misc";
 export * from "./org";
+export * from "./savedTeam";
 export * from "./game";
 export * from "./icon";
