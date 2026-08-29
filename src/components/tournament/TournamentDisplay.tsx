@@ -42,16 +42,19 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
       href={`/tournament/${tournament.TournamentId}`}
       className={`group flex min-h-44 overflow-hidden rounded-2xl bg-primary-panel ${paymentFrame(tournament.Payment)}`}
     >
-      <div className="relative w-32 shrink-0 bg-black sm:w-36">
+      <div className="relative w-32 shrink-0 overflow-hidden bg-black sm:w-36">
         <CatalogImage
           src={image}
           alt={tournament.Name}
           fill
-          sizes="144px"
+          sizes="(max-width: 640px) 128px, 144px"
           quality={90}
-          className="object-cover"
+          className="z-0 object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
-        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+        {/* Tags sit at the top of this panel, so the gradient is darkest there
+            and clears toward the foot, leaving the artwork readable. */}
+        <div className="absolute inset-0 z-1 bg-linear-to-b from-black/75 via-black/30 to-black/10" />
+        <div className="absolute left-3 top-3 z-2 flex flex-wrap gap-1.5">
           <Tag payment={tournament.Payment} className="rounded-md" />
           {tournament.TournamentType === "PRIVATE" ? (
             <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">

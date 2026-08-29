@@ -45,6 +45,7 @@ import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
 import { usesLegacyShares } from "@/lib/prizeBoard";
 import { isCaptain as isTeamCaptain } from "@/lib/captain";
+import { runsOrg } from "@/lib/orgRoles";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { setTournamentGroupsAction } from "@/server/actions/tournamentActions";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
@@ -125,7 +126,7 @@ export function TournamentView({
   initialTab?: Tab;
   checkout?: string;
 }) {
-  const { user } = useAuth();
+  const { user, orgs } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const { setPaused } = useHelp();
@@ -200,7 +201,9 @@ export function TournamentView({
   const isManager = Boolean(
     user?.user_id && (tournament.Managers ?? []).includes(user.user_id),
   );
-  const canManage = isOwner || isAdmin || isManager;
+  // Whoever runs the host org runs its events; the server enforces the same rule.
+  const runsHostOrg = runsOrg(orgs, tournament.OrgId);
+  const canManage = isOwner || isAdmin || isManager || runsHostOrg;
 
   // Announce the checkout result exactly once, then strip the query param so a
   // refresh or a back-navigation does not replay it.
@@ -213,7 +216,7 @@ export function TournamentView({
     else toast.error("Payment cancelled");
     router.replace(`/tournament/${tournament.TournamentId}`, { scroll: false });
   }, [checkout, toast, router, tournament.TournamentId]);
-  const canAdminister = isOwner || isAdmin;
+  const canAdminister = isOwner || isAdmin || runsHostOrg;
   const canReshuffle =
     isAdmin || (canManage && tournament.OwnerCanReshuffleGroups);
   const isRegistered = Boolean(

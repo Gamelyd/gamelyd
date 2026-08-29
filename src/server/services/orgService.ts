@@ -1,14 +1,19 @@
 import "server-only";
 import { ObjectId } from "mongodb";
 import { orgs, orgInvites, orgMembers, tournaments, users } from "../db";
-import type { OrgDoc, OrgInviteDoc, OrgMemberDoc, TournamentDoc } from "../documents";
+import type {
+  OrgDoc,
+  OrgInviteDoc,
+  OrgMemberDoc,
+  TournamentDoc,
+} from "../documents";
 import {
   serializeOrg,
   serializeOrgInvite,
   serializeTournament,
 } from "../serialize";
 import { asDocFilter, byOrgId, notDeleted } from "../legacy";
-import { ServiceError } from "./userService";
+import { ServiceError, getUserById } from "./userService";
 import { createNotification } from "./notificationService";
 import type {
   Org,
@@ -95,9 +100,7 @@ export async function listOrgs(
   const perPage = 20;
   const safePage = Math.max(page, 1);
   const filter =
-    search.trim().length > 0
-      ? { name: { $regex: search, $options: "i" } }
-      : {};
+    search.trim().length > 0 ? { name: { $regex: search, $options: "i" } } : {};
 
   const total = await col.countDocuments(filter);
   const docs = await col
@@ -130,13 +133,30 @@ export async function isMember(
   return (await getMembership(orgId, userId)) !== null;
 }
 
+/**
+ * OWNER and ADMIN run the organization: they invite and remove members, edit
+ * the profile, and are answerable for what is published in the org's name.
+ * Exported so tournament permissions can defer to the same roles rather than
+ * inventing a second, conflicting idea of who is in charge.
+ */
+export async function hasOrgManageRole(
+  orgId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!orgId || !userId) return false;
+  const membership = await getMembership(orgId, userId);
+  return Boolean(membership && MANAGE_ROLES.includes(membership.role));
+}
+
 async function requireManageRole(
   orgId: string,
   userId: string,
 ): Promise<OrgMemberDoc> {
   const membership = await getMembership(orgId, userId);
   if (!membership || !MANAGE_ROLES.includes(membership.role)) {
-    throw new ServiceError("You do not have permission to manage this organization");
+    throw new ServiceError(
+      "You do not have permission to manage this organization",
+    );
   }
   return membership;
 }
@@ -193,9 +213,7 @@ export async function listUserOrgs(userId: string): Promise<OrgWithRole[]> {
   }));
 }
 
-export async function listMembers(
-  orgId: string,
-): Promise<OrgMemberWithUser[]> {
+export async function listMembers(orgId: string): Promise<OrgMemberWithUser[]> {
   const memberCol = await orgMembers();
   const memberships = await memberCol
     .find({ org_id: orgId })
@@ -242,7 +260,8 @@ export async function inviteMember(
       { email: input.usernameOrEmail },
     ],
   });
-  if (!invitee) throw new ServiceError("No user found with that username or email");
+  if (!invitee)
+    throw new ServiceError("No user found with that username or email");
 
   if (await isMember(orgId, invitee.user_id)) {
     throw new ServiceError("That user is already a member");
@@ -260,9 +279,11 @@ export async function inviteMember(
 
   const now = new Date().toISOString();
   const _id = new ObjectId();
+  const inviteId = _id.toHexString();
+  const inviter = await getUserById(inviterUid);
   await inviteCol.insertOne({
     _id,
-    invite_id: _id.toHexString(),
+    invite_id: inviteId,
     org_id: orgId,
     org_name: org.name,
     inviter_id: inviterUid,
@@ -275,7 +296,8 @@ export async function inviteMember(
 
   await createNotification(
     invitee.user_id,
-    `You have been invited to join ${org.name}`,
+    `${inviter?.user_name || "Someone"} invited you to join ${org.name}.`,
+    { kind: "ORG_INVITE", invite_id: inviteId },
   );
 }
 

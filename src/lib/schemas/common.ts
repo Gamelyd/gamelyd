@@ -96,6 +96,8 @@ export const notificationKindSchema = z.enum([
   "SETTING_CHANGE",
   /** Invite to join a saved team on someone's profile. */
   "SAVED_TEAM_INVITE",
+  /** Invite to join an organization. */
+  "ORG_INVITE",
   /** A teammate is asking their captain to enter a tournament. */
   "TOURNAMENT_ALERT",
 ]);

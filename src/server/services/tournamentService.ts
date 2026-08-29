@@ -23,7 +23,12 @@ import {
   readString,
 } from "../legacy";
 import { ServiceError, getUserById } from "./userService";
-import { getMembership, getOrgById, isMember } from "./orgService";
+import {
+  getMembership,
+  getOrgById,
+  hasOrgManageRole,
+  isMember,
+} from "./orgService";
 import {
   hydrateDraws,
   hydrateRegistrations,
@@ -1384,7 +1389,11 @@ export async function canManageTournament(
   if (user?.user_type === "ADMIN") return true;
   const t = serializeTournament(doc);
   if (t.User_id === uid) return true;
-  return t.Managers.includes(uid);
+  if (t.Managers.includes(uid)) return true;
+  // Hosting under an org publishes the event in that org's name, so whoever
+  // runs the org can run its events. Without this an org owner cannot touch a
+  // tournament a member created, and if that member goes quiet nobody can.
+  return hasOrgManageRole(t.OrgId, uid);
 }
 
 export async function canManageTournamentById(
@@ -1406,7 +1415,11 @@ export async function canAdministerTournament(
 ): Promise<boolean> {
   const user = await getUserById(uid);
   if (user?.user_type === "ADMIN") return true;
-  return serializeTournament(doc).User_id === uid;
+  const t = serializeTournament(doc);
+  if (t.User_id === uid) return true;
+  // Org owners and admins get the destructive tier too, otherwise they still
+  // could not appoint co-managers to rescue an abandoned event.
+  return hasOrgManageRole(t.OrgId, uid);
 }
 
 export async function canAdministerTournamentById(
