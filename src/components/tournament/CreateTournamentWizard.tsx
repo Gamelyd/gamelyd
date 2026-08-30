@@ -473,11 +473,6 @@ export function CreateTournamentWizard() {
     const result = await saveTournamentAction(payload);
     setLoading(false);
     if (result.ok) {
-      if (result.data.checkoutUrl) {
-        toast.success("Redirecting to pay the prize pool");
-        window.location.href = result.data.checkoutUrl;
-        return;
-      }
       toast.success(result.message ?? "Tournament created");
       router.push(`/tournament/${result.data.tournament.TournamentId}`);
     } else {

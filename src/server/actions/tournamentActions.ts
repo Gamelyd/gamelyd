@@ -55,7 +55,6 @@ import {
   userRegisteredTournaments,
   userRegisteredTournamentsLimit,
 } from "@/server/services/tournamentService";
-import { startSponsorCheckout } from "@/server/services/paymentService";
 import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService";
 import { rosterSize } from "@/lib/schemas/common";
 import {
@@ -86,17 +85,9 @@ export async function saveTournamentAction(
   if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
 
   try {
+    // Sponsored is a money-free label now: the host awards prizes off-platform,
+    // so there is no prize pool to fund. Everything publishes straight away.
     const tournament = await saveTournament(claims.uid, parsed.data);
-    if (tournament.Payment === "SPONSORED") {
-      const checkout = await startSponsorCheckout(
-        claims.uid,
-        tournament.TournamentId,
-      );
-      return ok(
-        { tournament, checkoutUrl: checkout.checkoutUrl },
-        "Pay the prize pool to publish this event",
-      );
-    }
     return ok({ tournament }, "Tournament created");
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
