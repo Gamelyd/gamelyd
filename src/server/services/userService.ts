@@ -34,10 +34,39 @@ export interface AuthResult {
 
 export class ServiceError extends Error {}
 
+/**
+ * Hard lock: the account cannot log in, refresh, or hold a session. Ban and
+ * delete both hard-lock; a plain suspend does not (a suspended user stays
+ * signed in, just barred from joining tournaments).
+ */
 export function isAccountLocked(
-  doc: Pick<UserDoc, "isDeleted" | "isSuspended">,
+  doc: Pick<UserDoc, "isDeleted" | "isBanned">,
 ): boolean {
-  return Boolean(doc.isDeleted || doc.isSuspended);
+  return Boolean(doc.isDeleted || doc.isBanned);
+}
+
+/**
+ * Cannot register for or join tournaments (nor accept invites). True for a
+ * suspend as well as the hard locks.
+ */
+export function isParticipationBlocked(
+  doc: Pick<UserDoc, "isDeleted" | "isBanned" | "isSuspended">,
+): boolean {
+  return Boolean(doc.isDeleted || doc.isBanned || doc.isSuspended);
+}
+
+/** Throws a friendly ServiceError if the user may not join tournaments. */
+export async function assertCanParticipate(userId: string): Promise<void> {
+  const col = await users();
+  const doc = await col.findOne({ user_id: userId });
+  if (!doc) return;
+  if (doc.isDeleted) throw new ServiceError("This account no longer exists");
+  if (doc.isBanned) throw new ServiceError("This account has been banned");
+  if (doc.isSuspended) {
+    throw new ServiceError(
+      "Your account is suspended, so you cannot register for or join tournaments",
+    );
+  }
 }
 
 /** Most devices a single user can stay signed in on at once. */
@@ -128,6 +157,7 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
     updated_at: now,
     isDeleted: false,
     isSuspended: false,
+    isBanned: false,
     emailVerified: false,
     verified: false,
     twitter: "",
@@ -518,26 +548,29 @@ export async function setUserVerified(
 
 /**
  * Explicit setters, so a bulk action over mixed rows lands every row in the
- * same state instead of flipping each one independently. Locking an account
- * also clears its tokens, signing the user out.
+ * same state instead of flipping each one independently. A hard lock (ban or
+ * delete) also clears the account's tokens, signing it out everywhere; a plain
+ * suspend leaves the existing sessions alone.
  */
 async function setAccountFlag(
   userId: string,
-  field: "isSuspended" | "isDeleted",
+  field: "isSuspended" | "isBanned" | "isDeleted",
   value: boolean,
 ): Promise<boolean> {
   const col = await users();
   const found = await col.findOne({ user_id: userId });
   if (!found) throw new ServiceError("User not found");
+  // Suspend is a soft lock: keep the user signed in. Ban and delete revoke.
+  const revoke = value && field !== "isSuspended";
   await col.updateOne(
     { user_id: userId },
     {
       $set: {
         [field]: value,
-        ...(value ? { token: "", refresh_tokens: [] } : {}),
+        ...(revoke ? { token: "", refresh_tokens: [] } : {}),
         updated_at: new Date().toISOString(),
       },
-      ...(value ? { $unset: { refresh_token: "" } } : {}),
+      ...(revoke ? { $unset: { refresh_token: "" } } : {}),
     },
   );
   return value;
@@ -548,6 +581,13 @@ export async function setUserSuspended(
   suspended: boolean,
 ): Promise<boolean> {
   return setAccountFlag(userId, "isSuspended", suspended);
+}
+
+export async function setUserBanned(
+  userId: string,
+  banned: boolean,
+): Promise<boolean> {
+  return setAccountFlag(userId, "isBanned", banned);
 }
 
 export async function setUserDeleted(
@@ -561,6 +601,12 @@ export async function toggleSuspendUser(userId: string): Promise<boolean> {
   const found = await (await users()).findOne({ user_id: userId });
   if (!found) throw new ServiceError("User not found");
   return setUserSuspended(userId, !found.isSuspended);
+}
+
+export async function toggleBanUser(userId: string): Promise<boolean> {
+  const found = await (await users()).findOne({ user_id: userId });
+  if (!found) throw new ServiceError("User not found");
+  return setUserBanned(userId, !found.isBanned);
 }
 
 export async function toggleDeleteUser(userId: string): Promise<boolean> {

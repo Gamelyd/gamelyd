@@ -46,7 +46,10 @@ export interface UserDoc {
   created_at: string;
   updated_at: string;
   isDeleted: boolean;
+  /** Soft lock: can still log in, but cannot register for or join tournaments. */
   isSuspended: boolean;
+  /** Hard lock: logged out on every device and cannot log in or refresh. */
+  isBanned?: boolean;
   emailVerified: boolean;
   verified: boolean;
   twitter: string;

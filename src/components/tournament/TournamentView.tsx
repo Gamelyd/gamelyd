@@ -35,6 +35,7 @@ import {
 } from "./TournamentAnnouncements";
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
+import { Confirm } from "@/components/ui/Confirm";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
@@ -533,23 +534,51 @@ export function TournamentView({
 
   const jumpToMyFixtures = () => {
     if (isGroups) {
-      const mineGroups = groupFixtureSections.filter(([, ds]) =>
-        ds.some((d) => mineDrawIds.has(d.DrawId)),
-      );
-      const anyClosed = mineGroups.some(
-        ([name], index) => !fixtureGroupIsOpen(name, index),
-      );
+      // Use each section's real index (not a filtered one) so the default-open
+      // check matches what is actually rendered.
+      const mineNames: string[] = [];
+      let anyClosed = false;
+      groupFixtureSections.forEach(([name, ds], index) => {
+        if (ds.some((d) => mineDrawIds.has(d.DrawId))) {
+          mineNames.push(name);
+          if (!fixtureGroupIsOpen(name, index)) anyClosed = true;
+        }
+      });
       if (anyClosed) {
         const openNow = groupFixtureSections
           .filter(([name], index) => fixtureGroupIsOpen(name, index))
           .map(([name]) => name);
-        const mineNames = mineGroups.map(([name]) => name);
         setOpenFixtureGroups(Array.from(new Set([...openNow, ...mineNames])));
         wantScrollToMine.current = true;
         return;
       }
     }
     scrollToMineNow();
+  };
+
+  // Jump from a group's standings straight to that group's fixture panel.
+  const pendingGroupScroll = useRef<string | null>(null);
+  const findGroupPanel = (name: string) =>
+    Array.from(document.querySelectorAll("[data-group-panel]")).find(
+      (el) => el.getAttribute("data-group-panel") === name,
+    );
+  useEffect(() => {
+    const name = pendingGroupScroll.current;
+    if (!name) return;
+    const el = findGroupPanel(name);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      pendingGroupScroll.current = null;
+    }
+  });
+
+  const viewGroupFixtures = (name: string) => {
+    setTab("fixtures");
+    const openNow = groupFixtureSections
+      .filter(([n], index) => fixtureGroupIsOpen(n, index))
+      .map(([n]) => n);
+    setOpenFixtureGroups(Array.from(new Set([...openNow, name])));
+    pendingGroupScroll.current = name;
   };
 
   const groupStandings = useMemo(() => {
@@ -595,6 +624,87 @@ export function TournamentView({
   const knockoutDrawn = knockoutDraws.length > 0;
   const canSelectQualifiers =
     isGroups && tournament.OwnerCanSelectQualifiers;
+
+  // The one action the host should take right now to get the tournament moving,
+  // surfaced as an automatic pop-up. Only the two "start" moments: kicking the
+  // event off once the field is set, and drawing group fixtures after groups.
+  const startPrompt = useMemo((): {
+    step: string;
+    title: string;
+    body: string;
+    cta: string;
+  } | null => {
+    if (!canManage || champion?.TeamName?.trim()) return null;
+    // Groups are drawn but their fixtures are not: prompt to draw them.
+    if (isGroups && groupsCreated && !groupStageDrawn) {
+      return {
+        step: "group-fixtures",
+        title: "Groups are set",
+        body: "Your groups are drawn. Generate the group fixtures so every team can see who they play.",
+        cta: "Draw group fixtures",
+      };
+    }
+    // Nothing started yet and the field is set: prompt to kick things off.
+    if (!started && !groupsCreated && participants.length >= 2) {
+      const full =
+        tournament.TournamentSize > 0 &&
+        participants.length >= tournament.TournamentSize;
+      if (!full && registrationOpen(tournament)) return null;
+      return {
+        step: "start",
+        title: full ? "All teams are in" : "Registration has closed",
+        body: isGroups
+          ? "Every slot is filled. Check the registered teams are correct, then create your groups to lock the roster."
+          : "Every slot is filled. Check the registered teams are correct, then draw the fixtures to lock the roster.",
+        cta: isGroups ? "Create groups" : "Draw fixtures",
+      };
+    }
+    return null;
+  }, [
+    canManage,
+    champion,
+    isGroups,
+    groupsCreated,
+    groupStageDrawn,
+    started,
+    participants,
+    tournament,
+  ]);
+
+  const [startPromptOpen, setStartPromptOpen] = useState(false);
+  const startPromptShownRef = useRef<string | null>(null);
+  useEffect(() => {
+    const step = startPrompt?.step ?? null;
+    if (!step) {
+      startPromptShownRef.current = null;
+      return;
+    }
+    if (startPromptShownRef.current === step) return;
+    startPromptShownRef.current = step;
+    let dismissed = false;
+    try {
+      dismissed =
+        localStorage.getItem(`gl_start_${tournament.TournamentId}_${step}`) ===
+        "1";
+    } catch {
+      dismissed = false;
+    }
+    if (!dismissed) setStartPromptOpen(true);
+  }, [startPrompt, tournament.TournamentId]);
+
+  const closeStartPrompt = () => {
+    if (startPrompt) {
+      try {
+        localStorage.setItem(
+          `gl_start_${tournament.TournamentId}_${startPrompt.step}`,
+          "1",
+        );
+      } catch {
+        // Ignore storage failures; the prompt just may show again next visit.
+      }
+    }
+    setStartPromptOpen(false);
+  };
 
   const handleDrawUpdated = (updated: Draw) => {
     const previous = draws.find((d) => d.DrawId === updated.DrawId);
@@ -1010,6 +1120,9 @@ export function TournamentView({
                     disqualifiedTeams={disqualifiedTeams}
                     scoreLabel={tournament.ScoreLabel}
                     allowDraw={tournament.AllowDraw !== false}
+                    onViewFixtures={
+                      groupStageDrawn ? viewGroupFixtures : undefined
+                    }
                   />
                 </div>
               ) : (
@@ -1255,6 +1368,7 @@ export function TournamentView({
                               <Fixture
                             eventVenues={eventVenues}
                                 key={d.DrawId || d._id}
+                                mine={mineDrawIds.has(d.DrawId)}
                                 draw={d}
                                 canManage={canManage}
                                 onUpdated={handleDrawUpdated}
@@ -1282,6 +1396,7 @@ export function TournamentView({
                         <Fixture
                             eventVenues={eventVenues}
                           key={d.DrawId || d._id}
+                          mine={mineDrawIds.has(d.DrawId)}
                           draw={d}
                           canManage={canManage}
                           onUpdated={handleDrawUpdated}
@@ -1448,6 +1563,20 @@ export function TournamentView({
           }}
         />
       ) : null}
+      {canManage && startPrompt ? (
+        <Confirm
+          open={startPromptOpen}
+          title={startPrompt.title}
+          message={startPrompt.body}
+          confirmLabel={startPrompt.cta}
+          confirmVariant="default"
+          onConfirm={() => {
+            setTab("run");
+            closeStartPrompt();
+          }}
+          onCancel={closeStartPrompt}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1464,7 +1593,10 @@ function FixtureGroupPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-surface-2">
+    <div
+      data-group-panel={title}
+      className="overflow-hidden rounded-xl border border-surface-2"
+    >
       <button
         type="button"
         onClick={onToggle}

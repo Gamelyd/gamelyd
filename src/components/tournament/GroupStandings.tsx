@@ -23,6 +23,7 @@ export function GroupStandings({
   disqualifiedTeams = [],
   scoreLabel = "Goals",
   allowDraw = true,
+  onViewFixtures,
 }: {
   sections: GroupStandingSection[];
   advancePerGroup: number;
@@ -31,6 +32,8 @@ export function GroupStandings({
   disqualifiedTeams?: string[];
   scoreLabel?: "Goals" | "Points";
   allowDraw?: boolean;
+  /** When set, each group shows a button jumping to its fixtures. */
+  onViewFixtures?: (groupName: string) => void;
 }) {
   if (sections.length === 0) {
     return (
@@ -62,6 +65,7 @@ export function GroupStandings({
             disqualifiedTeams={disqualifiedTeams}
             scoreLabel={scoreLabel}
             allowDraw={allowDraw}
+            onViewFixtures={onViewFixtures}
           />
         ))}
       </div>
@@ -77,6 +81,7 @@ function GroupTable({
   disqualifiedTeams,
   scoreLabel,
   allowDraw,
+  onViewFixtures,
 }: {
   section: GroupStandingSection;
   advancePerGroup: number;
@@ -85,6 +90,7 @@ function GroupTable({
   disqualifiedTeams: string[];
   scoreLabel: "Goals" | "Points";
   allowDraw: boolean;
+  onViewFixtures?: (groupName: string) => void;
 }) {
   const dq = asDisqualifiedSet(disqualifiedTeams);
   const through = new Set(
@@ -101,10 +107,19 @@ function GroupTable({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-surface-2 bg-surface">
-      <header className="border-b border-surface-2 bg-primary-panel px-4 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-surface-2 bg-primary-panel px-4 py-3">
         <h3 className="font-display text-lg leading-tight text-white">
           {section.name}
         </h3>
+        {onViewFixtures ? (
+          <button
+            type="button"
+            onClick={() => onViewFixtures(section.name)}
+            className="shrink-0 cursor-pointer rounded-lg border border-primary/40 px-3 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary"
+          >
+            View fixtures
+          </button>
+        ) : null}
       </header>
       <div className="overflow-x-auto">
         <table className="w-full min-w-105 text-left text-sm">

@@ -80,6 +80,7 @@ export function serializeUser(doc: UserDoc): User {
     updated_at: readDate(raw, ["updated_at", "Updated_at"]),
     isDeleted: readBool(raw, ["isDeleted", "IsDeleted"]),
     isSuspended: readBool(raw, ["isSuspended", "IsSuspended"]),
+    isBanned: readBool(raw, ["isBanned", "IsBanned"]),
     emailVerified: readBool(raw, ["emailVerified", "EmailVerified"]),
     verified: readBool(raw, ["verified", "Verified"]),
     twitter: readString(raw, ["twitter", "Twitter"]),

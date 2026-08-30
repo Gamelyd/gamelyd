@@ -11,10 +11,12 @@ import {
 } from "@/lib/schemas/org";
 import {
   searchUsers,
+  setUserBanned,
   setUserDeleted,
   setUserSuspended,
   setUserType,
   setUserVerified,
+  toggleBanUser,
   toggleDeleteUser,
   toggleSuspendUser,
   ServiceError,
@@ -112,6 +114,26 @@ export async function adminSetUserTypeAction(
   }
 }
 
+export async function adminToggleSuspendUserAction(
+  userId: string,
+): Promise<ActionResult<boolean>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  if (userId === admin.uid) return fail("You cannot suspend yourself");
+  try {
+    const suspended = await toggleSuspendUser(userId);
+    return ok(
+      suspended,
+      suspended
+        ? "User suspended. They can still sign in but cannot join tournaments"
+        : "User unsuspended",
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
 export async function adminToggleBanUserAction(
   userId: string,
 ): Promise<ActionResult<boolean>> {
@@ -119,11 +141,11 @@ export async function adminToggleBanUserAction(
   if (!admin) return fail("Admin access required");
   if (userId === admin.uid) return fail("You cannot ban yourself");
   try {
-    const banned = await toggleSuspendUser(userId);
+    const banned = await toggleBanUser(userId);
     return ok(
       banned,
       banned
-        ? "User banned. Their session has been revoked"
+        ? "User banned. They have been signed out on every device"
         : "User unbanned",
     );
   } catch (error) {
@@ -186,9 +208,11 @@ export async function adminBulkUserAction(
     // Guard rails: an admin can never lock themselves out in a bulk sweep.
     if (
       id === admin.uid &&
-      (parsed.data === "BAN" || parsed.data === "DELETE")
+      (parsed.data === "SUSPEND" ||
+        parsed.data === "BAN" ||
+        parsed.data === "DELETE")
     ) {
-      failed.push("You cannot ban or delete yourself");
+      failed.push("You cannot suspend, ban, or delete yourself");
       continue;
     }
     try {
@@ -199,11 +223,17 @@ export async function adminBulkUserAction(
         case "UNVERIFY":
           await setUserVerified(id, false);
           break;
-        case "BAN":
+        case "SUSPEND":
           await setUserSuspended(id, true);
           break;
-        case "UNBAN":
+        case "UNSUSPEND":
           await setUserSuspended(id, false);
+          break;
+        case "BAN":
+          await setUserBanned(id, true);
+          break;
+        case "UNBAN":
+          await setUserBanned(id, false);
           break;
         case "DELETE":
           await setUserDeleted(id, true);

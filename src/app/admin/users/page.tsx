@@ -24,6 +24,7 @@ import {
   adminSetUserTypeAction,
   adminSetPlanAction,
   adminSetUserVerifiedAction,
+  adminToggleSuspendUserAction,
   adminToggleBanUserAction,
   adminToggleDeleteUserAction,
 } from "@/server/actions/adminActions";
@@ -210,8 +211,10 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3">
                     {u.isDeleted ? (
                       <span className="text-xs text-lose">Deleted</span>
-                    ) : u.isSuspended ? (
+                    ) : u.isBanned ? (
                       <span className="text-xs text-pink">Banned</span>
+                    ) : u.isSuspended ? (
+                      <span className="text-xs text-yellow">Suspended</span>
                     ) : (
                       <span className="text-xs text-win">Active</span>
                     )}
@@ -254,20 +257,43 @@ export default function AdminUsersPage() {
                             ),
                         },
                         {
-                          label: u.isSuspended ? "Unban" : "Ban",
+                          label: u.isSuspended ? "Unsuspend" : "Suspend",
                           danger: !u.isSuspended,
                           disabled: isSelf,
                           onSelect: () =>
                             setPending({
                               id: u.user_id,
                               title: u.isSuspended
+                                ? "Unsuspend this user?"
+                                : "Suspend this user?",
+                              message: u.isSuspended
+                                ? "They will be able to join tournaments again."
+                                : "They can still sign in, but cannot register for or join tournaments.",
+                              confirmLabel: u.isSuspended
+                                ? "Unsuspend"
+                                : "Suspend",
+                              confirmVariant: u.isSuspended
+                                ? "default"
+                                : "danger",
+                              action: () =>
+                                adminToggleSuspendUserAction(u.user_id),
+                            }),
+                        },
+                        {
+                          label: u.isBanned ? "Unban" : "Ban",
+                          danger: !u.isBanned,
+                          disabled: isSelf,
+                          onSelect: () =>
+                            setPending({
+                              id: u.user_id,
+                              title: u.isBanned
                                 ? "Unban this user?"
                                 : "Ban this user?",
-                              message: u.isSuspended
+                              message: u.isBanned
                                 ? "They will be able to sign in again."
-                                : "They will be signed out and blocked from signing in.",
-                              confirmLabel: u.isSuspended ? "Unban" : "Ban",
-                              confirmVariant: u.isSuspended
+                                : "They will be signed out on every device and blocked from signing in.",
+                              confirmLabel: u.isBanned ? "Unban" : "Ban",
+                              confirmVariant: u.isBanned
                                 ? "default"
                                 : "danger",
                               action: () =>
@@ -357,6 +383,18 @@ export default function AdminUsersPage() {
           onClick={() => setBulk({ op: "UNVERIFY", label: "Unverify" })}
         >
           Unverify
+        </Button>
+        <Button
+          variant="dark"
+          onClick={() => setBulk({ op: "UNSUSPEND", label: "Unsuspend" })}
+        >
+          Unsuspend
+        </Button>
+        <Button
+          variant="dark"
+          onClick={() => setBulk({ op: "SUSPEND", label: "Suspend" })}
+        >
+          Suspend
         </Button>
         <Button
           variant="dark"

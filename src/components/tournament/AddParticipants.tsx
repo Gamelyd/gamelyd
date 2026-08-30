@@ -225,7 +225,7 @@ export function AddParticipants({
           ? "The host set 1 player per team. Pick a user to add them as their own team."
           : addingToExisting
             ? `Adding to ${target}. ${spotsLeft} of ${needed} spots left after this pick (${picked.length} selected). A team cannot have more than ${needed} players.`
-            : `New team: add 1–${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected). A team cannot have more than ${needed} players.`}
+            : `New team: add 1-${needed} players now. You can fill remaining spots later (${picked.length}/${needed} selected). A team cannot have more than ${needed} players.`}
       </p>
 
       {needed > 1 || picked.length > 0 ? (

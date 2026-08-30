@@ -22,7 +22,7 @@ import {
   notDeleted,
   readString,
 } from "../legacy";
-import { ServiceError, getUserById } from "./userService";
+import { ServiceError, getUserById, assertCanParticipate } from "./userService";
 import {
   getMembership,
   getOrgById,
@@ -881,6 +881,7 @@ export async function registerForTournament(
   }
 
   const actor = options?.actorUid ?? input.Players[0]?.User_id;
+  if (actor) await assertCanParticipate(actor);
   if (!options?.skipInviteGate && actor) {
     const allowed = await userHasPrivateAccess(actor, tournament, tournamentDoc);
     if (!allowed) {

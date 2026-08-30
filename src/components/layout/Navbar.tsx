@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
@@ -13,21 +13,27 @@ import { HelpButton } from "@/components/help/HelpButton";
 import { helpTarget } from "@/lib/help";
 import { getMyOrgInvitesAction } from "@/server/actions/orgActions";
 
-const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] =
-  [
-    { href: "/", label: "Home" },
-    {
-      href: "/tournament/all/ALL/ALL",
-      label: "Tournaments",
-    },
-    { href: "/games", label: "Games" },
-    { href: "/games?kind=sports", label: "Sports" },
-    { href: "/org", label: "Organizations", auth: true },
-    { href: "/pricing", label: "Pricing" },
-    { href: "/about", label: "About" },
-    { href: "/contact-us", label: "Contact" },
-    { href: "/admin", label: "Admin", admin: true },
-  ];
+const links: {
+  href: string;
+  label: string;
+  auth?: boolean;
+  admin?: boolean;
+  /** Lives in the avatar dropdown (desktop) / slide menu (mobile), not the top bar. */
+  menuOnly?: boolean;
+}[] = [
+  { href: "/", label: "Home" },
+  {
+    href: "/tournament/all/ALL/ALL",
+    label: "Tournaments",
+  },
+  { href: "/games", label: "Games", menuOnly: true },
+  { href: "/games?kind=sports", label: "Sports", menuOnly: true },
+  { href: "/org", label: "Organizations", auth: true, menuOnly: true },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/about", label: "About" },
+  { href: "/contact-us", label: "Contact" },
+  { href: "/admin", label: "Admin", admin: true },
+];
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -61,19 +67,25 @@ export function Navbar() {
   };
 
   const isAdmin = user?.user_type === "ADMIN";
-  // Profile replaced the old dashboard, and its href needs the signed-in id, so
-  // it is spliced in here rather than living in the static list above.
-  const visibleLinks = links
-    .filter((l) => {
-      if (l.admin) return isAdmin;
-      if (l.auth) return isAuthenticated;
-      return true;
-    })
-    .flatMap((l) =>
-      l.href === "/org" && user
-        ? [{ href: `/profile/${user.user_id}`, label: "Profile" }, l]
-        : [l],
-    );
+  const visibleLinks = links.filter((l) => {
+    if (l.admin) return isAdmin;
+    if (l.auth) return isAuthenticated;
+    return true;
+  });
+
+  // The avatar dropdown on desktop. Closes on an outside click.
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [userMenuOpen]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -104,7 +116,9 @@ export function Navbar() {
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
-          {visibleLinks.map((l) => (
+          {visibleLinks
+            .filter((l) => !l.menuOnly)
+            .map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -132,42 +146,86 @@ export function Navbar() {
         <div className="flex shrink-0 items-center gap-0.5">
           <HelpButton />
           {isAuthenticated ? <NotificationBell /> : null}
-          <div className="hidden items-center gap-4 md:flex">
-            {isAuthenticated && user ? (
-              <>
+          {isAuthenticated && user ? (
+            <div className="relative hidden md:block" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-white/5"
+              >
+                <CatalogAvatar
+                  userId={user.user_id}
+                  icon={user.icon}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+                <span className="flex flex-col leading-tight text-left">
+                  <VerifiedName
+                    name={user.first_name}
+                    verified={user.verified}
+                    className="text-sm text-white"
+                  />
+                  <span className="text-xs text-white/70">
+                    @{user.user_name}
+                  </span>
+                </span>
+                <ChevronIcon
+                  className={`h-4 w-4 text-white/60 transition-transform duration-200 ${
+                    userMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              <div
+                role="menu"
+                className={`absolute right-0 top-full mt-2 w-52 origin-top-right overflow-hidden rounded-xl border border-primary/20 bg-nav shadow-xl transition duration-150 ease-out ${
+                  userMenuOpen
+                    ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
+                    : "pointer-events-none -translate-y-1 scale-95 opacity-0"
+                }`}
+              >
+                <UserMenuLink
+                  href={`/profile/${user.user_id}`}
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Profile
+                </UserMenuLink>
+                <UserMenuLink
+                  href="/games"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Games
+                </UserMenuLink>
+                <UserMenuLink
+                  href="/games?kind=sports"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  Sports
+                </UserMenuLink>
+                <UserMenuLink
+                  href="/org"
+                  onClick={() => setUserMenuOpen(false)}
+                  badge={pendingInvites}
+                >
+                  Organizations
+                </UserMenuLink>
                 <button
+                  type="button"
+                  role="menuitem"
                   onClick={handleLogout}
-                  className="text-sm text-white transition-colors hover:text-primary"
+                  className="block w-full border-t border-primary/15 px-4 py-2.5 text-left text-sm text-pink transition-colors hover:bg-white/5"
                 >
                   Logout
                 </button>
-                <Link
-                  href={`/profile/${user.user_id}`}
-                  className="flex items-center gap-2"
-                >
-                  <CatalogAvatar
-                    userId={user.user_id}
-                    icon={user.icon}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  <span className="flex flex-col leading-tight">
-                    <VerifiedName
-                      name={user.first_name}
-                      verified={user.verified}
-                      className="text-sm text-white"
-                    />
-                    <span className="text-xs text-white/70">
-                      @{user.user_name}
-                    </span>
-                  </span>
-                </Link>
-              </>
-            ) : (
+              </div>
+            </div>
+          ) : (
+            <div className="hidden md:block">
               <Link href="/signup">
                 <Button>Sign In</Button>
               </Link>
-            )}
-          </div>
+            </div>
+          )}
           <button
             type="button"
             className="grid h-10 w-10 place-items-center rounded-lg text-white transition-colors hover:bg-white/5 hover:text-primary md:hidden"
@@ -184,51 +242,103 @@ export function Navbar() {
         </div>
       </nav>
 
-      {open && (
-        <div className="border-t border-primary/20 bg-nav px-page py-4 md:hidden">
-          <div className="flex flex-col gap-4">
-            {visibleLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                onClick={closeMenu}
-                className="flex items-center gap-2 text-sm text-white hover:text-primary"
-              >
-                {l.label}
-                {l.href === "/org" && pendingInvites > 0 && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-pink px-1 text-[10px] font-bold text-white">
-                    {pendingInvites}
-                  </span>
-                )}
-              </Link>
-            ))}
-            {isAuthenticated && user ? (
-              <>
+      <div
+        className={`grid overflow-hidden transition-all duration-300 ease-out md:hidden ${
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`border-t border-primary/20 bg-nav px-page py-4 transition-transform duration-300 ease-out ${
+              open ? "translate-y-0" : "-translate-y-3"
+            }`}
+          >
+            <div className="flex flex-col gap-4">
+              {visibleLinks.map((l) => (
                 <Link
-                  href={`/profile/${user.user_id}`}
+                  key={l.href}
+                  href={l.href}
                   onClick={closeMenu}
-                  className="flex items-center gap-2 text-sm text-primary"
+                  className="flex items-center gap-2 text-sm text-white hover:text-primary"
                 >
-                  <CatalogAvatar
-                    userId={user.user_id}
-                    icon={user.icon}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  Profile
+                  {l.label}
+                  {l.href === "/org" && pendingInvites > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-pink px-1 text-[10px] font-bold text-white">
+                      {pendingInvites}
+                    </span>
+                  )}
                 </Link>
-                <Button variant="pink" fullWidth onClick={handleLogout}>
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Link href="/signup" onClick={closeMenu}>
-                <Button fullWidth>Sign In</Button>
-              </Link>
-            )}
+              ))}
+              {isAuthenticated && user ? (
+                <>
+                  <Link
+                    href={`/profile/${user.user_id}`}
+                    onClick={closeMenu}
+                    className="flex items-center gap-2 text-sm text-primary"
+                  >
+                    <CatalogAvatar
+                      userId={user.user_id}
+                      icon={user.icon}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                    Profile
+                  </Link>
+                  <Button variant="pink" fullWidth onClick={handleLogout}>
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <Link href="/signup" onClick={closeMenu}>
+                  <Button fullWidth>Sign In</Button>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </header>
+  );
+}
+
+function UserMenuLink({
+  href,
+  onClick,
+  badge = 0,
+  children,
+}: {
+  href: string;
+  onClick: () => void;
+  badge?: number;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      onClick={onClick}
+      className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-white transition-colors hover:bg-white/5"
+    >
+      {children}
+      {badge > 0 ? (
+        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-pink px-1 text-[10px] font-bold text-white">
+          {badge}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+function ChevronIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

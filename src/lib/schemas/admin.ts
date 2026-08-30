@@ -4,6 +4,8 @@ import { z } from "zod";
 export const bulkUserOpSchema = z.enum([
   "VERIFY",
   "UNVERIFY",
+  "SUSPEND",
+  "UNSUSPEND",
   "BAN",
   "UNBAN",
   "DELETE",

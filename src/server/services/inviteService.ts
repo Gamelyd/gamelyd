@@ -9,7 +9,12 @@ import {
   byPlayerUserId,
   byTournamentId,
 } from "../legacy";
-import { ServiceError, findUserByHandle, getUserById } from "./userService";
+import {
+  ServiceError,
+  findUserByHandle,
+  getUserById,
+  assertCanParticipate,
+} from "./userService";
 import {
   addPlayerToTeam,
   canManageTournamentById,
@@ -493,6 +498,7 @@ export async function acceptInviteById(
   userId: string,
   inviteId: string,
 ): Promise<{ tournamentId: string; kind: "TOURNAMENT" | "TEAM" }> {
+  await assertCanParticipate(userId);
   const doc = await loadPendingInvite(userId, inviteId);
   const invite = serializeInvite(doc);
   await assertPlayerFree(invite.tournament_id, userId, "You");

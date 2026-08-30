@@ -36,6 +36,7 @@ export const userSchema = z.object({
   updated_at: z.string(),
   isDeleted: z.boolean().default(false),
   isSuspended: z.boolean().default(false),
+  isBanned: z.boolean().default(false),
   emailVerified: z.boolean().default(false),
   verified: z.boolean().default(false),
   twitter: z.string().default(""),
