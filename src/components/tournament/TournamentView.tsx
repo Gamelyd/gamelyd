@@ -23,6 +23,7 @@ import {
 } from "./SelectQualifiers";
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
+import { JoinRequestsPanel } from "./JoinRequestsPanel";
 import { AlertCaptain } from "./AlertCaptain";
 import { InviteSearch } from "./InviteSearch";
 import { HostInvitePanel } from "./HostInvitePanel";
@@ -36,6 +37,8 @@ import {
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
 import { Confirm } from "@/components/ui/Confirm";
+import { Markdown } from "@/components/ui/Markdown";
+import { formatMoney } from "@/lib/currency";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
@@ -1063,6 +1066,11 @@ export function TournamentView({
         {tab === "invite" && (
           <div className="mx-auto max-w-3xl">
             <h2 className="mb-5 font-display text-2xl text-white">Invite</h2>
+            {tournament.TournamentType === "PRIVATE" ? (
+              <div className="mb-6">
+                <JoinRequestsPanel tournamentId={tournament.TournamentId} />
+              </div>
+            ) : null}
             <HostInvitePanel
               tournamentId={tournament.TournamentId}
               tournamentType={tournament.TournamentType}
@@ -1476,21 +1484,27 @@ export function TournamentView({
             tournament.TournamentType === "PRIVATE" &&
             !canJoin &&
             !canManage ? (
-            <div className="mx-auto max-w-lg rounded-xl border border-surface-2 bg-surface p-8 text-center">
-              <h3 className="text-xl font-semibold text-white">
-                Invite only
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed text-body">
-                You can join this tournament only after the host invites you.
-                Accept the invite from Notifications, then come back to
-                register.
-              </p>
-              <Link
-                href="/notifications"
-                className="mt-4 inline-block text-sm text-primary hover:underline"
-              >
-                Open notifications
-              </Link>
+            <div className="flex max-w-lg flex-col gap-5">
+              <div className="rounded-xl border border-surface-2 bg-surface p-5">
+                <h3 className="text-lg font-semibold text-white">Invite only</h3>
+                <p className="mt-2 text-sm leading-relaxed text-body">
+                  This event is invite only. Send a request below and the host
+                  can accept it (you are registered straight away) or invite you.
+                </p>
+              </div>
+              <RegisterTeam
+                tournamentId={tournament.TournamentId}
+                teamSize={tournament.Team}
+                rosterCount={tournament.RosterCount}
+                usesInGameName={catalogKindFlags.usesInGameName}
+                payment={tournament.Payment}
+                currency={tournament.Currency}
+                entryFee={tournament.RegistrationAmount}
+                feeBps={tournament.PlatformFeeBps}
+                requestMode
+                onRegistered={() => {}}
+                onRequested={() => setTab("details")}
+              />
             </div>
           ) : user ? (
             <div className="flex max-w-lg flex-col gap-5">
@@ -1697,6 +1711,13 @@ function knockoutHostPicks(
   return false;
 }
 
+function placeLabel(position: number): string {
+  if (position === 1) return "1st";
+  if (position === 2) return "2nd";
+  if (position === 3) return "3rd";
+  return `${position}th`;
+}
+
 function Details({
   tournament,
   champion,
@@ -1844,10 +1865,45 @@ function Details({
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
           About
         </h3>
-        <p className="whitespace-pre-line text-sm leading-relaxed text-body">
-          {tournament.Note || "No description yet."}
-        </p>
+        {tournament.Description ? (
+          <p className="mb-3 text-sm leading-relaxed text-white/90">
+            {tournament.Description}
+          </p>
+        ) : null}
+        {tournament.Note ? (
+          <Markdown source={tournament.Note} />
+        ) : !tournament.Description ? (
+          <p className="text-sm leading-relaxed text-body">
+            No description yet.
+          </p>
+        ) : null}
       </div>
+      {tournament.Payment === "SPONSORED" && tournament.Prizes.length > 0 ? (
+        <div className="rounded-xl border border-yellow/40 bg-yellow/10 p-5">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-yellow">
+            Prizes
+          </h3>
+          <ul className="space-y-2">
+            {tournament.Prizes.map((prize) => (
+              <li
+                key={prize.Position}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="text-sm text-body">
+                  {placeLabel(prize.Position)} place
+                </span>
+                <span className="font-display text-lg text-white">
+                  {formatMoney(prize.Amount, tournament.Currency)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-body">
+            Prizes are awarded directly by the organizer. Gamelyd does not
+            collect or pay out any money.
+          </p>
+        </div>
+      ) : null}
       <div className="rounded-xl border border-surface-2 bg-surface p-5">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
           Details

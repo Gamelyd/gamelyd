@@ -294,6 +294,15 @@ export async function saveTournament(
   const eventPayment: SaveTournamentInput["Payment"] =
     input.Payment === "SPONSORED" ? "SPONSORED" : "FREE";
 
+  // Sponsored prizes are display-only: the host awards them off-platform, so we
+  // just record the advertised amounts and currency. No pot, no fee, no payout.
+  const sponsoredPrizes =
+    eventPayment === "SPONSORED"
+      ? (input.Prizes ?? [])
+          .filter((p) => p.Amount > 0)
+          .map((p) => ({ Position: p.Position, Amount: p.Amount, Share: 0 }))
+      : [];
+
   const venue = await resolveEventPlace(
     input.VenueCountry,
     input.VenueCity || input.VenueLocation,
@@ -309,7 +318,7 @@ export async function saveTournament(
     icon: input.icon,
     TournamentType: input.TournamentType,
     Payment: eventPayment,
-    Currency: "USD",
+    Currency: eventPayment === "SPONSORED" ? input.Currency : "USD",
     TournamentMode: input.TournamentMode,
     TournamentSize: input.TournamentSize,
     Team: input.Team,
@@ -332,9 +341,9 @@ export async function saveTournament(
     IsDrawn: false,
     RefNumber: input.RefNumber,
     PaymentChannel: input.PaymentChannel,
-    Amount: 0,
+    Amount: sponsoredPrizes[0]?.Amount ?? 0,
     RegistrationAmount: 0,
-    Prizes: [],
+    Prizes: sponsoredPrizes,
     // Locked at creation: changing the platform rate later must never rewrite
     // the terms an existing event was advertised and paid under.
     PlatformFeeBps: feeBps,
@@ -343,6 +352,7 @@ export async function saveTournament(
     FeeCollected: 0,
     SettlementStatus: "NONE",
     Note: input.Note,
+    Description: input.Description ?? "",
     Announcements: [],
     AcceptedInvites: [],
     Platform: input.Platform,
@@ -2103,6 +2113,10 @@ async function applyTournamentSettings(
   if (input.Note !== undefined) {
     set.Note = input.Note;
     set.note = input.Note;
+  }
+  if (input.Description !== undefined) {
+    set.Description = input.Description;
+    set.description = input.Description;
   }
   if (input.ReturnLeg !== undefined) {
     set.ReturnLeg = input.ReturnLeg;

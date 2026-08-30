@@ -10,6 +10,7 @@ import type {
   GameDoc,
   IconDoc,
   InviteTournamentDoc,
+  JoinRequestDoc,
   NotificationDoc,
   OrgDoc,
   OrgInviteDoc,
@@ -86,6 +87,10 @@ export async function invites(): Promise<Collection<InviteTournamentDoc>> {
   return (await getDb()).collection<InviteTournamentDoc>(
     Collections.inviteTournament,
   );
+}
+
+export async function joinRequests(): Promise<Collection<JoinRequestDoc>> {
+  return (await getDb()).collection<JoinRequestDoc>(Collections.joinRequest);
 }
 export async function draws(): Promise<Collection<DrawDoc>> {
   return (await getDb()).collection<DrawDoc>(Collections.draw);

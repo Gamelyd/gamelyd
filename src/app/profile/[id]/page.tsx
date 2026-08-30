@@ -10,13 +10,7 @@ import {
 import { getUserById } from "@/server/services/userService";
 import { pageMeta, profileShareDescription } from "@/lib/seo";
 
-const TABS = [
-  "overview",
-  "teams",
-  "payouts",
-  "organizations",
-  "settings",
-] as const;
+const TABS = ["overview", "teams", "organizations", "settings"] as const;
 type ProfileTab = (typeof TABS)[number];
 
 export async function generateMetadata({
@@ -55,7 +49,7 @@ export default async function ProfilePage({
 
   if (!userResult.ok || !userResult.data) notFound();
 
-  // Deep links like /profile/<id>?tab=payouts open straight to that section.
+  // Deep links like /profile/<id>?tab=teams open straight to that section.
   const initialTab = TABS.includes(tab as ProfileTab)
     ? (tab as ProfileTab)
     : "overview";

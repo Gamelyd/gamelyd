@@ -122,11 +122,14 @@ export async function assertCanResize(
 ): Promise<void> {
   const plan = await planForHost(doc.User_id, doc.OrgId || undefined);
   const limits = PLANS[plan];
-  if (!withinLimit(teams, limits.maxTeams)) {
-    throw new ServiceError(
-      `The ${limits.label} plan allows up to ${limits.maxTeams} teams.${upgradeHint(plan)}`,
-    );
-  }
+  if (withinLimit(teams, limits.maxTeams)) return;
+  // A one-off (or otherwise larger) event keeps the size it was created at as
+  // its own ceiling, so a paid event stays editable even on a free plan. This
+  // never lets a host grow past what they already paid for.
+  if (teams <= (doc.TournamentSize ?? 0)) return;
+  throw new ServiceError(
+    `The ${limits.label} plan allows up to ${limits.maxTeams} teams.${upgradeHint(plan)}`,
+  );
 }
 
 export async function assertCanAddManager(

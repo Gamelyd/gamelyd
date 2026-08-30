@@ -173,6 +173,9 @@ export const tournamentSchema = z.object({
   PotNet: z.number().default(0),
   FeeCollected: z.number().default(0),
   SettlementStatus: z.enum(["NONE", "OPEN", "SETTLED"]).default("NONE"),
+  /** Short plain-text summary used for link previews (social/share cards). */
+  Description: z.string().optional().default(""),
+  /** Long Markdown briefing and rules shown on the tournament page. */
   Note: z.string(),
   Announcements: z.array(tournamentAnnouncementSchema).default([]),
   PendingSettingChange: pendingSettingChangeSchema.optional(),
@@ -251,6 +254,7 @@ export const saveTournamentInputSchema = z.object({
   Shuffle: shuffleSchema,
   Date: z.string().min(1),
   Note: z.string().min(1),
+  Description: z.string().optional().default(""),
   Link: z.string().optional().default(""),
   Platform: z.string().optional().default(""),
   Amount: z.coerce.number().default(0),
@@ -324,6 +328,7 @@ export const editTournamentInputSchema = z
     Name: z.string().min(2).max(100).optional(),
     Date: z.string().min(1).optional(),
     Note: z.string().min(1).optional(),
+    Description: z.string().optional(),
     ReturnLeg: z.boolean().optional(),
     AdvancePerGroup: z.coerce.number().int().min(1).max(8).optional(),
     GroupCount: z.coerce.number().int().min(0).max(8).optional(),

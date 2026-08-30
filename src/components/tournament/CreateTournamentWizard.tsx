@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { DateInput, DateTimeInput } from "@/components/ui/DateTimePicker";
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import { TextArea } from "@/components/ui/TextArea";
+import { Markdown } from "@/components/ui/Markdown";
+import { briefTemplate } from "@/lib/briefTemplates";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -25,6 +27,7 @@ import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { Platform } from "@/lib/schemas/platform";
 import type { SaveTournamentInput } from "@/lib/schemas/tournament";
 import type {
+  Currency,
   KnockoutFormat,
   Payment,
   Shuffle,
@@ -32,8 +35,8 @@ import type {
   TournamentMode,
   TournamentType,
 } from "@/lib/schemas/common";
-import { formatMoney } from "@/lib/currency";
-import type { Plan, PlanLimits } from "@/lib/plans";
+import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
+import { PLANS, type Plan, type PlanLimits } from "@/lib/plans";
 import { myPlanLimitsAction } from "@/server/actions/tournamentActions";
 import { startOneOffTournamentCheckoutAction } from "@/server/actions/paymentActions";
 import { Loader } from "@/components/ui/Loader";
@@ -96,6 +99,13 @@ const NEXT_LABEL: Record<Exclude<Step, "brief">, string> = {
   rules: "Lock rules",
 };
 
+function ordinal(n: number): string {
+  if (n === 1) return "1st";
+  if (n === 2) return "2nd";
+  if (n === 3) return "3rd";
+  return `${n}th`;
+}
+
 export function CreateTournamentWizard() {
   const { isAuthenticated, orgs, user } = useAuth();
   const router = useRouter();
@@ -113,7 +123,12 @@ export function CreateTournamentWizard() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const [type, setType] = useState<TournamentType>("PRIVATE");
+  const [notePreview, setNotePreview] = useState(false);
   const [payment, setPayment] = useState<Payment>("FREE");
+  // Sponsored prize board: shown on the event, awarded off-platform by the host.
+  const [currency, setCurrency] = useState<Currency>("USD");
+  const [winners, setWinners] = useState(1);
+  const [prizeAmounts, setPrizeAmounts] = useState<string[]>(["", "", ""]);
   const [mode, setMode] = useState<TournamentMode>("MULTIPLAYER");
   const [rosterCount, setRosterCount] = useState(1);
   const [shuffle, setShuffle] = useState<Shuffle>("AUTOMATIC");
@@ -178,6 +193,7 @@ export function CreateTournamentWizard() {
     TournamentSize: 8,
     Date: "",
     Note: "",
+    Description: "",
     Amount: 0,
     RegistrationAmount: 0,
   });
@@ -201,8 +217,19 @@ export function CreateTournamentWizard() {
         (orgId !== "" && !planInfo.limits.canHostAsOrg) ||
         atActiveCap),
   );
-  // A one-off is offered only when it would actually let this through.
-  const payOnce = Boolean(exceedsPlan && planInfo?.oneOff.enabled);
+  // A one-off is offered only when it would actually let this through. The
+  // paid tier has its own ceilings, so only options that tier can deliver are
+  // unlocked (anything beyond it still needs a real upgrade).
+  const oneOffAvailable = Boolean(planInfo?.oneOff.enabled);
+  const oneOffLimits =
+    planInfo && oneOffAvailable ? PLANS[planInfo.oneOff.tier] : null;
+  const oneOffCoversTeams =
+    oneOffLimits !== null &&
+    (oneOffLimits.maxTeams === null ||
+      Number(details.TournamentSize) <= oneOffLimits.maxTeams);
+  const oneOffCoversMode = (value: TournamentMode) =>
+    oneOffLimits !== null && oneOffLimits.modes.includes(value);
+  const payOnce = Boolean(exceedsPlan && oneOffAvailable);
   const oneOffPrice =
     planInfo && planInfo.oneOff.enabled
       ? formatMoney(planInfo.oneOff.price, planInfo.oneOff.currency)
@@ -348,10 +375,18 @@ export function CreateTournamentWizard() {
       return;
     }
     setLoading(true);
+    const sponsoredPrizes =
+      payment === "SPONSORED"
+        ? Array.from({ length: winners }, (_, i) => ({
+            Position: i + 1,
+            Amount: Number(prizeAmounts[i]) || 0,
+            Share: 0,
+          }))
+        : [];
     const payload: SaveTournamentInput = {
       TournamentType: type,
       Payment: payment,
-      Currency: "USD",
+      Currency: payment === "SPONSORED" ? currency : "USD",
       TournamentMode: mode,
       Team: teamSizeFromRoster(rosterCount),
       Shuffle: shuffle,
@@ -361,12 +396,13 @@ export function CreateTournamentWizard() {
       TournamentSize: details.TournamentSize,
       Date: details.Date,
       Note: details.Note,
+      Description: details.Description,
       Platform: kindFlags.usesPlatforms
         ? joinPlatforms(selectedPlatforms)
         : "",
-      Amount: 0,
+      Amount: sponsoredPrizes[0]?.Amount ?? 0,
       RegistrationAmount: 0,
-      Prizes: [],
+      Prizes: sponsoredPrizes,
       Link: "",
       RefNumber: "",
       PaymentChannel: "",
@@ -639,11 +675,15 @@ export function CreateTournamentWizard() {
                     title={item.label}
                     blurb={
                       modeLocked(item.value)
-                        ? `Included from the Club plan. You are on ${planInfo?.limits.label}.`
+                        ? oneOffCoversMode(item.value)
+                          ? `Above the ${planInfo?.limits.label} plan. Pay once to create, or upgrade.`
+                          : `Included from the Club plan. You are on ${planInfo?.limits.label}.`
                         : item.blurb
                     }
                     active={mode === item.value}
-                    disabled={modeLocked(item.value)}
+                    disabled={
+                      modeLocked(item.value) && !oneOffCoversMode(item.value)
+                    }
                     disabledLabel="Upgrade"
                     glyph={<ModeGlyph kind={item.glyph} />}
                     onClick={() => setMode(item.value)}
@@ -998,6 +1038,59 @@ export function CreateTournamentWizard() {
                   />
                 </div>
               </div>
+              {payment === "SPONSORED" ? (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                    Prizes
+                  </p>
+                  <p className="mb-3 text-xs text-body">
+                    Shown on the event so players know what is on the line. You
+                    award prizes to the winners yourself, off the platform.
+                    Gamelyd never collects or pays out any money.
+                  </p>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="w-32">
+                      <Select
+                        label="Currency"
+                        value={currency}
+                        onChange={(e) =>
+                          setCurrency(e.target.value as Currency)
+                        }
+                        options={CURRENCY_OPTIONS}
+                      />
+                    </div>
+                    <div className="w-40">
+                      <Select
+                        label="Winning places"
+                        value={String(winners)}
+                        onChange={(e) => setWinners(Number(e.target.value))}
+                        options={[
+                          { label: "Winner only", value: "1" },
+                          { label: "Top 2", value: "2" },
+                          { label: "Top 3", value: "3" },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {Array.from({ length: winners }).map((_, i) => (
+                      <Input
+                        key={i}
+                        label={`${ordinal(i + 1)} place (${currency})`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={prizeAmounts[i]}
+                        onChange={(e) => {
+                          const next = [...prizeAmounts];
+                          next[i] = e.target.value.replace(/[^\d.]/g, "");
+                          setPrizeAmounts(next);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -1063,10 +1156,20 @@ export function CreateTournamentWizard() {
                     })
                   }
                   min={2}
-                  max={maxTeams ?? undefined}
+                  max={
+                    oneOffAvailable
+                      ? (oneOffLimits?.maxTeams ?? undefined)
+                      : (maxTeams ?? undefined)
+                  }
                   error={
-                    overTeamCap
-                      ? `The ${planInfo?.limits.label} plan allows ${maxTeams} teams. Upgrade for more.`
+                    overTeamCap && (!oneOffAvailable || !oneOffCoversTeams)
+                      ? `The ${
+                          oneOffAvailable
+                            ? oneOffLimits?.label
+                            : planInfo?.limits.label
+                        } plan allows ${
+                          oneOffAvailable ? oneOffLimits?.maxTeams : maxTeams
+                        } teams. Upgrade for more.`
                       : undefined
                   }
                   required
@@ -1080,6 +1183,13 @@ export function CreateTournamentWizard() {
                   required
                 />
               </div>
+              {overTeamCap && oneOffAvailable && oneOffCoversTeams ? (
+                <p className="-mt-1 text-xs text-yellow">
+                  {details.TournamentSize} teams is above the{" "}
+                  {planInfo?.limits.label} plan. You can still create this event
+                  with a one-off payment of {oneOffPrice}.
+                </p>
+              ) : null}
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <DateInput
@@ -1179,15 +1289,85 @@ export function CreateTournamentWizard() {
                 ) : null}
               </div>
               ) : null}
-              <TextArea
-                label="Briefing / rules"
-                rows={4}
-                value={details.Note}
-                onChange={(e) =>
-                  setDetails({ ...details, Note: e.target.value })
-                }
-                required
-              />
+              <div>
+                <TextArea
+                  label="Short description"
+                  rows={2}
+                  value={details.Description}
+                  onChange={(e) =>
+                    setDetails({ ...details, Description: e.target.value })
+                  }
+                  placeholder="One or two lines about the event."
+                />
+                <p className="mt-1.5 text-xs text-body">
+                  Plain text. This is the preview shown when your event link is
+                  shared on WhatsApp, X, and other apps.
+                </p>
+              </div>
+              <div>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-label">Briefing & rules</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDetails({
+                          ...details,
+                          Note: briefTemplate(mode, details.GameName),
+                        })
+                      }
+                      className="rounded-md border border-primary/40 px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary"
+                    >
+                      Use a sample
+                    </button>
+                    <div className="flex gap-0.5 rounded-lg bg-surface-2 p-0.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setNotePreview(false)}
+                        className={`rounded-md px-2.5 py-1 transition-colors ${
+                          notePreview ? "text-body" : "bg-surface text-white"
+                        }`}
+                      >
+                        Write
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNotePreview(true)}
+                        className={`rounded-md px-2.5 py-1 transition-colors ${
+                          notePreview ? "bg-surface text-white" : "text-body"
+                        }`}
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {notePreview ? (
+                  <div className="min-h-32 rounded-lg border border-primary/25 bg-input p-4">
+                    {details.Note.trim() ? (
+                      <Markdown source={details.Note} />
+                    ) : (
+                      <p className="text-sm text-body">
+                        Nothing to preview yet. Switch to Write and add your
+                        briefing.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <TextArea
+                    rows={10}
+                    value={details.Note}
+                    onChange={(e) =>
+                      setDetails({ ...details, Note: e.target.value })
+                    }
+                    required
+                  />
+                )}
+                <p className="mt-1.5 text-xs text-body">
+                  Supports Markdown: # headings, **bold**, *italic*, - lists,
+                  1. numbered lists, and [links](https://example.com).
+                </p>
+              </div>
               <p className="text-xs text-body">
                 By launching you accept the{" "}
                 <Link href="/terms" className="text-primary hover:underline">

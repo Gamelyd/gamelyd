@@ -20,9 +20,31 @@ export function tournamentCoverUrl(tournament: Tournament): string {
   return absoluteImageUrl(src);
 }
 
+/** Reduce Markdown to plain text for social meta descriptions. */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
 export function tournamentShareDescription(tournament: Tournament): string {
-  const note = tournament.Note?.replace(/\s+/g, " ").trim();
-  if (note) return note.length > 180 ? `${note.slice(0, 177)}…` : note;
+  // The plain Description is written for link previews; use it first, then fall
+  // back to the Markdown brief (stripped to plain text).
+  const summary = (
+    tournament.Description || stripMarkdown(tournament.Note ?? "")
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  if (summary) {
+    return summary.length > 180 ? `${summary.slice(0, 177)}…` : summary;
+  }
 
   const bits = [
     tournament.GameName,

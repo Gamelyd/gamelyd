@@ -8,6 +8,7 @@ export const Collections = {
   tournament: "tournament",
   registerTournament: "registerTournament",
   inviteTournament: "inviteTournament",
+  joinRequest: "joinRequest",
   draw: "draw",
   contact: "contact",
   reportAbuse: "reportAbuse",

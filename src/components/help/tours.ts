@@ -212,7 +212,7 @@ export const PROFILE_TOUR: HelpTour = {
     {
       target: "dash-joined",
       title: "You play these",
-      body: "Events you registered for. Your teams, payout account, organizations and account settings are in the tabs at the top of this page.",
+      body: "Events you registered for. Your teams, organizations and account settings are in the tabs at the top of this page.",
     },
   ],
 };
@@ -249,12 +249,7 @@ export const FALLBACK_TOUR: HelpTour = {
     {
       target: "nav-tournaments",
       title: "Tournaments",
-      body: "Browse every lobby. Filter Games vs Sports, and for sports use country or Near me.",
-    },
-    {
-      target: "nav-games",
-      title: "Catalog",
-      body: "Games and Sports are catalogs you host from, not a stream. Pick a title when you create an event.",
+      body: "Browse every lobby. Filter Games vs Sports, and for sports use country or Near me. Games, Sports and Organizations live in the account menu (your avatar).",
     },
   ],
 };

@@ -12,6 +12,7 @@ import type {
   OrgMemberDoc,
   PlatformDoc,
   RegisterTournamentDoc,
+  JoinRequestDoc,
   ReportAbuseDoc,
   TournamentDoc,
   UserDoc,
@@ -20,6 +21,7 @@ import type { User } from "@/lib/schemas/user";
 import type { Tournament, TournamentVenue } from "@/lib/schemas/tournament";
 import type { Player, Teams, BRTeams, Draw } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
+import type { JoinRequest } from "@/lib/schemas/joinRequest";
 import type {
   ContactUs,
   InviteTournament,
@@ -172,6 +174,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       "registrationamount",
     ]),
     Note: readString(raw, ["Note", "note"]),
+    Description: readString(raw, ["Description", "description"]),
     Announcements: serializeAnnouncements(
       raw.Announcements ?? raw.announcements,
     ),
@@ -486,6 +489,22 @@ export function serializeRegistration(
       readString(raw, ["CaptainUserId", "captainuserid"]) ||
       players[0]?.User_id ||
       "",
+  };
+}
+
+export function serializeJoinRequest(doc: JoinRequestDoc): JoinRequest {
+  const raw = asRecord(doc);
+  return {
+    JoinRequestId:
+      readString(raw, ["JoinRequestId", "joinrequestid"]) ||
+      doc._id.toHexString(),
+    TournamentId: readString(raw, ["TournamentId", "tournamentid"]),
+    User_id: readString(raw, ["User_id", "user_id"]),
+    UserName: readString(raw, ["UserName", "username"]),
+    TeamName: readString(raw, ["TeamName", "teamname"]),
+    Players: readArray(raw, ["Players", "players"]).map(serializePlayer),
+    Icon: catalogUrl(readString(raw, ["Icon", "icon"])),
+    Created_at: readDate(raw, ["Created_at", "created_at"]),
   };
 }
 

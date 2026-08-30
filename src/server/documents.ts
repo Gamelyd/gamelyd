@@ -115,6 +115,7 @@ export interface TournamentDoc {
   RegistrationAmount: number;
   Prizes: PrizePosition[];
   Note: string;
+  Description?: string;
   Announcements?: {
     Id: string;
     Body: string;
@@ -204,6 +205,24 @@ export interface DrawDoc {
   VenueLat?: number;
   VenueLng?: number;
   VenueGeo?: { type: "Point"; coordinates: [number, number] };
+}
+
+/**
+ * A pending request to join an invite-only tournament. The host approves it,
+ * which registers the team, or declines it. Carries the same roster payload a
+ * registration would.
+ */
+export interface JoinRequestDoc {
+  _id: ObjectId;
+  JoinRequestId: string;
+  TournamentId: string;
+  /** The requesting captain. */
+  User_id: string;
+  UserName: string;
+  TeamName: string;
+  Players: Player[];
+  Icon: string;
+  Created_at: string;
 }
 
 export interface RegisterTournamentDoc {

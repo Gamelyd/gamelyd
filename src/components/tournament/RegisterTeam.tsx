@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -10,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { registerForTournamentAction } from "@/server/actions/tournamentActions";
+import { requestToJoinAction } from "@/server/actions/joinRequestActions";
 import { startEntryCheckoutAction } from "@/server/actions/paymentActions";
 import { FALLBACKS } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
@@ -21,7 +21,6 @@ import type { Payment, TeamSize } from "@/lib/schemas/common";
 import { rosterSize } from "@/lib/schemas/common";
 import type { SavedTeam } from "@/lib/schemas/savedTeam";
 import { mySavedTeamsAction } from "@/server/actions/savedTeamActions";
-import { canReceivePayoutAction } from "@/server/actions/payoutActions";
 
 function playerFromUser(u: {
   user_name?: string;
@@ -52,6 +51,8 @@ export function RegisterTeam({
   entryFee = 0,
   feeBps,
   onRegistered,
+  requestMode = false,
+  onRequested,
 }: {
   tournamentId: string;
   teamSize: TeamSize;
@@ -62,6 +63,9 @@ export function RegisterTeam({
   entryFee?: number;
   feeBps?: number;
   onRegistered: (registration: RegisterTournament) => void;
+  /** Invite-only events: submit a join request the host approves, not a direct registration. */
+  requestMode?: boolean;
+  onRequested?: () => void;
 }) {
   const { user } = useAuth();
   const toast = useToast();
@@ -74,7 +78,6 @@ export function RegisterTeam({
   const [savedTeams, setSavedTeams] = useState<SavedTeam[]>([]);
   const [savedTeamId, setSavedTeamId] = useState("");
   /** null while we are still checking, so the button does not flicker. */
-  const [payoutReady, setPayoutReady] = useState<boolean | null>(null);
   const needed = rosterSize(teamSize, rosterCount);
 
   useEffect(() => {
@@ -99,21 +102,33 @@ export function RegisterTeam({
 
   const chosenTeam = savedTeams.find((team) => team.team_id === savedTeamId);
 
-  // Paid events pay the team's prize to the captain, so checkout refuses without
-  // a payout account. Ask up front rather than letting them hit that wall.
-  useEffect(() => {
-    if (!user || payment !== "PAID") return;
-    void canReceivePayoutAction(currency).then((result) => {
-      if (result.ok) setPayoutReady(result.data);
-    });
-  }, [user, payment, currency]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
     const me = playerFromUser(user);
     me.GameUserName = gameUserName;
+
+    if (requestMode) {
+      const result = await requestToJoinAction(tournamentId, {
+        Players: [me],
+        TeamName: teamName,
+        Icon: icon || FALLBACKS.team,
+        RefNumber: "",
+        PaymentChannel: "",
+        Amount: 0,
+      });
+      setLoading(false);
+      if (result.ok) {
+        toast.success(result.message ?? "Request sent");
+        setTeamName("");
+        onRequested?.();
+      } else {
+        toast.error(result.error);
+      }
+      return;
+    }
+
     // With a saved team the server resolves the roster, name and icon from the
     // stored team, so these fields are only placeholders for validation.
     const roster = savedTeamId
@@ -167,7 +182,7 @@ export function RegisterTeam({
 
   return (
     <form onSubmit={handleSubmit} className="flex max-w-lg flex-col gap-4">
-      {savedTeams.length > 0 && needed > 1 ? (
+      {savedTeams.length > 0 && needed > 1 && !requestMode ? (
         <Select
           label="Enter a saved team"
           value={savedTeamId}
@@ -274,31 +289,8 @@ export function RegisterTeam({
         />
       ) : null}
 
-      {payment === "PAID" && payoutReady === false ? (
-        <div className="rounded-xl border border-yellow/40 bg-yellow/10 p-5">
-          <h3 className="font-display text-lg text-yellow">
-            Add a payout account first
-          </h3>
-          <p className="mt-1 text-sm text-body">
-            This event pays prize money to the team captain, which is you.
-            Connect the account your winnings should land in before you pay the
-            entry fee. It takes a minute, and you only do it once.
-          </p>
-          <Link
-            href={`/profile/${user.user_id}?tab=payouts`}
-            className="mt-4 inline-block rounded-lg bg-yellow px-4 py-2 text-sm font-semibold text-[#221a00]"
-          >
-            Add payout account
-          </Link>
-        </div>
-      ) : null}
-
-      <Button
-        type="submit"
-        loading={loading}
-        disabled={payment === "PAID" && payoutReady === false}
-      >
-        {payment === "PAID" ? "Pay and register" : "Register team"}
+      <Button type="submit" loading={loading}>
+        {requestMode ? "Request to join" : "Register team"}
       </Button>
     </form>
   );
