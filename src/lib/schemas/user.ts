@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { planSchema } from "@/lib/plans";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { userTypeSchema } from "./common";
 import { isStrongPassword, PASSWORD_MIN_LENGTH } from "@/lib/password";
@@ -43,6 +44,7 @@ export const userSchema = z.object({
   facebook: z.string().default(""),
   country: z.string().default(""),
   location: z.string().default(""),
+  plan: planSchema.default("FREE"),
   icon: z.string().default(""),
 });
 export type User = z.infer<typeof userSchema>;

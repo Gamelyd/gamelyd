@@ -22,7 +22,7 @@ const STEPS = [
   {
     n: "02",
     title: "Fill the roster",
-    body: "Players register as captain, then invite teammates. Teammates are not on the roster until they accept. A player can only be on one team. Prize money for a team is paid to its captain.",
+    body: "Players register as captain, then invite teammates. Teammates are not on the roster until they accept. A player can only be on one team.",
   },
   {
     n: "03",
@@ -168,8 +168,9 @@ export default function AboutPage() {
             ))}
           </div>
           <p className="mt-4 text-sm text-body">
-            Rosters can be solo, duo, or squad. Events can be free, paid, or
-            sponsored. Draws can be automatic or kept in registration order.
+            Rosters can be solo, duo, or squad. Tournaments are free to run and
+            free to join, with paid plans for organisers running at scale. Draws
+            can be automatic or kept in registration order.
           </p>
         </div>
         </Reveal>

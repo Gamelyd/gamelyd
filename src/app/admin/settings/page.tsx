@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { Loader } from "@/components/ui/Loader";
 import { useToast } from "@/components/ui/Toast";
-import { formatMoney } from "@/lib/currency";
+import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
+import { Select } from "@/components/ui/Select";
+import type { Plan } from "@/lib/plans";
 import { splitEntry, sponsorDeposit } from "@/lib/fees";
 import {
   adminGetPlatformSettingsAction,
   adminSetEventTypeEnabledAction,
+  adminSetOneOffAction,
   adminSetPlatformFeeAction,
 } from "@/server/actions/adminActions";
 
@@ -20,6 +23,13 @@ export default function AdminSettingsPage() {
   const [paidEnabled, setPaidEnabled] = useState(true);
   const [sponsoredEnabled, setSponsoredEnabled] = useState(true);
   const [togglingType, setTogglingType] = useState("");
+  const [oneOff, setOneOff] = useState({
+    enabled: false,
+    price: "",
+    currency: "EUR",
+    tier: "CLUB" as Plan,
+  });
+  const [savingOneOff, setSavingOneOff] = useState(false);
   const [updatedAt, setUpdatedAt] = useState("");
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -32,6 +42,12 @@ export default function AdminSettingsPage() {
         setValue(String(result.data.feeBps / 100));
         setPaidEnabled(result.data.paidEnabled);
         setSponsoredEnabled(result.data.sponsoredEnabled);
+        setOneOff({
+          enabled: result.data.oneOffEnabled,
+          price: String(result.data.oneOffPriceMinor / 100),
+          currency: result.data.oneOffCurrency,
+          tier: result.data.oneOffTier,
+        });
         setUpdatedAt(result.data.updated_at);
       } else {
         toast.error(result.error);
@@ -69,6 +85,27 @@ export default function AdminSettingsPage() {
       toast.success(result.message ?? "Saved");
       setPaidEnabled(result.data.paidEnabled);
       setSponsoredEnabled(result.data.sponsoredEnabled);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const saveOneOff = async () => {
+    setSavingOneOff(true);
+    const result = await adminSetOneOffAction({
+      enabled: oneOff.enabled,
+      price: Number(oneOff.price) || 0,
+      currency: oneOff.currency,
+      tier: oneOff.tier,
+    });
+    setSavingOneOff(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Saved");
+      setOneOff((o) => ({
+        ...o,
+        enabled: result.data.oneOffEnabled,
+        price: String(result.data.oneOffPriceMinor / 100),
+      }));
     } else {
       toast.error(result.error);
     }
@@ -117,6 +154,64 @@ export default function AdminSettingsPage() {
             Events already running keep taking entries, paying out, and
             settling, so nobody is stranded mid-tournament.
           </p>
+        </div>
+      </div>
+
+      <div className="mb-6 max-w-2xl rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="font-semibold text-white">One-off tournaments</h2>
+        <p className="mt-1 text-sm text-body">
+          Let a host pay once to create a single event above the free limits,
+          without subscribing. This is a fee to you, not prize money.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Input
+            type="number"
+            min={0}
+            step="0.01"
+            label="Price"
+            value={oneOff.price}
+            onChange={(e) =>
+              setOneOff((o) => ({ ...o, price: e.target.value }))
+            }
+          />
+          <Select
+            label="Currency"
+            value={oneOff.currency}
+            options={CURRENCY_OPTIONS}
+            onChange={(e) =>
+              setOneOff((o) => ({ ...o, currency: e.target.value }))
+            }
+          />
+          <Select
+            label="Unlocks the"
+            value={oneOff.tier}
+            options={[
+              { value: "CLUB", label: "Club limits" },
+              { value: "LEAGUE", label: "League limits" },
+            ]}
+            onChange={(e) =>
+              setOneOff((o) => ({ ...o, tier: e.target.value as Plan }))
+            }
+          />
+        </div>
+
+        <label className="mt-4 flex items-center gap-2 text-sm text-white">
+          <input
+            type="checkbox"
+            checked={oneOff.enabled}
+            onChange={(e) =>
+              setOneOff((o) => ({ ...o, enabled: e.target.checked }))
+            }
+            className="h-4 w-4 accent-primary"
+          />
+          Offer one-off tournaments to hosts
+        </label>
+
+        <div className="mt-4">
+          <Button loading={savingOneOff} onClick={() => void saveOneOff()}>
+            Save one-off pricing
+          </Button>
         </div>
       </div>
 

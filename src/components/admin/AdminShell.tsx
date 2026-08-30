@@ -24,7 +24,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <div className="mx-auto max-w-page gap-8 px-page py-10 md:flex">
       <aside className="mb-6 shrink-0 md:mb-0 md:w-56">
         <h2 className="mb-4 font-display text-2xl text-white">Admin</h2>
-        <nav className="flex gap-2 md:flex-col">
+        {/* On mobile the tabs are a single scrollable strip instead of
+            wrapping into several rows that push the page around. */}
+        <nav className="-mx-page flex gap-2 overflow-x-auto px-page pb-1 md:mx-0 md:flex-col md:overflow-visible md:px-0 md:pb-0">
           {navItems.map((item) => {
             const active =
               item.href === "/admin"
@@ -34,7 +36,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium transition-colors md:shrink ${
                   active
                     ? "border border-primary/40 bg-primary/15 text-primary"
                     : "border border-transparent text-body hover:border-primary/20 hover:bg-primary-panel hover:text-white"

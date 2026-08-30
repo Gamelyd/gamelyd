@@ -6,21 +6,19 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Loader } from "@/components/ui/Loader";
 import { Confirm } from "@/components/ui/Confirm";
+import { CollapsiblePanel } from "@/components/ui/CollapsiblePanel";
 import { useToast } from "@/components/ui/Toast";
-import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
+import { CURRENCY_OPTIONS } from "@/lib/currency";
 import { processorForCurrency } from "@/lib/fees";
-import { placeLabel } from "@/lib/schemas/tournament";
 import type { Currency } from "@/lib/schemas/common";
 import type {
   BankOption,
   PayoutAccount,
-  PayoutRecord,
 } from "@/lib/schemas/payment";
 import {
   connectBankAccountAction,
   listBanksAction,
   myPayoutAccountsAction,
-  myPayoutsAction,
   refreshStripePayoutAccountAction,
   removePayoutAccountAction,
   startStripePayoutOnboardingAction,
@@ -34,7 +32,6 @@ import {
 export function PayoutAccounts() {
   const toast = useToast();
   const [accounts, setAccounts] = useState<PayoutAccount[]>([]);
-  const [prizes, setPrizes] = useState<PayoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState<Currency>("NGN");
   const [banks, setBanks] = useState<BankOption[]>([]);
@@ -49,12 +46,8 @@ export function PayoutAccounts() {
   const processor = processorForCurrency(currency);
 
   const load = useCallback(async () => {
-    const [accountResult, prizeResult] = await Promise.all([
-      myPayoutAccountsAction(),
-      myPayoutsAction(),
-    ]);
+    const accountResult = await myPayoutAccountsAction();
     if (accountResult.ok) setAccounts(accountResult.data);
-    if (prizeResult.ok) setPrizes(prizeResult.data);
     setLoading(false);
   }, []);
 
@@ -211,14 +204,14 @@ export function PayoutAccounts() {
         )}
       </div>
 
-      <div className="rounded-xl border border-surface-2 bg-surface p-5">
-        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
-          Add an account
-        </h3>
-        <p className="mb-4 text-sm text-body">
-          Pick the currency you play in. We never store your full account
-          number.
-        </p>
+      <CollapsiblePanel
+        title="Add an account"
+        description="Pick the currency you play in. We never store your full account number."
+        /* Open straight away when there is nothing to be paid into, since that
+           is the one thing the page is asking the player to do. */
+        defaultOpen={accounts.length === 0}
+        scroll={false}
+      >
         <div className="flex flex-col gap-4">
           <Select
             label="Currency"
@@ -295,37 +288,7 @@ export function PayoutAccounts() {
             </div>
           )}
         </div>
-      </div>
-
-      {prizes.length > 0 ? (
-        <div className="rounded-xl border border-surface-2 bg-surface p-5">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
-            Your prize money
-          </h3>
-          <ul className="space-y-2 text-sm">
-            {prizes.map((prize) => (
-              <li
-                key={prize.payout_id}
-                className="flex flex-wrap justify-between gap-2"
-              >
-                <span className="text-white">
-                  {prize.tournamentName || "Tournament"}{" "}
-                  <span className="text-body">
-                    ·{" "}
-                    {prize.place > 0
-                      ? `${placeLabel(prize.place)} place`
-                      : "Host remainder"}
-                  </span>
-                </span>
-                <span className="text-white">
-                  {formatMoney(prize.amount, prize.currency)}{" "}
-                  <span className="text-body">({prize.status})</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      </CollapsiblePanel>
 
       <Confirm
         open={removeTarget !== null}

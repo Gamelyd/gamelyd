@@ -14,8 +14,12 @@ import type { Paginated } from "@/lib/result";
 import {
   adminListOrgsAction,
   adminSetOrgVerifiedAction,
+  adminSetPlanAction,
   adminToggleDeleteOrgAction,
 } from "@/server/actions/adminActions";
+import { PLANS, type Plan } from "@/lib/plans";
+
+const PLAN_OPTIONS: Plan[] = ["FREE", "CLUB", "LEAGUE"];
 
 export default function AdminOrgsPage() {
   const toast = useToast();
@@ -42,6 +46,18 @@ export default function AdminOrgsPage() {
       activeReq = false;
     };
   }, [search, page, reload, toast]);
+
+  const setOrgPlan = async (org: Org, plan: Plan) => {
+    setBusyId(org.org_id);
+    const result = await adminSetPlanAction("org", org.org_id, plan);
+    setBusyId("");
+    if (result.ok) {
+      toast.success(result.message ?? "Plan updated");
+      setReload((r) => r + 1);
+    } else {
+      toast.error(result.error);
+    }
+  };
 
   const toggleDelete = async (org: Org) => {
     setBusyId(org.org_id);
@@ -95,6 +111,7 @@ export default function AdminOrgsPage() {
           <thead className="bg-surface-2 text-body">
             <tr>
               <th className="px-4 py-3 font-medium">Organization</th>
+              <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Created</th>
               <th className="w-12 px-4 py-3" />
@@ -117,6 +134,17 @@ export default function AdminOrgsPage() {
                   ) : null}
                 </td>
                 <td className="px-4 py-3">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      org.plan === "FREE"
+                        ? "bg-surface-2 text-body"
+                        : "bg-win-deep text-white"
+                    }`}
+                  >
+                    {PLANS[org.plan].label}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
                   {org.isDeleted ? (
                     <span className="text-xs text-lose">Deleted</span>
                   ) : (
@@ -136,6 +164,10 @@ export default function AdminOrgsPage() {
                         label: "Manage",
                         onSelect: () => router.push(`/admin/orgs/${org.org_id}`),
                       },
+                      ...PLAN_OPTIONS.filter((p) => p !== org.plan).map((p) => ({
+                        label: `Move to ${PLANS[p].label} plan`,
+                        onSelect: () => void setOrgPlan(org, p),
+                      })),
                       {
                         label: org.verified
                           ? "Remove verification"
@@ -154,14 +186,14 @@ export default function AdminOrgsPage() {
             ))}
             {loading && !data ? (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={5}>
                   <Loader variant="compact" label="Loading organizations" />
                 </td>
               </tr>
             ) : null}
             {data && data.items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-body">
+                <td colSpan={5} className="px-4 py-8 text-center text-body">
                   No organizations found.
                 </td>
               </tr>

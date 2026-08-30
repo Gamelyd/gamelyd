@@ -55,6 +55,10 @@ import { getDrawsByTournament } from "@/server/services/drawService";
 import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import { guardAdmin } from "@/server/auth/admin";
+import { setPlan } from "@/server/services/planService";
+import { setOneOff } from "@/server/services/settingsService";
+import { currencySchema } from "@/lib/schemas/common";
+import { PLANS, planSchema, type Plan } from "@/lib/plans";
 import {
   completeReport,
   deleteReport,
@@ -658,5 +662,68 @@ export async function adminSetEventTypeEnabledAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Could not update that setting");
+  }
+}
+
+/* -------------------------------- Plans -------------------------------- */
+
+/**
+ * Moves a host onto another tier. Sold by hand for now: an admin flips this
+ * after an invoice is paid, which is enough to validate demand before any
+ * self-serve billing gets built.
+ */
+export async function adminSetPlanAction(
+  kind: "org" | "user",
+  id: string,
+  plan: Plan,
+): Promise<ActionResult<{ ok: true }>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  if (kind !== "org" && kind !== "user") return fail("Unknown target");
+  const parsed = planSchema.safeParse(plan);
+  if (!parsed.success) return fail("Unknown plan");
+  try {
+    await setPlan({ kind, id }, parsed.data);
+    return ok(
+      { ok: true } as const,
+      `Moved to the ${PLANS[parsed.data].label} plan`,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not change that plan");
+  }
+}
+
+/** Sets the one-off tournament price and which tier it unlocks. */
+export async function adminSetOneOffAction(input: {
+  enabled: boolean;
+  price: number;
+  currency: string;
+  tier: Plan;
+}): Promise<ActionResult<PlatformSettings>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  const currency = currencySchema.safeParse((input.currency || "").toUpperCase());
+  const tier = planSchema.safeParse(input.tier);
+  if (!currency.success) return fail("Pick a currency");
+  if (!tier.success) return fail("Pick a tier");
+  if (!Number.isFinite(input.price) || input.price < 0) {
+    return fail("Enter a price");
+  }
+  try {
+    const next = await setOneOff(
+      {
+        enabled: input.enabled,
+        priceMinor: Math.round(input.price * 100),
+        currency: currency.data,
+        tier: tier.data,
+      },
+      admin.uid,
+    );
+    return ok(next, "One-off pricing saved");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not save that");
   }
 }

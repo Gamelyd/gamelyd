@@ -3,13 +3,16 @@
 import { parseInput } from "@/lib/validate";
 import { ok, fail, type ActionResult } from "@/lib/result";
 import { startEntryCheckoutInputSchema } from "@/lib/schemas/payment";
+import { saveTournamentInputSchema } from "@/lib/schemas/tournament";
 import type { PaymentsStatus, PayoutRecord } from "@/lib/schemas/payment";
 import { getSessionClaims } from "@/server/auth/session";
 import { ServiceError } from "@/server/services/userService";
 import {
   fulfillByProcessorRef,
   listPayoutsForViewer,
+  oneOffResult,
   startEntryCheckout,
+  startOneOffTournamentCheckout,
   startSponsorCheckout,
 } from "@/server/services/paymentService";
 import { serializePayout } from "@/server/services/payoutService";
@@ -89,5 +92,38 @@ export async function confirmPaystackPaymentAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Could not confirm payment");
+  }
+}
+
+/** Pay once to create one tournament above the free limits, no subscription. */
+export async function startOneOffTournamentCheckoutAction(
+  input: unknown,
+): Promise<ActionResult<{ checkoutUrl: string }>> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  const parsed = parseInput(saveTournamentInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    return ok(
+      await startOneOffTournamentCheckout(claims.uid, parsed.data),
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not start checkout");
+  }
+}
+
+export async function oneOffTournamentResultAction(
+  paymentId: string,
+): Promise<ActionResult<{ status: string; tournamentId: string }>> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  try {
+    return ok(await oneOffResult(claims.uid, paymentId));
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not check that payment");
   }
 }

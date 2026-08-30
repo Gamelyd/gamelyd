@@ -5,7 +5,11 @@ import { registerTournamentInputSchema } from "./register";
 export const processorSchema = z.enum(["STRIPE", "PAYSTACK"]);
 export type Processor = z.infer<typeof processorSchema>;
 
-export const paymentKindSchema = z.enum(["ENTRY", "SPONSOR_FUND"]);
+export const paymentKindSchema = z.enum([
+  "ENTRY",
+  "SPONSOR_FUND",
+  "ONE_OFF",
+]);
 export type PaymentKind = z.infer<typeof paymentKindSchema>;
 
 export const paymentStatusSchema = z.enum([

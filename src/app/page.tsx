@@ -15,8 +15,6 @@ import {
   Audience,
   HomeFaq,
 } from "@/components/home/HomeContent";
-import { feePercent } from "@/lib/fees";
-import { getPlatformFeeBps } from "@/server/services/settingsService";
 import {
   getTournamentsAction,
   getBannerTournamentsAction,
@@ -67,7 +65,7 @@ export default async function HomePage() {
       <Audience />
       <HostCta />
       <Leaderboard />
-      <HomeFaq feePct={feePercent(await getPlatformFeeBps())} />
+      <HomeFaq />
     </SiteLayout>
   );
 }

@@ -82,6 +82,12 @@ import {
 import { getPlatformFeeBps } from "./settingsService";
 import { maxNetPot, prizeBoardTotal } from "@/lib/prizeBoard";
 import {
+  assertCanAddManager,
+  assertCanCreateTournament,
+  assertCanResize,
+} from "./planService";
+import type { Plan } from "@/lib/plans";
+import {
   asDisqualifiedSet,
   groupQualifiersComplete,
 } from "@/lib/groupQualifiers";
@@ -283,6 +289,8 @@ function assertPrizeBoard(
 export async function saveTournament(
   uid: string,
   input: SaveTournamentInput,
+  /** Set when a one-off payment cleared: enforce the paid tier, not the host's plan. */
+  paidTier?: Plan,
 ): Promise<Tournament> {
   const col = await tournaments();
   const now = new Date().toISOString();
@@ -305,6 +313,21 @@ export async function saveTournament(
     orgIcon = org.image;
     orgVerified = org.verified;
   }
+
+  // Plan limits are checked before anything is written, so a rejected event
+  // leaves nothing behind. A one-off payment enforces the tier it bought
+  // rather than the host's standing plan.
+  await assertCanCreateTournament(
+    uid,
+    {
+      orgId: input.OrgId ?? "",
+      teams: input.TournamentSize,
+      mode: input.TournamentMode,
+      venues: (input.Venues ?? []).filter((v) => (v.location ?? "").trim())
+        .length,
+    },
+    paidTier,
+  );
 
   const feeBps = await getPlatformFeeBps();
 
@@ -1830,6 +1853,7 @@ export async function addTournamentManager(
       "Host this tournament under an organization to add managers",
     );
   }
+  await assertCanAddManager(found, t.Managers.length);
   if (!(await isMember(t.OrgId, targetUserId))) {
     throw new ServiceError("That user is not a member of the organization");
   }
@@ -2360,6 +2384,8 @@ async function validateSettingsInput(
   const ids = relatedIdsFromDoc(found);
 
   if (input.TournamentSize !== undefined) {
+    // Otherwise a free host could create an 8-team event and edit it to 64.
+    await assertCanResize(found, input.TournamentSize);
     const registeredCount = await (await registrations()).countDocuments(
       asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)),
     );

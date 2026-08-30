@@ -31,6 +31,7 @@ import type { Game, ScoreLabel, CatalogFormat } from "@/lib/schemas/game";
 import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { IconAsset } from "@/lib/schemas/icon";
 import { catalogUrl } from "@/lib/icons";
+import { planSchema, type Plan } from "@/lib/plans";
 import type { Platform } from "@/lib/schemas/platform";
 import type {
   Payment,
@@ -88,7 +89,14 @@ export function serializeUser(doc: UserDoc): User {
     country: readString(raw, ["country", "Country"]),
     location: readString(raw, ["location", "Location"]),
     icon: catalogUrl(readString(raw, ["icon", "Icon"])),
+    plan: parsePlan(readString(raw, ["plan", "Plan"])),
   };
+}
+
+/** Unknown or missing tiers fall back to FREE rather than throwing. */
+function parsePlan(value: string): Plan {
+  const parsed = planSchema.safeParse(value.toUpperCase());
+  return parsed.success ? parsed.data : "FREE";
 }
 
 export function serializeTournament(doc: TournamentDoc): Tournament {
@@ -552,6 +560,7 @@ export function serializeOrg(doc: OrgDoc): Org {
     ...doc,
     _id: doc._id.toHexString(),
     verified: Boolean(doc.verified),
+    plan: parsePlan(doc.plan ?? ""),
   };
 }
 

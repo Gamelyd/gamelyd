@@ -42,10 +42,12 @@ function scoreTone(
   return "draw";
 }
 
-const scoreClass: Record<"win" | "lose" | "draw", string> = {
+const scoreClass: Record<"win" | "lose" | "draw" | "idle", string> = {
   win: "bg-win",
   lose: "bg-lose",
   draw: "bg-yellow",
+  // Not played yet: neutral, so an unscored match never looks like a 0-0 draw.
+  idle: "bg-surface-3",
 };
 
 type EditMode = "score" | "time" | "link" | "venue" | null;
@@ -134,8 +136,9 @@ function MpFixture({
   };
   const t1 = draw.Team1;
   const t2 = draw.Team2;
-  const tone1 = scoreTone(draw.Team1Score, draw.Team2Score);
-  const tone2 = scoreTone(draw.Team2Score, draw.Team1Score);
+  const played = Boolean(draw.Played);
+  const tone1 = played ? scoreTone(draw.Team1Score, draw.Team2Score) : "idle";
+  const tone2 = played ? scoreTone(draw.Team2Score, draw.Team1Score) : "idle";
 
   const beginScoreEdit = () => {
     setTeam1(draw.Played ? String(draw.Team1Score) : "");
@@ -226,7 +229,11 @@ function MpFixture({
   };
 
   return (
-    <div className="relative flex w-full max-w-[720px] flex-col items-center px-2 py-6">
+    <div
+      className={`relative flex w-full max-w-[560px] flex-col items-center rounded-2xl px-2 py-5 ${
+        !played && !autoBye ? "bg-primary/[0.06] ring-1 ring-primary/25" : ""
+      }`}
+    >
       {seriesLabel ? (
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
           {draw.Kind === "THIRD_PLACE" ? `Third place · ${seriesLabel}` : seriesLabel}
@@ -246,17 +253,18 @@ function MpFixture({
       )}
 
       {autoBye ? (
-        <div className="flex w-full max-w-[720px] flex-col items-center gap-3">
+        <div className="flex w-full max-w-[560px] flex-col items-center gap-3">
           <TeamFace team={t1} score={0} tone="win" side="left" showScore={false} />
           <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
             Auto qualified
           </span>
         </div>
       ) : (
-      <div className="flex w-full max-w-[720px] flex-col items-center justify-center gap-3 md:flex-row md:gap-0">
+      <div className="flex w-full max-w-[560px] flex-col items-center justify-center gap-2.5 md:flex-row md:gap-0">
         <TeamFace
           team={t1}
           score={draw.Team1Score}
+          played={played}
           tone={tone1}
           side="left"
           editable={canManage && !autoBye}
@@ -264,7 +272,7 @@ function MpFixture({
         />
 
         <div
-          className="z-20 h-[60px] w-[60px] shrink-0 bg-contain bg-center bg-no-repeat md:-mx-3"
+          className="z-20 h-11 w-11 shrink-0 bg-contain bg-center bg-no-repeat md:-mx-2"
           style={{ backgroundImage: `url("${UI_ICONS.vs}")` }}
           aria-hidden
         />
@@ -272,6 +280,7 @@ function MpFixture({
         <TeamFace
           team={t2}
           score={draw.Team2Score}
+          played={played}
           tone={tone2}
           side="right"
           editable={canManage && !autoBye}
@@ -306,7 +315,7 @@ function MpFixture({
       ) : null}
 
       {!autoBye && (
-      <div className="mt-4 flex min-h-6 flex-wrap items-center justify-center gap-x-4 text-[15.5px] font-bold text-white">
+      <div className="mt-3 flex min-h-6 flex-wrap items-center justify-center gap-x-3 text-[13px] font-bold text-white">
         {mode === "time" ? (
           <div className="flex flex-wrap items-end justify-center gap-2">
             <DateInput
@@ -549,6 +558,7 @@ function MpFixture({
 function TeamFace({
   team,
   score,
+  played = true,
   tone,
   side,
   editable = false,
@@ -557,7 +567,8 @@ function TeamFace({
 }: {
   team?: Teams;
   score: number;
-  tone: "win" | "lose" | "draw";
+  played?: boolean;
+  tone: "win" | "lose" | "draw" | "idle";
   side: "left" | "right";
   editable?: boolean;
   showScore?: boolean;
@@ -566,11 +577,11 @@ function TeamFace({
   const name = team?.TeamName || "TBD";
   const scoreBadge = (
     <span
-      className={`shrink-0 rounded-[5px] px-2.5 py-1 font-display text-[20px] leading-none text-white ${scoreClass[tone]} ${
+      className={`inline-block min-w-[1.4rem] shrink-0 rounded-[5px] px-2 py-0.5 text-center font-display text-base leading-none text-white ${scoreClass[tone]} ${
         editable ? "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-white/70" : ""
       } ${side === "left" ? "ml-2" : "mr-2"}`}
     >
-      {score}
+      {played ? score : "\u00A0"}
     </span>
   );
   const scoreControl = editable ? (
@@ -582,7 +593,7 @@ function TeamFace({
   );
   const avatar = (
     <div
-      className="relative z-10 flex h-[100px] w-[100px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[7px] border-surface-3 bg-primary"
+      className="relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[5px] border-surface-3 bg-primary"
       role="img"
       aria-label={name}
     >
@@ -596,15 +607,15 @@ function TeamFace({
   );
   const bar = (
     <div
-      className={`flex h-12 min-w-0 flex-1 items-center justify-between border-[2.7px] border-surface-3 bg-white md:w-[265px] md:flex-none ${
+      className={`flex h-10 min-w-0 flex-1 items-center justify-between border-2 border-surface-3 bg-white md:w-[210px] md:flex-none ${
         side === "left"
-          ? "rounded-r-[20px] pl-12 pr-3 md:-ml-10 md:rounded-none"
-          : "rounded-l-[20px] pl-3 pr-12 md:-mr-10 md:rounded-none"
+          ? "rounded-r-[16px] pl-10 pr-2.5 md:-ml-7 md:rounded-none"
+          : "rounded-l-[16px] pl-2.5 pr-10 md:-mr-7 md:rounded-none"
       }`}
     >
       {side === "left" ? (
         <>
-          <span className="inline-flex min-w-0 items-center gap-1 truncate font-display text-[20px] leading-none text-surface-3">
+          <span className="inline-flex min-w-0 items-center gap-1 truncate font-display text-base leading-none text-surface-3">
             <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
           </span>
           {showScore ? scoreControl : null}
@@ -612,7 +623,7 @@ function TeamFace({
       ) : (
         <>
           {showScore ? scoreControl : null}
-          <span className="inline-flex min-w-0 items-center justify-end gap-1 truncate text-right font-display text-[20px] leading-none text-surface-3">
+          <span className="inline-flex min-w-0 items-center justify-end gap-1 truncate text-right font-display text-base leading-none text-surface-3">
             <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
           </span>
         </>
@@ -621,7 +632,7 @@ function TeamFace({
   );
 
   return (
-    <div className="flex w-full max-w-[340px] items-center md:w-auto">
+    <div className="flex w-full max-w-[280px] items-center md:w-auto">
       {side === "left" ? (
         <>
           {avatar}

@@ -92,12 +92,12 @@ export function HowItWorks() {
 export function MoneyAndSafety() {
   const items = [
     {
-      title: "We hold the pot",
-      body: "Paid entries and sponsored prize boards stay with Gamelyd. We do not send that money to the host as people join. When the tournament finishes and has a champion, we settle what is owed to winners.",
+      title: "Free to run",
+      body: "Create a tournament, invite players, draw fixtures, and record results at no cost. A knockout for your friends is free, always, with no catch.",
     },
     {
-      title: "Skip untrusted events",
-      body: "Anyone can host. Read the host, the rules, and the prize board before you pay. If it feels off, do not join. Holding the pot does not mean we vouch for every lobby.",
+      title: "Pay only if you organise big",
+      body: "Running large events, leagues, or several at once? A club plan or a one-off payment unlocks bigger tournaments. Players never pay to join.",
     },
     {
       title: "Keep proof of your games",
@@ -110,9 +110,9 @@ export function MoneyAndSafety() {
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead
-            kicker="Money and play"
-            title="Held until the final. Play it straight."
-            description="Entry fees and prize deposits sit with us until the event ends. Join hosts you trust, and keep evidence of every match."
+            kicker="What it costs"
+            title="Free to play. Free to run."
+            description="Tournaments are free to create and free to join. Organisers running competitions at scale can upgrade for bigger events."
           />
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {items.map((item) => (
@@ -295,7 +295,7 @@ export function Audience() {
   );
 }
 
-export function HomeFaq({ feePct = 10 }: { feePct?: number }) {
+export function HomeFaq() {
   const items = [
     {
       q: "Do I need an organization to host?",
@@ -314,20 +314,16 @@ export function HomeFaq({ feePct = 10 }: { feePct?: number }) {
       a: "No. Every event shows on the tournament list, home, and banner. Invite-only only means players cannot register until the host invites them and they accept. Sponsored events stay off the list only until the prize deposit clears.",
     },
     {
-      q: "How do paid and sponsored events work?",
-      a: `Paid: the captain pays the entry you set, once for the whole team \u2014 teammates they invite join free. ${feePct}% is Gamelyd's fee; the remaining ${100 - feePct}% is held as the prize pot. Sponsored: you deposit the prize board plus ${feePct}% at launch so winners can receive the amounts you publish. The event stays off the public list until that deposit clears. Checkout stays in the currency you pick. We do not convert currencies.`,
+      q: "What does it cost?",
+      a: "Nothing to play, and nothing to run a normal tournament. A knockout of up to 8 teams is free forever. You only pay if you organise at a larger scale: bigger lobbies, leagues, groups, or several competitions at once.",
     },
     {
-      q: "When is prize money paid?",
-      a: "We hold paid entries and sponsored deposits until the tournament finishes. When there is a champion, we record what each paid place is owed (and leftover to the host), then transfer it to the payout account on the winner's profile. Timing depends on Stripe or Paystack.",
+      q: "How do I run a bigger tournament?",
+      a: "Two ways. Subscribe to a plan (Club or League) if you run competitions regularly, or pay once for a single larger event without subscribing. Either way, the players who join never pay you anything.",
     },
     {
-      q: "Who on the team gets the prize?",
-      a: "The captain, the player who registered the team. We pay one person per team, so how you split it afterwards is up to you. That is also why a captain has to connect a payout account before entering a paid event: add one under Payouts on your profile.",
-    },
-    {
-      q: "Should I join every paid event?",
-      a: "No. Anyone can host. Check the host, the rules, and the prize board before you pay. If you do not trust the lobby, skip it. Gamelyd holding the pot is not a guarantee that the host is honest.",
+      q: "Do players ever pay?",
+      a: "No. Plans and one-off payments are charged to the organiser, for running the competition. Joining a tournament is always free.",
     },
     {
       q: "What does the verified badge mean?",

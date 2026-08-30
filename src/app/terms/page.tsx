@@ -61,8 +61,17 @@ function buildSections(pct: number): LegalSection[] {
     ],
   },
   {
-    heading: "Free, paid, and sponsored",
+    heading: "Running tournaments: free, plans, and one-off",
     body: [
+      "Creating and joining tournaments is free. Larger events (bigger lobbies, leagues, groups, or several at once) need a paid plan or a one-off payment, charged to the organiser. Players are never charged a plan or a one-off.",
+      "A plan is a subscription that lifts these limits while it is active. A one-off payment lets you create a single larger event without subscribing. Both are fees for running competitions; neither is prize money, and we do not hold them on anyone's behalf.",
+      "If a plan lapses, tournaments already created keep working. You simply cannot create new ones above the free limits until you renew or pay a one-off.",
+    ],
+  },
+  {
+    heading: "Prize events, where offered",
+    body: [
+      "Paid and sponsored prize events are only available where we have turned them on. Where they are not offered, tournaments run without Gamelyd holding any prize money.",
       "Free events have no entry fee and no prize money held by Gamelyd.",
       "Paid events charge one entry fee per team, not per player. The captain pays it at checkout, and teammates the captain invites afterwards join free. Gamelyd keeps a platform fee of " +
         pct +

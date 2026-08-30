@@ -39,6 +39,9 @@ import type {
 } from "@/lib/schemas/common";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
 import { feePercent } from "@/lib/fees";
+import type { Plan, PlanLimits } from "@/lib/plans";
+import { myPlanLimitsAction } from "@/server/actions/tournamentActions";
+import { startOneOffTournamentCheckoutAction } from "@/server/actions/paymentActions";
 import {
   maxNetPot,
   prizeBoardTotal,
@@ -156,6 +159,12 @@ export function CreateTournamentWizard() {
   // Null until we know; paid/sponsored stay locked while we are unsure so a
   // host never picks a money option this deployment cannot honour.
   const [payments, setPayments] = useState<PaymentsStatus | null>(null);
+  const [planInfo, setPlanInfo] = useState<{
+    plan: Plan;
+    limits: PlanLimits;
+    activeCount: number;
+    oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+  } | null>(null);
   const [venues, setVenues] = useState<VenueDraft[]>([]);
   const [matchInterval, setMatchInterval] = useState(0);
   const [prizes, setPrizes] = useState<PrizePosition[]>([
@@ -163,6 +172,14 @@ export function CreateTournamentWizard() {
     { Position: 2, Amount: 0, Share: 0 },
     { Position: 3, Amount: 0, Share: 0 },
   ]);
+  // Reruns when the host switches org, since a club's plan may differ from
+  // the member's own.
+  useEffect(() => {
+    void myPlanLimitsAction(orgId).then((result) => {
+      if (result.ok) setPlanInfo(result.data);
+    });
+  }, [orgId]);
+
   useEffect(() => {
     void paymentsStatusAction().then((result) => {
       if (!result.ok) return;
@@ -215,6 +232,33 @@ export function CreateTournamentWizard() {
     Amount: 0,
     RegistrationAmount: 0,
   });
+
+  // Null while the plan is still loading, so nothing is wrongly shown as locked.
+  const maxTeams = planInfo ? planInfo.limits.maxTeams : null;
+  const overTeamCap =
+    maxTeams !== null && Number(details.TournamentSize) > maxTeams;
+  const modeLocked = (value: TournamentMode) =>
+    Boolean(planInfo && !planInfo.limits.modes.includes(value));
+  const atActiveCap = Boolean(
+    planInfo &&
+      planInfo.limits.maxActive !== null &&
+      planInfo.activeCount >= planInfo.limits.maxActive,
+  );
+  // The current form would be rejected by the host's own plan.
+  const exceedsPlan = Boolean(
+    planInfo &&
+      (overTeamCap ||
+        modeLocked(mode) ||
+        (orgId !== "" && !planInfo.limits.canHostAsOrg) ||
+        atActiveCap),
+  );
+  // A one-off is offered only when it would actually let this through.
+  const payOnce = Boolean(exceedsPlan && planInfo?.oneOff.enabled);
+  const oneOffPrice =
+    planInfo && planInfo.oneOff.enabled
+      ? formatMoney(planInfo.oneOff.price, planInfo.oneOff.currency)
+      : "";
+
 
   const boardTotal = prizeBoardTotal(prizes);
   // A paid board is funded by entries, so show whether it is reachable at all
@@ -450,6 +494,20 @@ export function CreateTournamentWizard() {
         ? venues.filter((v) => v.location.trim())
         : [],
     };
+    // Over the free limits with no subscription: take the one-off payment,
+    // which creates the tournament once it clears.
+    if (payOnce) {
+      const checkout = await startOneOffTournamentCheckoutAction(payload);
+      setLoading(false);
+      if (checkout.ok) {
+        toast.success("Redirecting to pay");
+        window.location.assign(checkout.data.checkoutUrl);
+        return;
+      }
+      toast.error(checkout.error);
+      return;
+    }
+
     const result = await saveTournamentAction(payload);
     setLoading(false);
     if (result.ok) {
@@ -625,8 +683,14 @@ export function CreateTournamentWizard() {
                     key={item.value}
                     delay={i}
                     title={item.label}
-                    blurb={item.blurb}
+                    blurb={
+                      modeLocked(item.value)
+                        ? `Included from the Club plan. You are on ${planInfo?.limits.label}.`
+                        : item.blurb
+                    }
                     active={mode === item.value}
+                    disabled={modeLocked(item.value)}
+                    disabledLabel="Upgrade"
                     glyph={<ModeGlyph kind={item.glyph} />}
                     onClick={() => setMode(item.value)}
                   />
@@ -1325,7 +1389,11 @@ export function CreateTournamentWizard() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <Input
                   type="number"
-                  label="Lobby size (teams)"
+                  label={
+                    maxTeams === null
+                      ? "Lobby size (teams)"
+                      : `Lobby size (teams, up to ${maxTeams})`
+                  }
                   value={details.TournamentSize}
                   onChange={(e) =>
                     setDetails({
@@ -1334,6 +1402,12 @@ export function CreateTournamentWizard() {
                     })
                   }
                   min={2}
+                  max={maxTeams ?? undefined}
+                  error={
+                    overTeamCap
+                      ? `The ${planInfo?.limits.label} plan allows ${maxTeams} teams. Upgrade for more.`
+                      : undefined
+                  }
                   required
                 />
                 <DateInput
@@ -1484,7 +1558,11 @@ export function CreateTournamentWizard() {
                   Back
                 </Button>
                 <Button type="submit" loading={loading}>
-                  {payment === "SPONSORED" ? "Pay and launch" : "Launch lobby"}
+                  {payOnce
+                    ? `Pay ${oneOffPrice} and create`
+                    : payment === "SPONSORED"
+                      ? "Pay and launch"
+                      : "Launch lobby"}
                 </Button>
               </div>
             </form>

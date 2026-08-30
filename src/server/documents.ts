@@ -10,6 +10,8 @@ import type {
 import type { Player, Teams, BRTeams } from "@/lib/schemas/draw";
 import type { SavedTeamRole } from "@/lib/schemas/savedTeam";
 import type { ReportKind } from "@/lib/schemas/misc";
+import type { Plan } from "@/lib/plans";
+import type { SaveTournamentInput } from "@/lib/schemas/tournament";
 import type {
   PointSystem,
   PrizePosition,
@@ -47,6 +49,8 @@ export interface UserDoc {
   country: string;
   location: string;
   icon: string;
+  /** Tier for hosts without an org. Missing on existing users, treated as FREE. */
+  plan?: Plan;
 }
 
 export interface TournamentDoc {
@@ -297,6 +301,8 @@ export interface OrgDoc {
   updated_at: string;
   isDeleted: boolean;
   verified: boolean;
+  /** Subscription tier. Missing on existing orgs, treated as FREE. */
+  plan?: Plan;
 }
 
 export interface OrgMemberDoc {
@@ -411,6 +417,12 @@ export interface SettingsDoc {
    */
   paidEnabled?: boolean;
   sponsoredEnabled?: boolean;
+  /** One-off tournament pricing: pay once to create a single event above the
+   *  free limits, without a subscription. */
+  oneOffEnabled?: boolean;
+  oneOffPriceMinor?: number;
+  oneOffCurrency?: string;
+  oneOffTier?: Plan;
   updated_at: string;
   updated_by: string;
 }
@@ -433,7 +445,7 @@ export interface IconDoc {
 export interface PaymentDoc {
   _id: ObjectId;
   payment_id: string;
-  kind: "ENTRY" | "SPONSOR_FUND";
+  kind: "ENTRY" | "SPONSOR_FUND" | "ONE_OFF";
   status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
   processor: "STRIPE" | "PAYSTACK";
   currency: string;
@@ -453,6 +465,9 @@ export interface PaymentDoc {
     /** Set when the captain paid to enter a roster saved on their profile. */
     SavedTeamId?: string;
   };
+  /** For ONE_OFF: the tournament to create once this payment clears. */
+  tournamentDraft?: SaveTournamentInput;
+  createdTournamentId?: string;
   created_at: string;
   updated_at: string;
   paid_at: string;

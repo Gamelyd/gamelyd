@@ -59,6 +59,12 @@ import {
 import { startSponsorCheckout } from "@/server/services/paymentService";
 import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService";
 import { rosterSize } from "@/lib/schemas/common";
+import {
+  activeTournamentCount,
+  planForHost,
+} from "@/server/services/planService";
+import { PLANS, type Plan, type PlanLimits } from "@/lib/plans";
+import { getOneOff } from "@/server/services/settingsService";
 import { ServiceError } from "@/server/services/userService";
 import { getSessionClaims } from "@/server/auth/session";
 import {
@@ -608,3 +614,39 @@ export async function removeTournamentAnnouncementAction(
   }
 }
 
+/**
+ * The limits that apply to the signed-in host, so the create form can show what
+ * is locked instead of letting someone fill in a form the server will reject.
+ */
+export async function myPlanLimitsAction(
+  orgId = "",
+): Promise<
+  ActionResult<{
+    plan: Plan;
+    limits: PlanLimits;
+    activeCount: number;
+    oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+  }>
+> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  try {
+    const plan = await planForHost(claims.uid, orgId || undefined);
+    const oneOff = await getOneOff();
+    return ok({
+      plan,
+      limits: PLANS[plan],
+      activeCount: await activeTournamentCount(claims.uid),
+      oneOff: {
+        enabled: oneOff.enabled,
+        price: oneOff.priceMinor / 100,
+        currency: oneOff.currency,
+        tier: oneOff.tier,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not load your plan");
+  }
+}

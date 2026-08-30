@@ -181,6 +181,7 @@ export function TournamentView({
   );
   const champion = podium?.first;
   const championName = champion?.TeamName?.trim() ?? "";
+
   const [celebrate, setCelebrate] = useState(() => Boolean(championName));
 
   useEffect(() => {
@@ -256,6 +257,51 @@ export function TournamentView({
     !tournament.Start;
 
   const isGroups = tournament.TournamentMode === "GROUPS";
+
+  // A manager should not have to hunt in the Run tab to know it is time for the
+  // next step. This surfaces the prompt up top, with a reminder to sanity-check
+  // the roster before a draw locks it in.
+  const stageNudge = useMemo((): { title: string; body: string } | null => {
+    if (!canManage || champion?.TeamName?.trim()) return null;
+    const groupPlayed = draws.filter(isGroupDraw);
+    const knockoutPlayed = draws.filter(isKnockoutDraw);
+
+    if (!started) {
+      if (participants.length < 2) return null;
+      const full =
+        tournament.TournamentSize > 0 &&
+        participants.length >= tournament.TournamentSize;
+      if (!full && registrationOpen(tournament)) return null;
+      return {
+        title: full ? "Registration is full" : "Registration has closed",
+        body: isGroups
+          ? "Check the registered teams are correct, then create your groups from the Run tab. The draw locks the roster in."
+          : "Check the registered teams are correct, then draw the fixtures from the Run tab. The draw locks the roster in.",
+      };
+    }
+    if (
+      isGroups &&
+      groupPlayed.length > 0 &&
+      groupPlayed.every((d) => d.Played) &&
+      knockoutPlayed.length === 0
+    ) {
+      return {
+        title: "Group stage complete",
+        body: "Every group match has a result. Advance to the knockout from the Run tab.",
+      };
+    }
+    if (
+      (isKnockout || isGroups) &&
+      knockoutPlayed.length > 0 &&
+      knockoutPlayed.every((d) => d.Played)
+    ) {
+      return {
+        title: "This round is complete",
+        body: "Every match in this round has a result. If more rounds remain, draw the next one from the Run tab.",
+      };
+    }
+    return null;
+  }, [canManage, champion, draws, started, participants, tournament, isGroups, isKnockout]);
 
   useEffect(() => {
     if ((tab === "run" || tab === "invite") && !canManage) setTab("details");
@@ -780,9 +826,34 @@ export function TournamentView({
         </button>
       ) : null}
 
+      {stageNudge ? (
+        <button
+          type="button"
+          onClick={() => setTab("run")}
+          className="block w-full border-b border-primary/40 bg-primary/15 text-left transition-colors hover:bg-primary/20"
+        >
+          <span className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-page py-3.5">
+            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-primary">
+              Action needed
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-white">
+                {stageNudge.title}
+              </span>
+              <span className="mt-0.5 block text-xs text-body">
+                {stageNudge.body}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary">
+              Go to Run
+            </span>
+          </span>
+        </button>
+      ) : null}
+
       <div className="border-b border-surface-2 bg-nav">
         <div
-          className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-page"
+          className="mx-auto flex max-w-6xl flex-wrap gap-x-1 gap-y-0 px-page sm:flex-nowrap"
           {...helpTarget("tour-tabs")}
         >
           {tabs
@@ -791,7 +862,7 @@ export function TournamentView({
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`cursor-pointer whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium transition-colors ${
+                className={`cursor-pointer whitespace-nowrap border-b-2 px-3 py-3 text-[13px] font-medium transition-colors sm:px-4 sm:py-4 sm:text-sm ${
                   tab === t.id
                     ? "border-primary text-primary"
                     : "border-transparent text-body hover:text-white"

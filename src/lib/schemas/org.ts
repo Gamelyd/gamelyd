@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { planSchema } from "@/lib/plans";
 import { orgRoleSchema, orgInviteStatusSchema } from "./common";
 
 export const orgSchema = z.object({
@@ -18,6 +19,7 @@ export const orgSchema = z.object({
   updated_at: z.string(),
   isDeleted: z.boolean().default(false),
   verified: z.boolean().default(false),
+  plan: planSchema.default("FREE"),
 });
 export type Org = z.infer<typeof orgSchema>;
 

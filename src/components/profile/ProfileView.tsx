@@ -29,6 +29,7 @@ import {
 } from "@/components/tournament/TournamentCard";
 import { SavedTeams } from "@/components/profile/SavedTeams";
 import { PayoutAccounts } from "@/components/profile/PayoutAccounts";
+import { Earnings } from "@/components/profile/Earnings";
 import { PageTour } from "@/components/help/PageTour";
 import { PROFILE_TOUR } from "@/components/help/tours";
 import { helpTarget } from "@/lib/help";
@@ -256,8 +257,15 @@ export function ProfileView({
       ) : null}
 
       {isOwn && tab === "payouts" ? (
-        <section className="mx-auto max-w-3xl px-page py-10">
+        <section className="mx-auto flex max-w-3xl flex-col gap-8 px-page py-10">
           <PayoutAccounts />
+          <div>
+            <h2 className="mb-1 font-display text-2xl text-white">Earnings</h2>
+            <p className="mb-4 text-sm text-body">
+              Every prize recorded for you, and where each one has got to.
+            </p>
+            <Earnings />
+          </div>
         </section>
       ) : null}
 

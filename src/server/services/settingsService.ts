@@ -3,6 +3,9 @@ import { ObjectId } from "mongodb";
 import { settings } from "@/server/db";
 import { ServiceError } from "@/server/services/userService";
 import { PLATFORM_FEE_BPS } from "@/lib/fees";
+import { parseCurrency } from "@/lib/currency";
+import { planSchema, type Plan } from "@/lib/plans";
+import type { Currency } from "@/lib/schemas/common";
 
 /**
  * The fee is read on almost every money-related render, so it is cached in
@@ -63,6 +66,10 @@ export interface PlatformSettings {
   feeBps: number;
   paidEnabled: boolean;
   sponsoredEnabled: boolean;
+  oneOffEnabled: boolean;
+  oneOffPriceMinor: number;
+  oneOffCurrency: Currency;
+  oneOffTier: Plan;
   updated_at: string;
 }
 
@@ -75,8 +82,63 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     // live the moment a deployment exists.
     paidEnabled: doc?.paidEnabled === true,
     sponsoredEnabled: doc?.sponsoredEnabled === true,
+    oneOffEnabled: doc?.oneOffEnabled === true,
+    oneOffPriceMinor:
+      typeof doc?.oneOffPriceMinor === "number" ? doc.oneOffPriceMinor : 0,
+    oneOffCurrency: parseCurrency(doc?.oneOffCurrency ?? "EUR"),
+    oneOffTier: normalizePlan(doc?.oneOffTier),
     updated_at: doc?.updated_at ?? "",
   };
+}
+
+function normalizePlan(value: unknown): Plan {
+  const parsed = planSchema.safeParse(
+    typeof value === "string" ? value.toUpperCase() : "",
+  );
+  return parsed.success ? parsed.data : "CLUB";
+}
+
+export interface OneOffConfig {
+  enabled: boolean;
+  priceMinor: number;
+  currency: Currency;
+  tier: Plan;
+}
+
+export async function getOneOff(): Promise<OneOffConfig> {
+  const cfg = await getPlatformSettings();
+  return {
+    enabled: cfg.oneOffEnabled,
+    priceMinor: cfg.oneOffPriceMinor,
+    currency: cfg.oneOffCurrency,
+    tier: cfg.oneOffTier,
+  };
+}
+
+export async function setOneOff(
+  input: OneOffConfig,
+  adminUid: string,
+): Promise<PlatformSettings> {
+  if (input.enabled && input.priceMinor <= 0) {
+    throw new ServiceError("Set a price above zero before turning this on");
+  }
+  const now = new Date().toISOString();
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        oneOffEnabled: input.enabled,
+        oneOffPriceMinor: Math.round(input.priceMinor),
+        oneOffCurrency: input.currency,
+        oneOffTier: input.tier,
+        updated_at: now,
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  return getPlatformSettings();
 }
 
 /** Turns a money option on or off for NEW tournaments. */

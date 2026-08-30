@@ -24,11 +24,15 @@ import { ServiceError, getUserById } from "@/server/services/userService";
 import {
   canManageTournamentById,
   registerForTournament,
+  saveTournament,
 } from "@/server/services/tournamentService";
 import { canReceivePayout } from "@/server/services/payoutAccountService";
+import { getOneOff } from "@/server/services/settingsService";
+import { assertCanCreateTournament } from "@/server/services/planService";
 import { createNotification } from "@/server/services/notificationService";
 import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService";
 import { rosterSize } from "@/lib/schemas/common";
+import { fromMinor } from "@/server/payments/money";
 import {
   playerOnATeam,
   userMayJoinTournament,
@@ -36,7 +40,10 @@ import {
 import type { Currency } from "@/lib/schemas/common";
 import type { Draw } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
-import type { Tournament } from "@/lib/schemas/tournament";
+import type {
+  SaveTournamentInput,
+  Tournament,
+} from "@/lib/schemas/tournament";
 import { placeLabel } from "@/lib/schemas/tournament";
 import type { StartEntryCheckoutInput } from "@/lib/schemas/payment";
 import { captainUserId } from "@/lib/captain";
@@ -305,6 +312,126 @@ export async function startSponsorCheckout(
   return { checkoutUrl: checkout.url };
 }
 
+/**
+ * Pay once to create a single tournament above the free limits, without a
+ * subscription. The draft is stored on the payment and the tournament is
+ * created only once the money clears, so nothing half-made is left behind if
+ * the host abandons checkout. This is a software fee to the platform: no
+ * platform cut, no prize pot, none of the money-holding of paid entries.
+ */
+export async function startOneOffTournamentCheckout(
+  uid: string,
+  input: SaveTournamentInput,
+): Promise<{ checkoutUrl: string }> {
+  const oneOff = await getOneOff();
+  if (!oneOff.enabled || oneOff.priceMinor <= 0) {
+    throw new ServiceError("One-off tournaments are not available right now");
+  }
+  // They only pay if their own plan would actually reject this event; otherwise
+  // send them through the normal free path.
+  try {
+    await assertCanCreateTournament(
+      uid,
+      {
+        orgId: input.OrgId ?? "",
+        teams: input.TournamentSize,
+        mode: input.TournamentMode,
+        venues: (input.Venues ?? []).filter((v: { location?: string }) => (v.location ?? "").trim())
+          .length,
+      },
+    );
+    throw new ServiceError(
+      "Your plan already covers this tournament. You can create it without paying.",
+    );
+  } catch (error) {
+    // The expected path: their plan rejects it, so a one-off is the way in.
+    // Re-throw the "already covered" message and any genuine input error.
+    if (
+      error instanceof ServiceError &&
+      error.message.includes("already covers")
+    ) {
+      throw error;
+    }
+  }
+  // But the paid tier still has to allow it, so a €X one-off cannot create an
+  // event bigger than what that tier permits.
+  await assertCanCreateTournament(
+    uid,
+    {
+      orgId: input.OrgId ?? "",
+      teams: input.TournamentSize,
+      mode: input.TournamentMode,
+      venues: (input.Venues ?? []).filter((v: { location?: string }) => (v.location ?? "").trim())
+        .length,
+    },
+    oneOff.tier,
+  );
+
+  const amount = fromMinor(oneOff.priceMinor, oneOff.currency);
+  const processor = processorForCurrency(oneOff.currency);
+  const email = await userEmail(uid);
+  const now = new Date().toISOString();
+  const paymentId = new ObjectId().toHexString();
+
+  await (await payments()).insertOne({
+    _id: new ObjectId(paymentId),
+    payment_id: paymentId,
+    kind: "ONE_OFF",
+    status: "PENDING",
+    processor,
+    currency: oneOff.currency,
+    tournamentId: "",
+    userId: uid,
+    amount,
+    fee: 0,
+    net: amount,
+    feeBps: 0,
+    processorRef: paymentId,
+    checkoutUrl: "",
+    email,
+    tournamentDraft: input,
+    created_at: now,
+    updated_at: now,
+    paid_at: "",
+  });
+
+  const checkout = await openCheckout({
+    paymentId,
+    amount,
+    currency: oneOff.currency,
+    email,
+    title: `Tournament · ${input.Name}`,
+    // Sent to the create page, which polls for the tournament this makes.
+    tournamentId: paymentId,
+    processor,
+  });
+  await (await payments()).updateOne(
+    { payment_id: paymentId },
+    {
+      $set: {
+        processorRef: checkout.processorRef,
+        checkoutUrl: checkout.url,
+        updated_at: new Date().toISOString(),
+      },
+    },
+  );
+  return { checkoutUrl: checkout.url };
+}
+
+/** Once a one-off payment clears, the created tournament id lives on it. */
+export async function oneOffResult(
+  uid: string,
+  paymentId: string,
+): Promise<{ status: string; tournamentId: string }> {
+  await fulfillByProcessorRef(paymentId).catch(() => undefined);
+  const doc = await (await payments()).findOne({ payment_id: paymentId });
+  if (!doc || doc.userId !== uid) throw new ServiceError("Payment not found");
+  return {
+    status: doc.status,
+    tournamentId: doc.createdTournamentId ?? "",
+  };
+}
+
 export async function fulfillPayment(paymentId: string): Promise<void> {
   const col = await payments();
   const doc = await col.findOne({ payment_id: paymentId });
@@ -333,6 +460,27 @@ export async function fulfillPayment(paymentId: string): Promise<void> {
         Updated_at: paidAt,
       },
     });
+    return;
+  }
+
+  if (claimed.kind === "ONE_OFF" && claimed.tournamentDraft) {
+    // The buyer picked this tier when they paid; enforce it, not their plan.
+    const oneOff = await getOneOff();
+    const created = await saveTournament(
+      claimed.userId,
+      claimed.tournamentDraft,
+      oneOff.tier,
+    );
+    await col.updateOne(
+      { payment_id: paymentId },
+      {
+        $set: {
+          createdTournamentId: created.TournamentId,
+          tournamentId: created.TournamentId,
+          updated_at: new Date().toISOString(),
+        },
+      },
+    );
     return;
   }
 

@@ -15,16 +15,20 @@ import {
 } from "@/components/ui/TableSelection";
 import type { User } from "@/lib/schemas/user";
 import type { BulkUserOp } from "@/lib/schemas/admin";
+import { PLANS, type Plan } from "@/lib/plans";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
 import {
   adminBulkUserAction,
   adminListUsersAction,
   adminSetUserTypeAction,
+  adminSetPlanAction,
   adminSetUserVerifiedAction,
   adminToggleBanUserAction,
   adminToggleDeleteUserAction,
 } from "@/server/actions/adminActions";
+
+const PLAN_OPTIONS: Plan[] = ["FREE", "CLUB", "LEAGUE"];
 
 interface PendingAction {
   id: string;
@@ -146,6 +150,7 @@ export default function AdminUsersPage() {
               </th>
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Email</th>
+              <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="w-12 px-4 py-3" />
@@ -183,6 +188,17 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        u.plan === "FREE"
+                          ? "bg-surface-2 text-body"
+                          : "bg-win-deep text-white"
+                      }`}
+                    >
+                      {PLANS[u.plan].label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                         isAdmin
                           ? "bg-primary/15 text-primary"
                           : "bg-surface-2 text-body"
@@ -214,6 +230,15 @@ export default function AdminUsersPage() {
                               ),
                             ),
                         },
+                        ...PLAN_OPTIONS.filter((p) => p !== u.plan).map(
+                          (p) => ({
+                            label: `Move to ${PLANS[p].label} plan`,
+                            onSelect: () =>
+                              void run(u.user_id, () =>
+                                adminSetPlanAction("user", u.user_id, p),
+                              ),
+                          }),
+                        ),
                         {
                           label: isAdmin ? "Make member" : "Make admin",
                           disabled: isSelf,
@@ -278,14 +303,14 @@ export default function AdminUsersPage() {
             })}
             {loading && !data ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <Loader variant="compact" label="Loading users" />
                 </td>
               </tr>
             ) : null}
             {data && data.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-body">
+                <td colSpan={7} className="px-4 py-8 text-center text-body">
                   No users found.
                 </td>
               </tr>
