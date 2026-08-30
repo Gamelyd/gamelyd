@@ -1095,17 +1095,30 @@ export function TournamentView({
 
             return (
               <div className="flex flex-col gap-6">
-                <SubTabs
-                  options={[
-                    {
-                      id: "teams",
-                      label: isGroups ? "Groups" : "Teams",
-                    },
-                    { id: "bracket", label: "Bracket" },
-                  ]}
-                  value={teamsPanel}
-                  onChange={setTeamsPanel}
-                />
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-display text-xl text-white">
+                    {teamsPanel === "bracket"
+                      ? "Knockout"
+                      : isGroups
+                        ? "Groups"
+                        : "Teams"}
+                  </h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      setTeamsPanel(
+                        teamsPanel === "bracket" ? "teams" : "bracket",
+                      )
+                    }
+                  >
+                    {teamsPanel === "bracket"
+                      ? isGroups
+                        ? "View groups"
+                        : "View teams"
+                      : "View knockout"}
+                  </Button>
+                </div>
                 {teamsPanel === "teams" ? (
                   <div className="space-y-8">
                     {invitePanels}
@@ -1417,44 +1430,6 @@ function FixtureGroupPanel({
           {children}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function SubTabs({
-  options,
-  value,
-  onChange,
-}: {
-  options: { id: TeamsPanel; label: string }[];
-  value: TeamsPanel;
-  onChange: (id: TeamsPanel) => void;
-}) {
-  return (
-    <div
-      role="tablist"
-      aria-label="Teams or bracket"
-      className="mx-auto flex w-full max-w-sm rounded-full bg-surface-2 p-1"
-    >
-      {options.map((option) => {
-        const active = value === option.id;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(option.id)}
-            className={`flex-1 cursor-pointer rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-              active
-                ? "bg-primary text-[#04201e]"
-                : "text-body hover:text-white"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
