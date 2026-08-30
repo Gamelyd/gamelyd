@@ -549,22 +549,50 @@ export function CreateTournamentWizard() {
           {!catalogReady ? (
             <Loader label="Loading games" />
           ) : step === "game" ? (
-            <GameStep
-              games={gamesForKind}
-              kinds={kinds}
-              catalogKind={catalogKind}
-              onKind={switchKind}
-              loaded={gamesLoaded}
-              selected={details.GameName}
-              covers={covers}
-              onPick={(game) => {
-                if (details.GameName === game.name) {
-                  goNext();
-                  return;
-                }
-                pickGame(game);
-              }}
-            />
+            <div className="flex flex-col gap-8">
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                  Host as
+                </p>
+                {orgs.length > 0 ? (
+                  <Select
+                    value={orgId}
+                    onChange={(e) => setOrgId(e.target.value)}
+                    options={[
+                      { label: "Yourself", value: "" },
+                      ...orgs.map((o) => ({ label: o.name, value: o.org_id })),
+                    ]}
+                  />
+                ) : (
+                  <p className="text-sm text-body">
+                    Hosting as yourself.{" "}
+                    <Link
+                      href="/org/new"
+                      className="text-primary hover:underline"
+                    >
+                      Create an organization
+                    </Link>{" "}
+                    to run a sponsored event under a brand.
+                  </p>
+                )}
+              </div>
+              <GameStep
+                games={gamesForKind}
+                kinds={kinds}
+                catalogKind={catalogKind}
+                onKind={switchKind}
+                loaded={gamesLoaded}
+                selected={details.GameName}
+                covers={covers}
+                onPick={(game) => {
+                  if (details.GameName === game.name) {
+                    goNext();
+                    return;
+                  }
+                  pickGame(game);
+                }}
+              />
+            </div>
           ) : null}
 
           {step === "format" ? (
@@ -959,8 +987,8 @@ export function CreateTournamentWizard() {
                     title="Sponsored"
                     blurb={
                       canSponsor
-                        ? "A sponsor badge on the event. No entry fees or prize money."
-                        : "Host under an organization to run a sponsored event."
+                        ? "Run your event with a sponsor badge."
+                        : "Pick your organization under \"Host as\" above to run a sponsored event."
                     }
                     active={payment === "SPONSORED"}
                     disabled={!canSponsor}
@@ -996,25 +1024,6 @@ export function CreateTournamentWizard() {
                 ))}
               </ul>
               <div {...helpTarget("create-identity")}>
-              {orgs.length > 0 ? (
-                <Select
-                  label="Host as"
-                  value={orgId}
-                  onChange={(e) => setOrgId(e.target.value)}
-                  options={[
-                    { label: "Yourself", value: "" },
-                    ...orgs.map((o) => ({ label: o.name, value: o.org_id })),
-                  ]}
-                />
-              ) : (
-                <p className="text-sm text-body">
-                  Hosting as yourself.{" "}
-                  <Link href="/org/new" className="text-primary hover:underline">
-                    Create an organization
-                  </Link>{" "}
-                  to host under a brand.
-                </p>
-              )}
               <Input
                 label="Tournament name"
                 value={details.Name}
