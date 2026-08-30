@@ -8,13 +8,6 @@ export const SITE_NAME = "Gamelyd";
 const DEFAULT_DESCRIPTION =
   "Gamelyd is where you host and play game tournaments. Create a lobby, register teams, draw fixtures, set match times, and record scores for friends, clubs, and communities.";
 
-const PAYMENT_LABEL: Record<string, string> = {
-  ALL: "All",
-  FREE: "Free",
-  PAID: "Paid",
-  SPONSORED: "Sponsored",
-};
-
 const FORMAT_LABEL: Record<string, string> = {
   ALL: "tournaments",
   MULTIPLAYER: "knockout tournaments",
@@ -80,37 +73,23 @@ export function pageMeta({
   };
 }
 
-export function browseTournamentsMeta(payment: string, format: string): {
+export function browseTournamentsMeta(format: string): {
   title: string;
   description: string;
 } {
-  const payKey = payment.toUpperCase();
   const formatKey = format.toUpperCase();
-  const pay = PAYMENT_LABEL[payKey] ?? payment;
   const mode = FORMAT_LABEL[formatKey] ?? `${format.toLowerCase()} tournaments`;
 
-  if (payKey === "ALL" && formatKey === "ALL") {
+  if (formatKey === "ALL") {
     return {
       title: "Tournaments",
       description:
-        "Browse every tournament on Gamelyd. Join free, paid, or sponsored events across knockout, groups, league, and battle royale.",
-    };
-  }
-  if (payKey === "ALL") {
-    return {
-      title: mode.charAt(0).toUpperCase() + mode.slice(1),
-      description: `Browse ${mode} on Gamelyd.`,
-    };
-  }
-  if (formatKey === "ALL") {
-    return {
-      title: `${pay} tournaments`,
-      description: `Browse ${pay.toLowerCase()} tournaments on Gamelyd.`,
+        "Browse every tournament on Gamelyd across knockout, groups, league, and battle royale.",
     };
   }
   return {
-    title: `${pay} ${mode}`,
-    description: `Browse ${pay.toLowerCase()} ${mode} on Gamelyd.`,
+    title: mode.charAt(0).toUpperCase() + mode.slice(1),
+    description: `Browse ${mode} on Gamelyd.`,
   };
 }
 

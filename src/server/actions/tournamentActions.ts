@@ -31,7 +31,6 @@ import {
   getPublicTournaments,
   getTournamentById,
   getTournamentsByMode,
-  getTournamentsByModeLimit,
   getBannerTournaments,
   groupTournament,
   listAssignableManagers,
@@ -134,12 +133,6 @@ export async function getBannerTournamentsAction(): Promise<
   ActionResult<Tournament[]>
 > {
   return ok(await getBannerTournaments());
-}
-
-export async function getTournamentsByModeLimitAction(
-  payment: string,
-): Promise<ActionResult<Tournament[]>> {
-  return ok(await getTournamentsByModeLimit(payment));
 }
 
 export async function listUserTournamentsAction(

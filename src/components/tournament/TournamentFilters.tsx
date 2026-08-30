@@ -18,13 +18,6 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { helpTarget } from "@/lib/help";
 
-const payments: { label: string; value: string }[] = [
-  { label: "All", value: "ALL" },
-  { label: "Free", value: "FREE" },
-  { label: "Paid", value: "PAID" },
-  { label: "Sponsored", value: "SPONSORED" },
-];
-
 const modes: { label: string; value: string }[] = [
   { label: "All", value: "ALL" },
   { label: "Knockout", value: "MULTIPLAYER" },
@@ -34,14 +27,12 @@ const modes: { label: string; value: string }[] = [
 ];
 
 export function TournamentFilters({
-  mode,
   type,
   status,
   kind = "ALL",
   kinds = [],
   location,
 }: {
-  mode: string;
   type: string;
   status: string;
   kind?: string;
@@ -72,9 +63,9 @@ export function TournamentFilters({
       .map((item) => ({ label: item.label, value: item.slug })),
   ];
 
-  const href = (next: Partial<BrowseLocation> & { status?: string; kind?: string; payment?: string; type?: string }) =>
+  const href = (next: Partial<BrowseLocation> & { status?: string; kind?: string; type?: string }) =>
     browseTournamentsHref({
-      payment: next.payment ?? mode,
+      payment: "ALL",
       type: next.type ?? type,
       status: next.status ?? status,
       kind: next.kind ?? kind,
@@ -112,7 +103,6 @@ export function TournamentFilters({
 
   const nearOn = location.lat != null && location.lng != null;
   const filtered =
-    mode.toUpperCase() !== "ALL" ||
     type.toUpperCase() !== "ALL" ||
     status.toUpperCase() !== "ALL" ||
     kind.toUpperCase() !== "ALL" ||
@@ -154,14 +144,6 @@ export function TournamentFilters({
             options={kindOptions}
             value={kind}
             onChange={(e) => router.push(href({ kind: e.target.value }))}
-          />
-        </div>
-        <div className="w-48">
-          <Select
-            label="Payment"
-            options={payments}
-            value={mode}
-            onChange={(e) => router.push(href({ payment: e.target.value }))}
           />
         </div>
         <div className="w-48">

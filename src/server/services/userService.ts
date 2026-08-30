@@ -40,16 +40,52 @@ export function isAccountLocked(
   return Boolean(doc.isDeleted || doc.isSuspended);
 }
 
-export async function revokeUserSessions(userId: string): Promise<void> {
+/** Most devices a single user can stay signed in on at once. */
+const MAX_SESSIONS = 10;
+
+/**
+ * The refresh tokens that count as live for this user. Prefers the multi-device
+ * `refresh_tokens` array; for a doc that predates it, falls back to the legacy
+ * single `refresh_token` so old sessions keep working until they next refresh.
+ */
+function activeRefreshTokens(doc: UserDoc): string[] {
+  if (Array.isArray(doc.refresh_tokens)) return doc.refresh_tokens;
+  return doc.refresh_token ? [doc.refresh_token] : [];
+}
+
+/**
+ * Sign out a user's sessions. With `refreshToken`, drops only that one device
+ * (normal logout). Without it, clears every device (ban, delete, forced
+ * revoke). Either way the legacy single-token field is retired.
+ */
+export async function revokeUserSessions(
+  userId: string,
+  refreshToken?: string,
+): Promise<void> {
   const col = await users();
+  const now = new Date().toISOString();
+
+  if (!refreshToken) {
+    await col.updateOne(
+      { user_id: userId },
+      {
+        $set: { token: "", refresh_tokens: [], updated_at: now },
+        $unset: { refresh_token: "" },
+      },
+    );
+    return;
+  }
+
+  const found = await col.findOne({ user_id: userId });
+  if (!found) return;
+  const remaining = activeRefreshTokens(found).filter(
+    (t) => t !== refreshToken,
+  );
   await col.updateOne(
     { user_id: userId },
     {
-      $set: {
-        token: "",
-        refresh_token: "",
-        updated_at: new Date().toISOString(),
-      },
+      $set: { refresh_tokens: remaining, updated_at: now },
+      $unset: { refresh_token: "" },
     },
   );
 }
@@ -87,7 +123,7 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
     password: hashed,
     user_type: input.user_type,
     token,
-    refresh_token: refreshToken,
+    refresh_tokens: [refreshToken],
     created_at: now,
     updated_at: now,
     isDeleted: false,
@@ -132,14 +168,20 @@ export async function authenticate(
     user_type: found.user_type,
   });
 
+  // Keep the other devices signed in: append this session and cap the list so
+  // an unbounded set of old tokens can't pile up.
+  const nextTokens = [...activeRefreshTokens(found), refreshToken].slice(
+    -MAX_SESSIONS,
+  );
   await col.updateOne(
     { user_id: found.user_id },
     {
       $set: {
         token,
-        refresh_token: refreshToken,
+        refresh_tokens: nextTokens,
         updated_at: new Date().toISOString(),
       },
+      $unset: { refresh_token: "" },
     },
   );
 
@@ -165,13 +207,22 @@ export async function exchangeRefreshToken(
   const found = await col.findOne({ user_id: claims.uid });
   if (!found) return null;
   if (isAccountLocked(found)) return null;
-  if (!found.refresh_token) {
+  const active = activeRefreshTokens(found);
+  const known = active.includes(refreshToken);
+  // A token that isn't among the live sessions (revoked, or pushed out past the
+  // device cap) can't mint a new access token. When nothing is stored yet, we
+  // adopt this one - matching the old "first refresh wins" behaviour.
+  if (!known && active.length > 0) return null;
+  // Persist the array form when adopting a first-seen token or upgrading a
+  // legacy doc that still only has the single `refresh_token` field.
+  if (!known || !Array.isArray(found.refresh_tokens)) {
+    const nextTokens = (known ? active : [...active, refreshToken]).slice(
+      -MAX_SESSIONS,
+    );
     await col.updateOne(
       { user_id: found.user_id },
-      { $set: { refresh_token: refreshToken } },
+      { $set: { refresh_tokens: nextTokens }, $unset: { refresh_token: "" } },
     );
-  } else if (found.refresh_token !== refreshToken) {
-    return null;
   }
 
   const token = await generateAccessToken({
@@ -403,9 +454,10 @@ export async function deleteUser(userId: string): Promise<User> {
       $set: {
         isDeleted: true,
         token: "",
-        refresh_token: "",
+        refresh_tokens: [],
         updated_at: new Date().toISOString(),
       },
+      $unset: { refresh_token: "" },
     },
     { returnDocument: "after" },
   );
@@ -482,9 +534,10 @@ async function setAccountFlag(
     {
       $set: {
         [field]: value,
-        ...(value ? { token: "", refresh_token: "" } : {}),
+        ...(value ? { token: "", refresh_tokens: [] } : {}),
         updated_at: new Date().toISOString(),
       },
+      ...(value ? { $unset: { refresh_token: "" } } : {}),
     },
   );
   return value;

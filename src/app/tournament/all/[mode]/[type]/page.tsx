@@ -27,7 +27,7 @@ export async function generateMetadata({
   params: Promise<{ mode: string; type: string }>;
 }): Promise<Metadata> {
   const { mode, type } = await params;
-  const copy = browseTournamentsMeta(mode, type);
+  const copy = browseTournamentsMeta(type);
   return pageMeta({
     title: copy.title,
     description: copy.description,
@@ -51,7 +51,7 @@ export default async function TournamentsPage({
     radius?: string;
   }>;
 }) {
-  const { mode, type } = await params;
+  const { type } = await params;
   const sp = await searchParams;
   const page = Math.max(Number(sp.page ?? "1") || 1, 1);
   const status = parseBrowseStatus(sp.status);
@@ -59,7 +59,8 @@ export default async function TournamentsPage({
   const location = parseBrowseLocation(sp);
 
   const [result, kindsResult] = await Promise.all([
-    getTournamentsByModeAction(mode, type, page, status, kind, location),
+    // Payment is no longer a browse dimension; always list across all entries.
+    getTournamentsByModeAction("ALL", type, page, status, kind, location),
     getCatalogKindsAction(),
   ]);
   const data = result.ok
@@ -74,9 +75,9 @@ export default async function TournamentsPage({
         kicker="Compete"
         title="Tournaments"
         description={
-          mode.toUpperCase() === "ALL" && type.toUpperCase() === "ALL"
+          type.toUpperCase() === "ALL"
             ? "Browse every tournament. Filter sports by country or what’s near you."
-            : `Browse ${mode.toLowerCase()} ${type.toLowerCase()} tournaments.`
+            : `Browse ${type.toLowerCase()} tournaments.`
         }
         actions={
           <Link href="/tournament/new" {...helpTarget("browse-create")}>
@@ -87,7 +88,6 @@ export default async function TournamentsPage({
 
       <section className="mx-auto max-w-page px-page py-10">
         <TournamentFilters
-          mode={mode}
           type={type}
           status={status}
           kind={kind}
@@ -123,7 +123,7 @@ export default async function TournamentsPage({
               <Link
                 key={p}
                 href={browseTournamentsHref({
-                  payment: mode,
+                  payment: "ALL",
                   type,
                   status,
                   page: p,

@@ -28,11 +28,6 @@ const FORMAT_JUMPS: { label: string; href: string; blurb: string }[] = [
     href: "/tournament/all/ALL/BATTLEROYALE",
     blurb: "Last squad standing",
   },
-  {
-    label: "Sponsored",
-    href: "/tournament/all/SPONSORED/ALL",
-    blurb: "Prize on the board",
-  },
 ];
 
 export function Hero({ banner }: { banner: Tournament[] }) {
@@ -50,7 +45,7 @@ export function Hero({ banner }: { banner: Tournament[] }) {
             <p className="mt-4 max-w-xl text-base text-body sm:text-lg">
               Create a tournament, register teams, draw fixtures, and keep
               scores in one place: leagues, groups, knockouts, and battle
-              royale lobbies. Paid pots stay held until the event ends.
+              royale lobbies.
             </p>
             <div className="mt-6 flex flex-wrap gap-3" {...helpTarget("home-hero")}>
               <Link href="/tournament/all/ALL/ALL">

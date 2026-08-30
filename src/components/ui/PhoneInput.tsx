@@ -8,6 +8,7 @@ import {
   parsePhoneNumberFromString,
   type CountryCode,
 } from "libphonenumber-js";
+import { countryName } from "@/lib/countries";
 
 interface Country {
   code: CountryCode;
@@ -24,15 +25,11 @@ function flagFor(code: string): string {
 }
 
 function buildCountries(): Country[] {
-  const names =
-    typeof Intl !== "undefined" && "DisplayNames" in Intl
-      ? new Intl.DisplayNames(["en"], { type: "region" })
-      : null;
   return getCountries()
     .map((code) => ({
       code,
       calling: getCountryCallingCode(code),
-      name: names?.of(code) ?? code,
+      name: countryName(code),
       flag: flagFor(code),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

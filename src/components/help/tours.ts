@@ -120,8 +120,8 @@ export const CREATE_RULES_TOUR: HelpTour = {
     },
     {
       target: "create-entry",
-      title: "Stakes",
-      body: "Free has no purse. Paid: players pay, a cut is the platform fee, the rest is held for prizes. Sponsored: you fund the board at launch.",
+      title: "Entry",
+      body: "Free is open to anyone with an account. Sponsored is a labelled showcase event for organisations. Players never pay to enter.",
     },
   ],
 };

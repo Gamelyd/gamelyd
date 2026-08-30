@@ -40,7 +40,9 @@ async function issueSession(session: {
 }
 
 async function destroySession(uid?: string): Promise<void> {
-  if (uid) await revokeUserSessions(uid);
+  // Drop only this device's session, leaving the user signed in elsewhere.
+  const refresh = await getRefreshCookie();
+  if (uid) await revokeUserSessions(uid, refresh ?? undefined);
   await clearSessionCookie();
 }
 

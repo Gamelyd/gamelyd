@@ -541,26 +541,6 @@ export async function getTournamentsByMode(
   };
 }
 
-export async function getTournamentsByModeLimit(
-  payment: string,
-): Promise<Tournament[]> {
-  const col = await tournaments();
-  const docs = await col
-    .find(
-      asDocFilter<TournamentDoc>({
-        $and: [
-          { $or: [{ Payment: payment }, { payment: payment }] },
-          notDeleted(),
-          fundedPublicClause(),
-        ],
-      }),
-    )
-    .sort({ _id: -1 })
-    .limit(10)
-    .toArray();
-  return docs.map(serializeTournament);
-}
-
 const BANNER_SLOTS = 2;
 
 export async function getBannerTournaments(): Promise<Tournament[]> {

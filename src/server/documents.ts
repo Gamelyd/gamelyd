@@ -35,7 +35,14 @@ export interface UserDoc {
   password: string;
   user_type: UserType;
   token: string;
-  refresh_token: string;
+  /**
+   * Legacy single-session refresh token. New code writes `refresh_tokens`
+   * instead; old docs are read through the `activeRefreshTokens` helper, which
+   * falls back to this field until the user next logs in or refreshes.
+   */
+  refresh_token?: string;
+  /** Active refresh tokens, one per signed-in device (capped, newest kept). */
+  refresh_tokens: string[];
   created_at: string;
   updated_at: string;
   isDeleted: boolean;
