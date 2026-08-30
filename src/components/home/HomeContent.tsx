@@ -35,7 +35,7 @@ export function HowItWorks() {
     {
       n: "01",
       title: "Create the event",
-      body: "Pick a game or a sport, then the format. Set the date, prize, and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
+      body: "Pick a game or a sport, then the format. Set the date and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
     },
     {
       n: "02",
@@ -147,7 +147,7 @@ export function Formats() {
     {
       title: "Groups",
       glyph: "groups",
-      body: "Round-robin inside each group, then a knockout. Top teams advance (you choose how many). Tables show points, and the bracket uses group-winner placeholders until qualification.",
+      body: "Round-robin inside each group, then a knockout. Top teams advance (you choose how many). Tables show points, and the knockout uses group-winner placeholders until qualification.",
     },
     {
       title: "League",
@@ -187,8 +187,8 @@ export function Formats() {
             ))}
           </div>
           <p className="mt-6 text-sm text-body">
-            Rosters can be solo, duo, or squad. Events can be free, paid, or
-            sponsored. Draws can be automatic or kept in registration order.
+            Rosters can be solo, duo, or squad. Draws can be automatic or kept
+            in registration order.
           </p>
         </Reveal>
       </div>
@@ -311,7 +311,7 @@ export function HomeFaq() {
     },
     {
       q: "Are invite-only events hidden?",
-      a: "No. Every event shows on the tournament list, home, and banner. Invite-only only means players cannot register until the host invites them and they accept. Sponsored events stay off the list only until the prize deposit clears.",
+      a: "No. Every event shows on the tournament list, home, and banner. Invite-only only means players cannot register until the host invites them and they accept.",
     },
     {
       q: "What does it cost?",

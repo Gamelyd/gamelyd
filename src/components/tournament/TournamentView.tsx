@@ -6,9 +6,6 @@ import Link from "next/link";
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import { useRouter } from "next/navigation";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
-import { placeLabel } from "@/lib/schemas/tournament";
-import { formatMoney } from "@/lib/currency";
-import { feePercent, splitEntry, sponsorDeposit } from "@/lib/fees";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
@@ -29,8 +26,6 @@ import { RegisterTeam } from "./RegisterTeam";
 import { AlertCaptain } from "./AlertCaptain";
 import { InviteSearch } from "./InviteSearch";
 import { HostInvitePanel } from "./HostInvitePanel";
-import { startSponsorCheckoutAction, listTournamentPayoutsAction } from "@/server/actions/paymentActions";
-import type { PayoutRecord } from "@/lib/schemas/payment";
 import { LeagueTable } from "./LeagueTable";
 import { BrTable } from "./BrTable";
 import { ShareTournamentButton } from "./ShareTournamentButton";
@@ -43,7 +38,6 @@ import { NextStageModal } from "./NextStageModal";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
-import { usesLegacyShares } from "@/lib/prizeBoard";
 import { isCaptain as isTeamCaptain } from "@/lib/captain";
 import { runsOrg } from "@/lib/orgRoles";
 import { computeLeagueStandings } from "@/lib/leagueStandings";
@@ -593,16 +587,6 @@ export function TournamentView({
           gameName={tournament.GameName}
           onClose={() => setCelebrate(false)}
         />
-      ) : null}
-      {tournament.Payment === "SPONSORED" && !tournament.PurseFunded ? (
-        <div className="border-b border-yellow/30 bg-yellow/10 px-page py-4 text-center text-sm text-white">
-          Prize pool is not funded yet. This event stays off the public list
-          until the host pays the board plus a{" "}
-          {feePercent(tournament.PlatformFeeBps)}% fee.
-          {canManage ? (
-            <FundPrizeButton tournamentId={tournament.TournamentId} />
-          ) : null}
-        </div>
       ) : null}
       <section className="relative overflow-hidden border-b border-primary/20 bg-primary-panel">
         <CatalogImage
@@ -1610,13 +1594,8 @@ function Details({
           : "Anyone can join",
     },
     {
-      label: "Payment",
-      value:
-        tournament.Payment === "PAID"
-          ? "Paid"
-          : tournament.Payment === "SPONSORED"
-            ? "Sponsored"
-            : "Free",
+      label: "Type",
+      value: tournament.Payment === "SPONSORED" ? "Sponsored" : "Free",
     },
     { label: "Draw", value: tournament.Shuffle },
     { label: "Size", value: `${tournament.TournamentSize} teams` },
@@ -1643,88 +1622,6 @@ function Details({
     ...(tournament.Platform
       ? [{ label: "Platform", value: tournament.Platform }]
       : []),
-    ...(tournament.Payment === "PAID"
-      ? [
-          {
-            label: "Platform fee",
-            value: `${feePercent(tournament.PlatformFeeBps)}% of each entry (Gamelyd; not in the pot)`,
-          },
-          {
-            label: "Entry (player pays)",
-            value: formatMoney(
-              tournament.RegistrationAmount,
-              tournament.Currency,
-            ),
-          },
-          {
-            label: "Per seat to pot",
-            value: formatMoney(
-              splitEntry(
-                tournament.RegistrationAmount,
-                tournament.PlatformFeeBps,
-              ).net,
-              tournament.Currency,
-            ),
-          },
-          {
-            label: "Per seat to Gamelyd",
-            value: formatMoney(
-              splitEntry(
-                tournament.RegistrationAmount,
-                tournament.PlatformFeeBps,
-              ).fee,
-              tournament.Currency,
-            ),
-          },
-          {
-            label: "Net prize pot now",
-            value: formatMoney(tournament.PotNet, tournament.Currency),
-          },
-        ]
-      : []),
-    ...(tournament.Payment === "SPONSORED"
-      ? [
-          {
-            label: "Platform fee",
-            value: `${feePercent(tournament.PlatformFeeBps)}% on top of the prize board (paid by the host)`,
-          },
-          {
-            label: "Published prizes",
-            value: tournament.Amount
-              ? formatMoney(tournament.Amount, tournament.Currency)
-              : "-",
-          },
-          {
-            label: "Host deposit (board + fee)",
-            value: tournament.Amount
-              ? formatMoney(
-                  sponsorDeposit(
-                    tournament.Amount,
-                    tournament.PlatformFeeBps,
-                  ).gross,
-                  tournament.Currency,
-                )
-              : "-",
-          },
-        ]
-      : []),
-    ...(tournament.FeeCollected
-      ? [
-          {
-            label: "Fees collected so far",
-            value: formatMoney(tournament.FeeCollected, tournament.Currency),
-          },
-        ]
-      : []),
-    ...(tournament.Prizes ?? []).map((prize) => ({
-      label: `${placeLabel(prize.Position)} prize`,
-      // Paid events now advertise cash; only those created under the old
-      // percentage split still describe themselves that way.
-      value:
-        tournament.Payment === "PAID" && usesLegacyShares(tournament.Prizes)
-          ? `${prize.Share || 0}% of net pot`
-          : formatMoney(prize.Amount, tournament.Currency),
-    })),
   ];
 
   return (
@@ -1770,70 +1667,8 @@ function Details({
           tournamentName={tournament.Name}
         />
       </div>
-      {tournament.Payment !== "FREE" ? (
-        <PrizeSettlement tournamentId={tournament.TournamentId} />
-      ) : null}
     </div>
   );
 }
 
-function FundPrizeButton({ tournamentId }: { tournamentId: string }) {
-  const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  return (
-    <div className="mt-3">
-      <Button
-        type="button"
-        loading={loading}
-        onClick={async () => {
-          setLoading(true);
-          const result = await startSponsorCheckoutAction(tournamentId);
-          setLoading(false);
-          if (result.ok) {
-            window.location.href = result.data.checkoutUrl;
-            return;
-          }
-          toast.error(result.error);
-        }}
-      >
-        Fund prize pool
-      </Button>
-    </div>
-  );
-}
 
-function PrizeSettlement({ tournamentId }: { tournamentId: string }) {
-  const [rows, setRows] = useState<PayoutRecord[]>([]);
-  useEffect(() => {
-    void listTournamentPayoutsAction(tournamentId).then((result) => {
-      if (result.ok) setRows(result.data);
-    });
-  }, [tournamentId]);
-  if (rows.length === 0) return null;
-  return (
-    <div className="rounded-xl border border-surface-2 bg-surface p-5">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
-        Prize settlement
-      </h3>
-      <p className="mb-3 text-sm text-body">
-        Held until the event ends. Each place is paid to that team&apos;s
-        captain, using the payout account on their profile.
-      </p>
-      <ul className="space-y-2 text-sm">
-        {rows.map((row) => (
-          <li
-            key={row.payout_id}
-            className="flex justify-between gap-3 text-white"
-          >
-            <span>
-              {row.place > 0 ? `${placeLabel(row.place)} · ` : ""}
-              {row.teamName}{" "}
-              <span className="text-body">({row.status})</span>
-            </span>
-            <span>{formatMoney(row.amount, row.currency)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

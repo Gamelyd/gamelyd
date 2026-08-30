@@ -3,8 +3,6 @@ import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
-import { formatMoney } from "@/lib/currency";
-import { feePercent } from "@/lib/fees";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 
 function formatDate(date: string): string {
@@ -33,10 +31,6 @@ function teamLabel(team: Tournament["Team"]): string {
 
 export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
-  const showPrize =
-    (tournament.Payment === "SPONSORED" || tournament.Payment === "PAID") &&
-    tournament.Amount > 0;
-
   return (
     <Link
       href={`/tournament/${tournament.TournamentId}`}
@@ -94,25 +88,14 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
         <div className="mt-4 flex items-end justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
-              {showPrize ? "Prize pool" : "Entry"}
+              Entry
             </p>
             <p className="font-display text-2xl leading-none text-primary">
-              {showPrize
-                ? formatMoney(tournament.Amount, tournament.Currency)
-                : tournament.IsPaid
-                  ? formatMoney(
-                      tournament.RegistrationAmount,
-                      tournament.Currency,
-                    )
-                  : "Free"}
+              Free
             </p>
-            {tournament.Payment === "PAID" ? (
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                {feePercent(tournament.PlatformFeeBps)}% platform fee
-              </p>
-            ) : tournament.Payment === "SPONSORED" ? (
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                Host-funded · {feePercent(tournament.PlatformFeeBps)}% fee
+            {tournament.Payment === "SPONSORED" ? (
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-yellow/70">
+                Sponsored event
               </p>
             ) : null}
           </div>

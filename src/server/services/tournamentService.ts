@@ -45,15 +45,11 @@ import { createNotifications } from "./notificationService";
 import type {
   Tournament,
   PendingSettingChange,
-  PrizePosition,
 } from "@/lib/schemas/tournament";
-import { placeLabel } from "@/lib/schemas/tournament";
 import { browseStatusClause, tournamentBrowsePhase } from "@/lib/tournamentStatus";
 import { catalogKindClause } from "@/lib/catalog";
 import { parseCountryCode } from "@/lib/countries";
 import { geocodeVenue, type GeoPoint } from "../geocode";
-import { paymentsStatus } from "../payments/status";
-import { parseCurrency } from "@/lib/currency";
 import type { BrowseLocation } from "@/lib/venue";
 import { nearestVenueKm } from "@/lib/venue";
 import type { RegisterTournament } from "@/lib/schemas/register";
@@ -79,8 +75,10 @@ import {
   rosterSize,
   rosterSpotsLeftMessage,
 } from "@/lib/schemas/common";
-import { getPlatformFeeBps } from "./settingsService";
-import { maxNetPot, prizeBoardTotal } from "@/lib/prizeBoard";
+import {
+  getPlatformFeeBps,
+  getSponsorRequiresOrg,
+} from "./settingsService";
 import {
   assertCanAddManager,
   assertCanCreateTournament,
@@ -237,54 +235,6 @@ function fundedPublicClause(): Record<string, unknown> {
   };
 }
 
-/**
- * The prize board decides who gets paid what at settlement, so it has to be
- * coherent before the event exists. PAID events split the net pot by percent -
- * shares over 100% would promise money that was never collected.
- */
-function assertPrizeBoard(
-  payment: "PAID" | "SPONSORED",
-  prizes: PrizePosition[],
-  context: { entryFee: number; teamCount: number; feeBps: number },
-): void {
-  if (prizes.length === 0) {
-    throw new ServiceError("Add at least one prize position");
-  }
-  const seen = new Set<number>();
-  for (const prize of prizes) {
-    if (prize.Position < 1) {
-      throw new ServiceError("Prize positions start at 1st place");
-    }
-    if (seen.has(prize.Position)) {
-      throw new ServiceError(
-        `${placeLabel(prize.Position)} place is listed twice`,
-      );
-    }
-    seen.add(prize.Position);
-  }
-
-  if (prizes.some((prize) => (prize.Amount || 0) < 0)) {
-    throw new ServiceError("Prize amounts cannot be negative");
-  }
-  const total = prizeBoardTotal(prizes);
-  if (total <= 0) {
-    throw new ServiceError("Set prize amounts greater than zero");
-  }
-  if (payment === "SPONSORED") return;
-
-  // A paid event can only pay out what entries bring in. Reject a board that
-  // could not be covered even by a completely full tournament, rather than
-  // letting the host advertise prize money that can never exist.
-  const ceiling = maxNetPot(context.entryFee, context.teamCount, context.feeBps);
-  if (ceiling <= 0) {
-    throw new ServiceError("Set an entry fee and tournament size first");
-  }
-  if (total > ceiling) {
-    throw new ServiceError(
-      `Your prizes total ${total.toLocaleString()} but ${context.teamCount} teams at this entry fee can only raise ${ceiling.toLocaleString()} after the platform fee. Lower the prizes, raise the entry fee, or allow more teams.`,
-    );
-  }
-}
 
 export async function saveTournament(
   uid: string,
@@ -331,44 +281,18 @@ export async function saveTournament(
 
   const feeBps = await getPlatformFeeBps();
 
-  // Client-side gating can be bypassed, so refuse money events this deployment
-  // could never charge or pay out.
-  if (input.Payment === "PAID" || input.Payment === "SPONSORED") {
-    const status = await paymentsStatus();
-    // Admin switch. Only blocks new events; ones already running keep taking
-    // entries and settling normally.
-    if (input.Payment === "PAID" && !status.paidEnabled) {
+  // Sponsored is an organization-run label, not a money feature: no entry fee,
+  // no prize money. Whether a solo host may use it is an admin setting.
+  if (input.Payment === "SPONSORED" && !input.OrgId) {
+    if (await getSponsorRequiresOrg()) {
       throw new ServiceError(
-        "Paid tournaments are paused right now. They are coming back soon.",
-      );
-    }
-    if (input.Payment === "SPONSORED" && !status.sponsoredEnabled) {
-      throw new ServiceError(
-        "Sponsored tournaments are paused right now. They are coming back soon.",
-      );
-    }
-    const live = status.currencies;
-    if (live.length === 0) {
-      throw new ServiceError(
-        "Paid and sponsored tournaments are unavailable until a payment processor is set up",
-      );
-    }
-    if (!live.includes(parseCurrency(input.Currency))) {
-      throw new ServiceError(
-        `${input.Currency} is not available for paid events yet. Pick ${live.join(", ")}.`,
+        "Only an organization can run a sponsored tournament. Pick your org above.",
       );
     }
   }
-  if (input.Payment === "PAID" && input.RegistrationAmount <= 0) {
-    throw new ServiceError("Set an entry fee greater than zero");
-  }
-  if (input.Payment === "PAID" || input.Payment === "SPONSORED") {
-    assertPrizeBoard(input.Payment, input.Prizes ?? [], {
-      entryFee: input.RegistrationAmount,
-      teamCount: input.TournamentSize,
-      feeBps,
-    });
-  }
+  // Paid prize events are not offered. Anything reaching here is treated as free.
+  const eventPayment: SaveTournamentInput["Payment"] =
+    input.Payment === "SPONSORED" ? "SPONSORED" : "FREE";
 
   const venue = await resolveEventPlace(
     input.VenueCountry,
@@ -384,8 +308,8 @@ export async function saveTournament(
     GameName: input.GameName,
     icon: input.icon,
     TournamentType: input.TournamentType,
-    Payment: input.Payment,
-    Currency: input.Payment === "FREE" ? "USD" : input.Currency,
+    Payment: eventPayment,
+    Currency: "USD",
     TournamentMode: input.TournamentMode,
     TournamentSize: input.TournamentSize,
     Team: input.Team,
@@ -404,23 +328,17 @@ export async function saveTournament(
     Start: false,
     Link: input.Link,
     Date: input.Date,
-    IsPaid: input.Payment === "PAID",
+    IsPaid: false,
     IsDrawn: false,
     RefNumber: input.RefNumber,
     PaymentChannel: input.PaymentChannel,
-    Amount:
-      input.Payment === "SPONSORED" && input.Prizes?.length
-        ? input.Prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
-        : input.Amount,
-    RegistrationAmount:
-      input.Payment === "PAID" ? input.RegistrationAmount : 0,
-    Prizes: input.Payment === "SPONSORED" || input.Payment === "PAID"
-      ? (input.Prizes ?? [])
-      : [],
+    Amount: 0,
+    RegistrationAmount: 0,
+    Prizes: [],
     // Locked at creation: changing the platform rate later must never rewrite
     // the terms an existing event was advertised and paid under.
     PlatformFeeBps: feeBps,
-    PurseFunded: input.Payment !== "SPONSORED",
+    PurseFunded: true,
     PotNet: 0,
     FeeCollected: 0,
     SettlementStatus: "NONE",

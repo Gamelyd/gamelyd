@@ -13,6 +13,8 @@ export function Tag({
   payment: Payment;
   className?: string;
 }) {
+  // Free is the norm and needs no badge; a tag is for events that are special.
+  if (payment === "FREE") return null;
   return (
     <span
       className={`inline-block px-3 py-1 text-xs font-semibold uppercase tracking-wide ${tones[payment]} ${className}`}

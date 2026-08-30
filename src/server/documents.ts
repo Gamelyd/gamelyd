@@ -423,6 +423,8 @@ export interface SettingsDoc {
   oneOffPriceMinor?: number;
   oneOffCurrency?: string;
   oneOffTier?: Plan;
+  /** When false, any signed-in host can create a sponsored event; default true. */
+  sponsorRequiresOrg?: boolean;
   updated_at: string;
   updated_by: string;
 }

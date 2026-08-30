@@ -56,7 +56,10 @@ import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import { guardAdmin } from "@/server/auth/admin";
 import { setPlan } from "@/server/services/planService";
-import { setOneOff } from "@/server/services/settingsService";
+import {
+  setOneOff,
+  setSponsorRequiresOrg,
+} from "@/server/services/settingsService";
 import { currencySchema } from "@/lib/schemas/common";
 import { PLANS, planSchema, type Plan } from "@/lib/plans";
 import {
@@ -721,6 +724,27 @@ export async function adminSetOneOffAction(input: {
       admin.uid,
     );
     return ok(next, "One-off pricing saved");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not save that");
+  }
+}
+
+/** Toggle whether a solo host (not just orgs) can create sponsored events. */
+export async function adminSetSponsorPolicyAction(
+  requiresOrg: boolean,
+): Promise<ActionResult<PlatformSettings>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  try {
+    const next = await setSponsorRequiresOrg(requiresOrg, admin.uid);
+    return ok(
+      next,
+      requiresOrg
+        ? "Only organizations can create sponsored tournaments"
+        : "Anyone can now create sponsored tournaments",
+    );
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);

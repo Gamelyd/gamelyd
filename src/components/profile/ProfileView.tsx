@@ -23,6 +23,7 @@ import { VerifiedName } from "@/components/ui/VerifiedName";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import { FALLBACKS, playerIconFor } from "@/lib/icons";
+import { PLANS } from "@/lib/plans";
 import {
   TournamentCard,
   EmptyTournaments,
@@ -181,6 +182,28 @@ export function ProfileView({
             <Stat label="Tournaments joined" value={registered.length} />
             <Stat label="Country" value={display.country || "-"} />
           </section>
+
+          {isOwn ? (
+            <section className="mx-auto max-w-page px-page pb-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-2 bg-surface px-5 py-4">
+                <p className="text-sm text-body">
+                  Your plan:{" "}
+                  <span className="font-semibold text-white">
+                    {PLANS[display.plan].label}
+                  </span>
+                  {display.plan === "FREE"
+                    ? ". Free to run tournaments."
+                    : "."}
+                </p>
+                <Link
+                  href="/pricing"
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  {display.plan === "FREE" ? "See plans" : "View plans"}
+                </Link>
+              </div>
+            </section>
+          ) : null}
 
           <section
             className="mx-auto max-w-page px-page pb-12"

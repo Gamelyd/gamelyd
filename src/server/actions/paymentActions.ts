@@ -17,6 +17,7 @@ import {
 } from "@/server/services/paymentService";
 import { serializePayout } from "@/server/services/payoutService";
 import { paymentsStatus } from "@/server/payments/status";
+import { getOneOff } from "@/server/services/settingsService";
 
 export async function startEntryCheckoutAction(
   tournamentId: string,
@@ -125,5 +126,23 @@ export async function oneOffTournamentResultAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Could not check that payment");
+  }
+}
+
+/** Public: the one-off price for the pricing page. No auth, it is just a price. */
+export async function oneOffPricingAction(): Promise<
+  ActionResult<{ enabled: boolean; price: number; currency: string; tier: string }>
+> {
+  try {
+    const cfg = await getOneOff();
+    return ok({
+      enabled: cfg.enabled,
+      price: cfg.priceMinor / 100,
+      currency: cfg.currency,
+      tier: cfg.tier,
+    });
+  } catch (error) {
+    console.error(error);
+    return fail("Could not load pricing");
   }
 }

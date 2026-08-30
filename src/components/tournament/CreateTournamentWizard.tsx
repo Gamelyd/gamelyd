@@ -23,13 +23,8 @@ import { joinPlatforms } from "@/lib/platforms";
 import type { Game } from "@/lib/schemas/game";
 import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { Platform } from "@/lib/schemas/platform";
-import {
-  placeLabel,
-  type PrizePosition,
-  type SaveTournamentInput,
-} from "@/lib/schemas/tournament";
+import type { SaveTournamentInput } from "@/lib/schemas/tournament";
 import type {
-  Currency,
   KnockoutFormat,
   Payment,
   Shuffle,
@@ -37,19 +32,10 @@ import type {
   TournamentMode,
   TournamentType,
 } from "@/lib/schemas/common";
-import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
-import { feePercent } from "@/lib/fees";
+import { formatMoney } from "@/lib/currency";
 import type { Plan, PlanLimits } from "@/lib/plans";
 import { myPlanLimitsAction } from "@/server/actions/tournamentActions";
 import { startOneOffTournamentCheckoutAction } from "@/server/actions/paymentActions";
-import {
-  maxNetPot,
-  prizeBoardTotal,
-  teamsNeededForBoard,
-} from "@/lib/prizeBoard";
-import type { PaymentsStatus } from "@/lib/schemas/payment";
-import { paymentsStatusAction } from "@/server/actions/paymentActions";
-import { FeeSummary } from "@/components/tournament/FeeSummary";
 import { Loader } from "@/components/ui/Loader";
 import {
   GAMES_KIND,
@@ -128,7 +114,6 @@ export function CreateTournamentWizard() {
 
   const [type, setType] = useState<TournamentType>("PRIVATE");
   const [payment, setPayment] = useState<Payment>("FREE");
-  const [currency, setCurrency] = useState<Currency>("USD");
   const [mode, setMode] = useState<TournamentMode>("MULTIPLAYER");
   const [rosterCount, setRosterCount] = useState(1);
   const [shuffle, setShuffle] = useState<Shuffle>("AUTOMATIC");
@@ -158,20 +143,15 @@ export function CreateTournamentWizard() {
   const [locationPoint, setLocationPoint] = useState({ lat: 0, lng: 0 });
   // Null until we know; paid/sponsored stay locked while we are unsure so a
   // host never picks a money option this deployment cannot honour.
-  const [payments, setPayments] = useState<PaymentsStatus | null>(null);
   const [planInfo, setPlanInfo] = useState<{
     plan: Plan;
     limits: PlanLimits;
     activeCount: number;
     oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+    sponsorRequiresOrg: boolean;
   } | null>(null);
   const [venues, setVenues] = useState<VenueDraft[]>([]);
   const [matchInterval, setMatchInterval] = useState(0);
-  const [prizes, setPrizes] = useState<PrizePosition[]>([
-    { Position: 1, Amount: 0, Share: 0 },
-    { Position: 2, Amount: 0, Share: 0 },
-    { Position: 3, Amount: 0, Share: 0 },
-  ]);
   // Reruns when the host switches org, since a club's plan may differ from
   // the member's own.
   useEffect(() => {
@@ -180,47 +160,16 @@ export function CreateTournamentWizard() {
     });
   }, [orgId]);
 
+  const hasOrg = orgId !== "";
+  // A solo host can sponsor only when the admin has opened it up.
+  const canSponsor =
+    hasOrg || (planInfo ? !planInfo.sponsorRequiresOrg : false);
+
+  // If Sponsored becomes unavailable (org removed, or policy tightened), drop
+  // back to Free rather than submitting a choice the server will reject.
   useEffect(() => {
-    void paymentsStatusAction().then((result) => {
-      if (!result.ok) return;
-      const status = result.data;
-      setPayments(status);
-      // The default is USD; if Stripe is not wired up, move to one we can charge.
-      setCurrency((prev) =>
-        status.currencies.includes(prev) ? prev : (status.currencies[0] ?? prev),
-      );
-      // If the option in hand became unavailable (paused, or no processor),
-      // fall back to Free rather than letting the host fill in a form that the
-      // server will reject on submit.
-      setPayment((prev) => {
-        const usable =
-          status.currencies.length > 0 &&
-          ((prev === "PAID" && status.paidEnabled) ||
-            (prev === "SPONSORED" && status.sponsoredEnabled));
-        if (prev === "FREE" || usable) return prev;
-        return "FREE";
-      });
-    });
-  }, []);
-
-  const moneyReady = Boolean(payments && payments.currencies.length > 0);
-  // The live admin-set rate this new tournament would be stamped with.
-  const feePct = feePercent(payments?.feeBps);
-
-  // Two different reasons a money option can be unavailable, and hosts deserve
-  // to know which: an admin paused it, or no processor is wired up at all.
-  const paidPaused = Boolean(payments && !payments.paidEnabled);
-  const sponsoredPaused = Boolean(payments && !payments.sponsoredEnabled);
-  const paidOff = paidPaused || !moneyReady;
-  const sponsoredOff = sponsoredPaused || !moneyReady;
-  const pausedBlurb = "This is paused for now and coming back soon.";
-  const moneyBlurb = payments
-    ? "No payment processor is set up yet. Ask an admin to add Stripe or Paystack keys."
-    : "Checking payment setup…";
-  const liveCurrencies = payments
-    ? CURRENCY_OPTIONS.filter((c) => payments.currencies.includes(c.value))
-    : [];
-
+    if (!canSponsor) setPayment((prev) => (prev === "SPONSORED" ? "FREE" : prev));
+  }, [canSponsor]);
 
   const [details, setDetails] = useState({
     Name: "",
@@ -259,26 +208,6 @@ export function CreateTournamentWizard() {
       ? formatMoney(planInfo.oneOff.price, planInfo.oneOff.currency)
       : "";
 
-
-  const boardTotal = prizeBoardTotal(prizes);
-  // A paid board is funded by entries, so show whether it is reachable at all
-  // and how many paid teams it takes, the same rule the server enforces.
-  const potCeiling = maxNetPot(
-    Number(details.RegistrationAmount) || 0,
-    Number(details.TournamentSize) || 0,
-    payments?.feeBps,
-  );
-  const boardAffordable = boardTotal <= potCeiling;
-  const teamsNeeded = teamsNeededForBoard(
-    boardTotal,
-    Number(details.RegistrationAmount) || 0,
-    payments?.feeBps,
-  );
-  // What reaches the host after a full house pays and winners are settled.
-  const hostTakeHome = Math.max(
-    Math.round((potCeiling - boardTotal) * 100) / 100,
-    0,
-  );
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/signup?redirect=/tournament/new");
@@ -422,7 +351,7 @@ export function CreateTournamentWizard() {
     const payload: SaveTournamentInput = {
       TournamentType: type,
       Payment: payment,
-      Currency: payment === "FREE" ? "USD" : currency,
+      Currency: "USD",
       TournamentMode: mode,
       Team: teamSizeFromRoster(rosterCount),
       Shuffle: shuffle,
@@ -435,12 +364,9 @@ export function CreateTournamentWizard() {
       Platform: kindFlags.usesPlatforms
         ? joinPlatforms(selectedPlatforms)
         : "",
-      Amount:
-        payment === "SPONSORED"
-          ? prizes.reduce((sum, prize) => sum + (prize.Amount || 0), 0)
-          : details.Amount,
-      RegistrationAmount: payment === "PAID" ? details.RegistrationAmount : 0,
-      Prizes: payment === "FREE" ? [] : prizes,
+      Amount: 0,
+      RegistrationAmount: 0,
+      Prizes: [],
       Link: "",
       RefNumber: "",
       PaymentChannel: "",
@@ -1022,298 +948,28 @@ export function CreateTournamentWizard() {
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   Entry
                 </p>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <ChoiceTile
                     title="Free"
-                    blurb="No prize purse on the listing."
+                    blurb="An open tournament anyone can find and join."
                     active={payment === "FREE"}
                     onClick={() => setPayment("FREE")}
                   />
                   <ChoiceTile
-                    title="Paid"
-                    blurb={
-                      paidPaused
-                        ? pausedBlurb
-                        : moneyReady
-                          ? `One fee per team, paid by the captain. ${feePct}% platform fee. Rest held for prizes.`
-                          : moneyBlurb
-                    }
-                    active={payment === "PAID"}
-                    disabled={paidOff}
-                    disabledLabel={
-                      !payments
-                        ? "Checking…"
-                        : paidPaused
-                          ? "Coming back soon"
-                          : "Unavailable"
-                    }
-                    onClick={() => setPayment("PAID")}
-                    delay={1}
-                  />
-                  <ChoiceTile
                     title="Sponsored"
                     blurb={
-                      sponsoredPaused
-                        ? pausedBlurb
-                        : moneyReady
-                          ? `You fund the prize board plus ${feePct}% at launch.`
-                          : moneyBlurb
+                      canSponsor
+                        ? "A sponsor badge on the event. No entry fees or prize money."
+                        : "Host under an organization to run a sponsored event."
                     }
                     active={payment === "SPONSORED"}
-                    disabled={sponsoredOff}
-                    disabledLabel={
-                      !payments
-                        ? "Checking…"
-                        : sponsoredPaused
-                          ? "Coming back soon"
-                          : "Unavailable"
-                    }
+                    disabled={!canSponsor}
+                    disabledLabel="Organization only"
                     onClick={() => setPayment("SPONSORED")}
-                    delay={2}
+                    delay={1}
                   />
                 </div>
               </div>
-              {payment === "PAID" || payment === "SPONSORED" ? (
-                <Select
-                  label="Currency"
-                  value={currency}
-                  options={liveCurrencies}
-                  onChange={(e) => setCurrency(e.target.value as Currency)}
-                />
-              ) : null}
-              {payment === "PAID" ? (
-                <div className="flex flex-col gap-4">
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    label={`Entry fee per team (${currency})`}
-                    value={details.RegistrationAmount}
-                    onChange={(e) =>
-                      setDetails((prev) => ({
-                        ...prev,
-                        RegistrationAmount: Number(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                  <div className="rounded-2xl border border-primary/25 bg-surface p-5">
-                    <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
-                      Prize board
-                    </h3>
-                    <p className="mb-4 text-sm text-body">
-                      What each place wins, in {currency}. Paid to that
-                      team&apos;s captain when the event ends. Entry fees fund
-                      it, so the event cannot start until enough teams have
-                      paid. Anything left over comes back to you.
-                    </p>
-                    <div className="flex flex-col gap-3">
-                      {prizes.map((prize, index) => (
-                        <div
-                          key={`${prize.Position}-${index}`}
-                          className="grid grid-cols-[5rem_1fr_auto] gap-3"
-                        >
-                          <Input
-                            type="number"
-                            label={index === 0 ? "Place" : undefined}
-                            value={prize.Position}
-                            min={1}
-                            onChange={(e) => {
-                              const next = [...prizes];
-                              next[index] = {
-                                ...prize,
-                                Position: Number(e.target.value) || 1,
-                              };
-                              setPrizes(next);
-                            }}
-                          />
-                          <Input
-                            type="number"
-                            label={
-                              index === 0
-                                ? `${placeLabel(prize.Position)} prize (${currency})`
-                                : undefined
-                            }
-                            value={prize.Amount}
-                            min={0}
-                            step="0.01"
-                            onChange={(e) => {
-                              const next = [...prizes];
-                              next[index] = {
-                                ...prize,
-                                Amount: Number(e.target.value) || 0,
-                              };
-                              setPrizes(next);
-                            }}
-                          />
-                          {prizes.length > 1 ? (
-                            <button
-                              type="button"
-                              className={`text-sm text-body hover:text-white ${index === 0 ? "mt-7" : ""}`}
-                              onClick={() =>
-                                setPrizes(prizes.filter((_, i) => i !== index))
-                              }
-                            >
-                              Remove
-                            </button>
-                          ) : (
-                            <span />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <Button
-                        type="button"
-                        variant="dark"
-                        onClick={() =>
-                          setPrizes([
-                            ...prizes,
-                            {
-                              Position:
-                                Math.max(
-                                  ...prizes.map((p) => p.Position),
-                                  0,
-                                ) + 1,
-                              Amount: 0,
-                              Share: 0,
-                            },
-                          ])
-                        }
-                      >
-                        Add position
-                      </Button>
-                      <p
-                        className={`text-sm ${boardAffordable ? "text-body" : "text-lose"}`}
-                      >
-                        {boardTotal > 0
-                          ? boardAffordable
-                            ? `${formatMoney(boardTotal, currency)} board · needs ${teamsNeeded} paid team${teamsNeeded === 1 ? "" : "s"} to cover`
-                            : `${formatMoney(boardTotal, currency)} board · a full ${details.TournamentSize} teams only raise ${formatMoney(potCeiling, currency)}`
-                          : "Set what each place wins"}
-                      </p>
-                    </div>
-                    {boardTotal > 0 && boardAffordable && potCeiling > 0 ? (
-                      <div className="mt-4 rounded-xl border border-win/35 bg-win/10 p-4 text-sm">
-                        <p className="font-semibold text-white">
-                          What you keep
-                        </p>
-                        <p className="mt-1 text-body">
-                          If all {details.TournamentSize} teams pay, entries
-                          raise {formatMoney(potCeiling, currency)} after the{" "}
-                          {feePct}% platform fee. Winners take{" "}
-                          {formatMoney(boardTotal, currency)}, and the
-                          remaining{" "}
-                          <span className="font-semibold text-white">
-                            {formatMoney(hostTakeHome, currency)}
-                          </span>{" "}
-                          is transferred to you once the event ends.
-                        </p>
-                        <p className="mt-1 text-xs text-body">
-                          Fewer teams means a smaller remainder. Winners are
-                          always paid first.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {payment === "SPONSORED" ? (
-                <div className="rounded-2xl border border-primary/25 bg-surface p-5">
-                  <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-white">
-                    Prize board
-                  </h3>
-                  <p className="mb-4 text-sm text-body">
-                    Amount winners receive ({currency}). The {feePct}%
-                    fee is in the summary below.
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    {prizes.map((prize, index) => (
-                      <div
-                        key={`${prize.Position}-${index}`}
-                        className="grid grid-cols-[5rem_1fr_auto] gap-3"
-                      >
-                        <Input
-                          type="number"
-                          label={index === 0 ? "Place" : undefined}
-                          value={prize.Position}
-                          min={1}
-                          onChange={(e) => {
-                            const next = [...prizes];
-                            next[index] = {
-                              ...prize,
-                              Position: Number(e.target.value) || 1,
-                            };
-                            setPrizes(next);
-                          }}
-                        />
-                        <Input
-                          type="number"
-                          label={
-                            index === 0
-                              ? `${placeLabel(prize.Position)} amount`
-                              : undefined
-                          }
-                          value={prize.Amount}
-                          min={0}
-                          onChange={(e) => {
-                            const next = [...prizes];
-                            next[index] = {
-                              ...prize,
-                              Amount: Number(e.target.value) || 0,
-                            };
-                            setPrizes(next);
-                          }}
-                        />
-                        {prizes.length > 1 ? (
-                          <button
-                            type="button"
-                            className={`text-sm text-body hover:text-white ${index === 0 ? "mt-7" : ""}`}
-                            onClick={() =>
-                              setPrizes(prizes.filter((_, i) => i !== index))
-                            }
-                          >
-                            Remove
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="dark"
-                    className="mt-4"
-                    onClick={() =>
-                      setPrizes([
-                        ...prizes,
-                        {
-                          Position:
-                            Math.max(...prizes.map((p) => p.Position), 0) + 1,
-                          Amount: 0,
-                          Share: 0,
-                        },
-                      ])
-                    }
-                  >
-                    Add position
-                  </Button>
-                </div>
-              ) : null}
-              {payment === "PAID" || payment === "SPONSORED" ? (
-                <FeeSummary
-                  audience="host"
-                  kind={payment}
-                  teamCount={Number(details.TournamentSize) || 0}
-                  currency={currency}
-                  feeBps={payments?.feeBps}
-                  entryFee={details.RegistrationAmount}
-                  prizeTotal={prizes.reduce(
-                    (sum, row) => sum + (row.Amount || 0),
-                    0,
-                  )}
-                />
-              ) : null}
             </div>
           ) : null}
 
@@ -1329,11 +985,7 @@ export function CreateTournamentWizard() {
                   modeLabel,
                   teamLabel,
                   type === "PUBLIC" ? "Anyone can join" : "Invite only",
-                  payment === "SPONSORED"
-                    ? `Sponsored · ${currency} · ${feePct}% fee`
-                    : payment === "PAID"
-                      ? `Paid · ${currency} · ${feePct}% fee`
-                      : "Free",
+                  payment === "SPONSORED" ? "Sponsored" : "Free",
                 ].map((chip) => (
                   <li
                     key={chip}
@@ -1527,28 +1179,12 @@ export function CreateTournamentWizard() {
                 }
                 required
               />
-              {payment === "PAID" || payment === "SPONSORED" ? (
-                <FeeSummary
-                  audience="host"
-                  kind={payment}
-                  teamCount={Number(details.TournamentSize) || 0}
-                  currency={currency}
-                  feeBps={payments?.feeBps}
-                  entryFee={details.RegistrationAmount}
-                  prizeTotal={prizes.reduce(
-                    (sum, row) => sum + (row.Amount || 0),
-                    0,
-                  )}
-                />
-              ) : null}
               <p className="text-xs text-body">
                 By launching you accept the{" "}
                 <Link href="/terms" className="text-primary hover:underline">
                   Terms
                 </Link>
-                {payment === "FREE"
-                  ? "."
-                  : ` and the ${feePct}% platform fee on held funds.`}
+                .
               </p>
               <div
                 className="create-action-bar flex flex-wrap gap-3"
@@ -1558,11 +1194,7 @@ export function CreateTournamentWizard() {
                   Back
                 </Button>
                 <Button type="submit" loading={loading}>
-                  {payOnce
-                    ? `Pay ${oneOffPrice} and create`
-                    : payment === "SPONSORED"
-                      ? "Pay and launch"
-                      : "Launch lobby"}
+                  {payOnce ? `Pay ${oneOffPrice} and create` : "Launch lobby"}
                 </Button>
               </div>
             </form>
@@ -1631,14 +1263,8 @@ export function CreateTournamentWizard() {
                 value={type === "PUBLIC" ? "Anyone can join" : "Invite only"}
               />
               <LoadoutRow
-                label="Stakes"
-                value={
-                  payment === "SPONSORED"
-                    ? `Sponsored · ${feePct}% fee`
-                    : payment === "PAID"
-                      ? `Paid · ${feePct}% fee`
-                      : "Free"
-                }
+                label="Entry"
+                value={payment === "SPONSORED" ? "Sponsored" : "Free"}
               />
               <LoadoutRow
                 label="Seed"

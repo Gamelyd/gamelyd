@@ -23,6 +23,7 @@ const links: { href: string; label: string; auth?: boolean; admin?: boolean }[] 
     { href: "/games", label: "Games" },
     { href: "/games?kind=sports", label: "Sports" },
     { href: "/org", label: "Organizations", auth: true },
+    { href: "/pricing", label: "Pricing" },
     { href: "/about", label: "About" },
     { href: "/contact-us", label: "Contact" },
     { href: "/admin", label: "Admin", admin: true },

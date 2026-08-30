@@ -64,7 +64,10 @@ import {
   planForHost,
 } from "@/server/services/planService";
 import { PLANS, type Plan, type PlanLimits } from "@/lib/plans";
-import { getOneOff } from "@/server/services/settingsService";
+import {
+  getOneOff,
+  getSponsorRequiresOrg,
+} from "@/server/services/settingsService";
 import { ServiceError } from "@/server/services/userService";
 import { getSessionClaims } from "@/server/auth/session";
 import {
@@ -626,13 +629,17 @@ export async function myPlanLimitsAction(
     limits: PlanLimits;
     activeCount: number;
     oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+    sponsorRequiresOrg: boolean;
   }>
 > {
   const claims = await getSessionClaims();
   if (!claims) return fail("You must be signed in");
   try {
     const plan = await planForHost(claims.uid, orgId || undefined);
-    const oneOff = await getOneOff();
+    const [oneOff, sponsorRequiresOrg] = await Promise.all([
+      getOneOff(),
+      getSponsorRequiresOrg(),
+    ]);
     return ok({
       plan,
       limits: PLANS[plan],
@@ -643,6 +650,7 @@ export async function myPlanLimitsAction(
         currency: oneOff.currency,
         tier: oneOff.tier,
       },
+      sponsorRequiresOrg,
     });
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);

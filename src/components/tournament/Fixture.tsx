@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -17,7 +17,7 @@ import {
 import { PlaceSearch } from "@/components/ui/PlaceSearch";
 import type { TournamentVenue } from "@/lib/schemas/tournament";
 import { venueMapsUrl } from "@/lib/venue";
-import { FALLBACKS, UI_ICONS, resolveIcon } from "@/lib/icons";
+import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import {
   isSoloVerified,
   PlayerNameList,
@@ -42,12 +42,12 @@ function scoreTone(
   return "draw";
 }
 
-const scoreClass: Record<"win" | "lose" | "draw" | "idle", string> = {
-  win: "bg-win",
-  lose: "bg-lose",
-  draw: "bg-yellow",
+const scoreBadge: Record<"win" | "lose" | "draw" | "idle", string> = {
+  win: "bg-win text-[#04201e]",
+  lose: "bg-lose text-white",
+  draw: "bg-yellow text-[#221a00]",
   // Not played yet: neutral, so an unscored match never looks like a 0-0 draw.
-  idle: "bg-surface-3",
+  idle: "bg-surface-2 text-body",
 };
 
 type EditMode = "score" | "time" | "link" | "venue" | null;
@@ -230,428 +230,376 @@ function MpFixture({
 
   return (
     <div
-      className={`relative flex w-full max-w-[560px] flex-col items-center rounded-2xl px-2 py-5 ${
-        !played && !autoBye ? "bg-primary/[0.06] ring-1 ring-primary/25" : ""
+      className={`relative w-full max-w-md rounded-2xl border p-3 sm:p-4 ${
+        !played && !autoBye
+          ? "border-primary/40 bg-primary/[0.05]"
+          : "border-surface-2 bg-surface"
       }`}
     >
-      {seriesLabel ? (
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-          {draw.Kind === "THIRD_PLACE" ? `Third place · ${seriesLabel}` : seriesLabel}
-        </p>
-      ) : draw.Kind === "THIRD_PLACE" ? (
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-          Third place
-        </p>
-      ) : null}
-      {canManage && !autoBye && (
+      <div className="mb-2.5 flex flex-wrap items-center gap-2 pr-9">
+        {!autoBye ? (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              played
+                ? "bg-win/15 text-win"
+                : "bg-yellow/15 text-yellow"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                played ? "bg-win" : "animate-pulse bg-yellow"
+              }`}
+              aria-hidden
+            />
+            {played ? "Final" : "Not played"}
+          </span>
+        ) : null}
+        {seriesLabel || draw.Kind === "THIRD_PLACE" ? (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+            {draw.Kind === "THIRD_PLACE"
+              ? seriesLabel
+                ? `Third place · ${seriesLabel}`
+                : "Third place"
+              : seriesLabel}
+          </span>
+        ) : null}
+      </div>
+
+      {canManage && !autoBye ? (
         <ManageMenu
+          hasVenue={Boolean(draw.VenueName)}
           onSelect={(next) => {
             if (next === "score") beginScoreEdit();
             else setMode(next);
           }}
         />
-      )}
+      ) : null}
 
       {autoBye ? (
-        <div className="flex w-full max-w-[560px] flex-col items-center gap-3">
-          <TeamFace team={t1} score={0} tone="win" side="left" showScore={false} />
-          <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+        <div className="flex items-center justify-between gap-3">
+          <TeamRow team={t1} showScore={false} />
+          <span className="shrink-0 rounded-full bg-primary/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
             Auto qualified
           </span>
         </div>
       ) : (
-      <div className="flex w-full max-w-[560px] flex-col items-center justify-center gap-2.5 md:flex-row md:gap-0">
-        <TeamFace
-          team={t1}
-          score={draw.Team1Score}
-          played={played}
-          tone={tone1}
-          side="left"
-          editable={canManage && !autoBye}
-          onScoreClick={beginScoreEdit}
-        />
-
-        <div
-          className="z-20 h-11 w-11 shrink-0 bg-contain bg-center bg-no-repeat md:-mx-2"
-          style={{ backgroundImage: `url("${UI_ICONS.vs}")` }}
-          aria-hidden
-        />
-
-        <TeamFace
-          team={t2}
-          score={draw.Team2Score}
-          played={played}
-          tone={tone2}
-          side="right"
-          editable={canManage && !autoBye}
-          onScoreClick={beginScoreEdit}
-        />
-      </div>
+        <div className="flex flex-col gap-1">
+          <TeamRow
+            team={t1}
+            score={draw.Team1Score}
+            played={played}
+            tone={tone1}
+            onScoreClick={canManage ? beginScoreEdit : undefined}
+          />
+          <TeamRow
+            team={t2}
+            score={draw.Team2Score}
+            played={played}
+            tone={tone2}
+            onScoreClick={canManage ? beginScoreEdit : undefined}
+          />
+        </div>
       )}
 
       {canManage && needsWinner ? (
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <p className="w-full text-center text-xs text-body">
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-center text-xs text-body">
             {seriesFormat === "TWO_LEG"
               ? "Level on aggregate. Pick who goes through"
               : "Level score. Pick who goes through"}
           </p>
-          <Button
-            type="button"
-            loading={saving}
-            onClick={() => void pickWinner("Team1")}
-          >
-            {t1?.TeamName || "Team 1"} wins
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            loading={saving}
-            onClick={() => void pickWinner("Team2")}
-          >
-            {t2?.TeamName || "Team 2"} wins
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              className="flex-1"
+              loading={saving}
+              onClick={() => void pickWinner("Team1")}
+            >
+              {t1?.TeamName || "Team 1"} wins
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              loading={saving}
+              onClick={() => void pickWinner("Team2")}
+            >
+              {t2?.TeamName || "Team 2"} wins
+            </Button>
+          </div>
         </div>
       ) : null}
 
-      {!autoBye && (
-      <div className="mt-3 flex min-h-6 flex-wrap items-center justify-center gap-x-3 text-[13px] font-bold text-white">
-        {mode === "time" ? (
-          <div className="flex flex-wrap items-end justify-center gap-2">
-            <DateInput
-              label="Date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="py-2"
-            />
-            <TimeInput
-              label="Time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="py-2"
-            />
-            <Button loading={saving} onClick={saveTime}>
-              Save
-            </Button>
-          </div>
-        ) : mode === "link" ? (
-          <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:items-end">
-            <Input
-              label="Match link"
-              placeholder="paste game room link"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              className="py-2"
-            />
-            <Button loading={saving} onClick={saveLink}>
-              Save
-            </Button>
-            {link.trim() ? (
-              <a href={link.trim()} target="_blank" rel="noreferrer">
-                <Button variant="outline" type="button">
-                  Open
-                </Button>
-              </a>
-            ) : null}
-          </div>
-        ) : mode === "venue" ? (
-          <div className="flex w-full max-w-md flex-col gap-3 text-left font-normal">
-            {eventVenues.length > 0 ? (
-              <div>
-                <p className="mb-1.5 text-sm text-label">
-                  Use a venue from this event
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {eventVenues.map((venue, i) => (
-                    <button
-                      key={`${venue.location}-${i}`}
-                      type="button"
-                      disabled={saving}
-                      onClick={() =>
-                        void saveVenue({
-                          VenueName: venue.location,
-                          VenueCountry: venue.country,
-                          VenueLat: venue.lat,
-                          VenueLng: venue.lng,
-                        })
-                      }
-                      className="cursor-pointer rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs text-white transition-colors hover:bg-primary/20 disabled:opacity-60"
-                    >
-                      {venue.location}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <PlaceSearch
-              label={
-                eventVenues.length > 0 ? "Or search somewhere else" : "Location"
-              }
-              value=""
-              disabled={saving}
-              placeholder="Search a stadium, pitch, or address"
-              onSelect={(place) =>
-                void saveVenue({
-                  VenueName: place.label,
-                  VenueCountry: place.country,
-                  VenueLat: place.lat,
-                  VenueLng: place.lng,
-                })
-              }
-            />
-            <div className="flex gap-2">
-              {draw.VenueName ? (
-                <Button
-                  type="button"
-                  variant="dark"
-                  loading={saving}
-                  onClick={() =>
-                    void saveVenue({
-                      VenueName: "",
-                      VenueCountry: "",
-                      VenueLat: 0,
-                      VenueLng: 0,
-                    })
-                  }
-                >
-                  Clear location
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setMode(null)}
-              >
+      {!autoBye ? (
+        <div className="mt-3 border-t border-surface-2 pt-3">
+          {mode === "time" ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <DateInput
+                label="Date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+              <TimeInput
+                label="Time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+              <Button loading={saving} onClick={saveTime}>
+                Save
+              </Button>
+              <Button type="button" variant="dark" onClick={() => setMode(null)}>
                 Cancel
               </Button>
             </div>
-          </div>
-        ) : mode === "score" ? (
-          <div className="flex flex-wrap items-end justify-center gap-3">
-            <Input
-              type="text"
-              inputMode="numeric"
-              label={t1?.TeamName || "Team 1"}
-              value={team1}
-              placeholder="0"
-              onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) =>
-                setTeam1(e.target.value.replace(/[^\d]/g, ""))
-              }
-              className="w-28 py-2"
-            />
-            <Input
-              type="text"
-              inputMode="numeric"
-              label={t2?.TeamName || "Team 2"}
-              value={team2}
-              placeholder="0"
-              onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) =>
-                setTeam2(e.target.value.replace(/[^\d]/g, ""))
-              }
-              className="w-28 py-2"
-            />
-            <Button loading={saving} onClick={saveScore} className="bg-win text-[#04201e] hover:bg-win">
-              Save
-            </Button>
-          </div>
-        ) : (
-          <>
-            {canManage ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDate(draw.Date);
-                  setTime(draw.Time);
-                  setMode("time");
-                }}
-                className="cursor-pointer hover:text-primary"
-              >
-                {draw.Date || "Date TBD"}
-              </button>
-            ) : (
-              <span>{draw.Date || "Date TBD"}</span>
-            )}
-            <span className="text-white/40">|</span>
-            {canManage ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDate(draw.Date);
-                  setTime(draw.Time);
-                  setMode("time");
-                }}
-                className="cursor-pointer hover:text-primary"
-              >
-                {draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}
-              </button>
-            ) : (
-              <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
-            )}
-            {draw.VenueName || canManage ? (
-              <>
-                <span className="text-white/40">|</span>
-                {canManage ? (
-                  <button
+          ) : mode === "link" ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <Input
+                label="Match link"
+                placeholder="paste game room link"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                className="flex-1"
+              />
+              <Button loading={saving} onClick={saveLink}>
+                Save
+              </Button>
+              <Button type="button" variant="dark" onClick={() => setMode(null)}>
+                Cancel
+              </Button>
+            </div>
+          ) : mode === "venue" ? (
+            <div className="flex flex-col gap-3 text-left">
+              {eventVenues.length > 0 ? (
+                <div>
+                  <p className="mb-1.5 text-sm text-label">
+                    Use a venue from this event
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {eventVenues.map((venue, i) => (
+                      <button
+                        key={`${venue.location}-${i}`}
+                        type="button"
+                        disabled={saving}
+                        onClick={() =>
+                          void saveVenue({
+                            VenueName: venue.location,
+                            VenueCountry: venue.country,
+                            VenueLat: venue.lat,
+                            VenueLng: venue.lng,
+                          })
+                        }
+                        className="cursor-pointer rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs text-white transition-colors hover:bg-primary/20 disabled:opacity-60"
+                      >
+                        {venue.location}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <PlaceSearch
+                label={
+                  eventVenues.length > 0 ? "Or search somewhere else" : "Location"
+                }
+                value=""
+                disabled={saving}
+                placeholder="Search a stadium, pitch, or address"
+                onSelect={(place) =>
+                  void saveVenue({
+                    VenueName: place.label,
+                    VenueCountry: place.country,
+                    VenueLat: place.lat,
+                    VenueLng: place.lng,
+                  })
+                }
+              />
+              <div className="flex gap-2">
+                {draw.VenueName ? (
+                  <Button
                     type="button"
-                    onClick={() => setMode("venue")}
-                    className="inline-block max-w-55 cursor-pointer truncate align-bottom hover:text-primary"
-                    title={draw.VenueName || "Add a location for this match"}
+                    variant="dark"
+                    loading={saving}
+                    onClick={() =>
+                      void saveVenue({
+                        VenueName: "",
+                        VenueCountry: "",
+                        VenueLat: 0,
+                        VenueLng: 0,
+                      })
+                    }
                   >
-                    {draw.VenueName || "Add location"}
-                  </button>
-                ) : mapsUrl ? (
+                    Clear location
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setMode(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : mode === "score" ? (
+            <div className="flex flex-wrap items-end justify-center gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                label={t1?.TeamName || "Team 1"}
+                value={team1}
+                placeholder="0"
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setTeam1(e.target.value.replace(/[^\d]/g, ""))}
+                className="w-24"
+              />
+              <Input
+                type="text"
+                inputMode="numeric"
+                label={t2?.TeamName || "Team 2"}
+                value={team2}
+                placeholder="0"
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setTeam2(e.target.value.replace(/[^\d]/g, ""))}
+                className="w-24"
+              />
+              <Button
+                loading={saving}
+                onClick={saveScore}
+                className="bg-win text-[#04201e] hover:bg-win"
+              >
+                Save
+              </Button>
+              <Button type="button" variant="dark" onClick={() => setMode(null)}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <MetaChip>{draw.Date || "Date TBD"}</MetaChip>
+              <MetaChip>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</MetaChip>
+              {draw.VenueName ? (
+                mapsUrl ? (
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-block max-w-55 truncate align-bottom text-primary hover:underline"
+                    className="inline-flex max-w-[55%] items-center gap-1 truncate rounded-md bg-surface-2 px-2 py-1 text-[11px] text-primary hover:bg-surface-3"
                     title={draw.VenueName}
                   >
-                    {draw.VenueName}
+                    <MapPin />
+                    <span className="truncate">{draw.VenueName}</span>
                   </a>
                 ) : (
-                  <span
-                    className="inline-block max-w-55 truncate align-bottom"
-                    title={draw.VenueName}
-                  >
-                    {draw.VenueName}
-                  </span>
-                )}
-              </>
-            ) : null}
-            {draw.Link || canManage ? (
-              <>
-                <span className="text-white/40">|</span>
-                {canManage ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLink(draw.Link);
-                      setMode("link");
-                    }}
-                    className="cursor-pointer text-cyan hover:underline"
-                  >
-                    {draw.Link ? "Join match" : "Add link"}
-                  </button>
-                ) : (
-                  <a
-                    href={draw.Link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-cyan hover:underline"
-                  >
-                    Join match
-                  </a>
-                )}
-              </>
-            ) : null}
-          </>
-        )}
-      </div>
-      )}
+                  <MetaChip title={draw.VenueName}>{draw.VenueName}</MetaChip>
+                )
+              ) : null}
+              {draw.Link ? (
+                <a
+                  href={draw.Link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-md bg-cyan/15 px-2 py-1 text-[11px] font-semibold text-cyan hover:bg-cyan/25"
+                >
+                  Join match
+                </a>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function TeamFace({
+function MetaChip({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      className="inline-flex max-w-[55%] items-center truncate rounded-md bg-surface-2 px-2 py-1 text-[11px] text-body"
+    >
+      {children}
+    </span>
+  );
+}
+
+function MapPin() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" />
+    </svg>
+  );
+}
+
+function TeamRow({
   team,
-  score,
+  score = 0,
   played = true,
-  tone,
-  side,
-  editable = false,
+  tone = "idle",
   showScore = true,
   onScoreClick,
 }: {
   team?: Teams;
-  score: number;
+  score?: number;
   played?: boolean;
-  tone: "win" | "lose" | "draw" | "idle";
-  side: "left" | "right";
-  editable?: boolean;
+  tone?: "win" | "lose" | "draw" | "idle";
   showScore?: boolean;
   onScoreClick?: () => void;
 }) {
   const name = team?.TeamName || "TBD";
-  const scoreBadge = (
+  const isWin = played && tone === "win";
+  const isLose = played && tone === "lose";
+  const badge = (
     <span
-      className={`inline-block min-w-[1.4rem] shrink-0 rounded-[5px] px-2 py-0.5 text-center font-display text-base leading-none text-white ${scoreClass[tone]} ${
-        editable ? "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-white/70" : ""
-      } ${side === "left" ? "ml-2" : "mr-2"}`}
+      className={`inline-flex h-8 min-w-[2rem] items-center justify-center rounded-md px-1.5 font-display text-base leading-none ${
+        played ? scoreBadge[tone] : "bg-surface-2 text-body"
+      }`}
     >
-      {played ? score : "\u00A0"}
+      {played ? score : " "}
     </span>
   );
-  const scoreControl = editable ? (
-    <button type="button" onClick={onScoreClick} aria-label="Update score">
-      {scoreBadge}
-    </button>
-  ) : (
-    scoreBadge
-  );
-  const avatar = (
+  return (
     <div
-      className="relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[5px] border-surface-3 bg-primary"
-      role="img"
-      aria-label={name}
+      className={`flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 ${
+        isWin ? "bg-win/10" : ""
+      }`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={resolveIcon(team?.Icon, FALLBACKS.team)}
         alt=""
-        className="h-full w-full rounded-full object-cover"
+        className="h-9 w-9 shrink-0 rounded-full bg-primary object-cover ring-1 ring-black/30"
       />
-    </div>
-  );
-  const bar = (
-    <div
-      className={`flex h-10 min-w-0 flex-1 items-center justify-between border-2 border-surface-3 bg-white md:w-[210px] md:flex-none ${
-        side === "left"
-          ? "rounded-r-[16px] pl-10 pr-2.5 md:-ml-7 md:rounded-none"
-          : "rounded-l-[16px] pl-2.5 pr-10 md:-mr-7 md:rounded-none"
-      }`}
-    >
-      {side === "left" ? (
-        <>
-          <span className="inline-flex min-w-0 items-center gap-1 truncate font-display text-base leading-none text-surface-3">
-            <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
-          </span>
-          {showScore ? scoreControl : null}
-        </>
-      ) : (
-        <>
-          {showScore ? scoreControl : null}
-          <span className="inline-flex min-w-0 items-center justify-end gap-1 truncate text-right font-display text-base leading-none text-surface-3">
-            <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
-          </span>
-        </>
-      )}
-    </div>
-  );
-
-  return (
-    <div className="flex w-full max-w-[280px] items-center md:w-auto">
-      {side === "left" ? (
-        <>
-          {avatar}
-          {bar}
-        </>
-      ) : (
-        <>
-          {bar}
-          {avatar}
-        </>
-      )}
+      <span
+        className={`min-w-0 flex-1 truncate font-display text-[15px] leading-tight ${
+          isLose ? "text-body" : "text-white"
+        }`}
+      >
+        <VerifiedName name={name} verified={isSoloVerified(team?.Players)} />
+      </span>
+      {showScore ? (
+        onScoreClick ? (
+          <button type="button" onClick={onScoreClick} aria-label="Edit score">
+            {badge}
+          </button>
+        ) : (
+          badge
+        )
+      ) : null}
     </div>
   );
 }
 
 function ManageMenu({
   onSelect,
+  hasVenue = false,
 }: {
-  onSelect: (mode: "score" | "time" | "link") => void;
+  onSelect: (mode: "score" | "time" | "link" | "venue") => void;
+  hasVenue?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -686,6 +634,7 @@ function ManageMenu({
             [
               ["score", "Add score"],
               ["time", "Add time"],
+              ["venue", hasVenue ? "Change location" : "Add location"],
               ["link", "Add match link"],
             ] as const
           ).map(([value, label]) => (

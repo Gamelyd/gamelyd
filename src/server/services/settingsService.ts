@@ -70,6 +70,7 @@ export interface PlatformSettings {
   oneOffPriceMinor: number;
   oneOffCurrency: Currency;
   oneOffTier: Plan;
+  sponsorRequiresOrg: boolean;
   updated_at: string;
 }
 
@@ -87,8 +88,34 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
       typeof doc?.oneOffPriceMinor === "number" ? doc.oneOffPriceMinor : 0,
     oneOffCurrency: parseCurrency(doc?.oneOffCurrency ?? "EUR"),
     oneOffTier: normalizePlan(doc?.oneOffTier),
+    // Default true: sponsored is organization-only unless an admin opens it up.
+    sponsorRequiresOrg: doc?.sponsorRequiresOrg !== false,
     updated_at: doc?.updated_at ?? "",
   };
+}
+
+export async function getSponsorRequiresOrg(): Promise<boolean> {
+  const doc = await (await settings()).findOne({ key: "platform" });
+  return doc?.sponsorRequiresOrg !== false;
+}
+
+export async function setSponsorRequiresOrg(
+  requiresOrg: boolean,
+  adminUid: string,
+): Promise<PlatformSettings> {
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        sponsorRequiresOrg: requiresOrg,
+        updated_at: new Date().toISOString(),
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  return getPlatformSettings();
 }
 
 function normalizePlan(value: unknown): Plan {

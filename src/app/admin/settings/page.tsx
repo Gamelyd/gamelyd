@@ -14,6 +14,7 @@ import {
   adminGetPlatformSettingsAction,
   adminSetEventTypeEnabledAction,
   adminSetOneOffAction,
+  adminSetSponsorPolicyAction,
   adminSetPlatformFeeAction,
 } from "@/server/actions/adminActions";
 
@@ -30,6 +31,8 @@ export default function AdminSettingsPage() {
     tier: "CLUB" as Plan,
   });
   const [savingOneOff, setSavingOneOff] = useState(false);
+  const [sponsorRequiresOrg, setSponsorRequiresOrg] = useState(true);
+  const [savingSponsor, setSavingSponsor] = useState(false);
   const [updatedAt, setUpdatedAt] = useState("");
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -48,6 +51,7 @@ export default function AdminSettingsPage() {
           currency: result.data.oneOffCurrency,
           tier: result.data.oneOffTier,
         });
+        setSponsorRequiresOrg(result.data.sponsorRequiresOrg);
         setUpdatedAt(result.data.updated_at);
       } else {
         toast.error(result.error);
@@ -111,6 +115,18 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const saveSponsorPolicy = async (requiresOrg: boolean) => {
+    setSavingSponsor(true);
+    const result = await adminSetSponsorPolicyAction(requiresOrg);
+    setSavingSponsor(false);
+    if (result.ok) {
+      toast.success(result.message ?? "Saved");
+      setSponsorRequiresOrg(result.data.sponsorRequiresOrg);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
   if (current === null) return <Loader label="Loading settings" />;
 
   return (
@@ -154,6 +170,33 @@ export default function AdminSettingsPage() {
             Events already running keep taking entries, paying out, and
             settling, so nobody is stranded mid-tournament.
           </p>
+        </div>
+      </div>
+
+      <div className="mb-6 max-w-2xl rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="font-semibold text-white">Who can sponsor</h2>
+        <p className="mt-1 text-sm text-body">
+          Sponsored is a badge on a tournament, not a money feature. Choose who
+          is allowed to create one.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-2 bg-surface-2/40 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {sponsorRequiresOrg ? "Organizations only" : "Anyone"}
+            </p>
+            <p className="text-xs text-body">
+              {sponsorRequiresOrg
+                ? "Only members hosting under an organization can create a sponsored event."
+                : "Any signed-in host can create a sponsored event."}
+            </p>
+          </div>
+          <Button
+            variant="dark"
+            loading={savingSponsor}
+            onClick={() => void saveSponsorPolicy(!sponsorRequiresOrg)}
+          >
+            {sponsorRequiresOrg ? "Allow anyone" : "Restrict to orgs"}
+          </Button>
         </div>
       </div>
 
