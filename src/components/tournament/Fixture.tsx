@@ -60,6 +60,7 @@ export function Fixture({
   seriesGames,
   hostPicksLevel,
   eventVenues = [],
+  mine = false,
 }: {
   draw: Draw;
   canManage: boolean;
@@ -69,9 +70,18 @@ export function Fixture({
   hostPicksLevel?: boolean;
   /** The tournament's own venues, offered as one-tap picks. */
   eventVenues?: TournamentVenue[];
+  /** The signed-in user's team plays in this fixture: highlight it. */
+  mine?: boolean;
 }) {
   if (draw.BRTeams.length > 0) {
-    return <BrFixture draw={draw} canManage={canManage} onUpdated={onUpdated} />;
+    return (
+      <BrFixture
+        draw={draw}
+        canManage={canManage}
+        onUpdated={onUpdated}
+        mine={mine}
+      />
+    );
   }
   return (
     <MpFixture
@@ -82,6 +92,7 @@ export function Fixture({
       seriesGames={seriesGames}
       hostPicksLevel={hostPicksLevel}
       eventVenues={eventVenues}
+      mine={mine}
     />
   );
 }
@@ -94,6 +105,7 @@ function MpFixture({
   seriesGames,
   hostPicksLevel,
   eventVenues = [],
+  mine = false,
 }: {
   draw: Draw;
   canManage: boolean;
@@ -102,6 +114,7 @@ function MpFixture({
   seriesGames?: Draw[];
   hostPicksLevel?: boolean;
   eventVenues?: TournamentVenue[];
+  mine?: boolean;
 }) {
   const toast = useToast();
   const [mode, setMode] = useState<EditMode>(null);
@@ -230,13 +243,19 @@ function MpFixture({
 
   return (
     <div
+      data-mine={mine ? "true" : undefined}
       className={`relative w-full max-w-md rounded-2xl border p-3 sm:p-4 ${
         !played && !autoBye
           ? "border-primary/40 bg-primary/[0.05]"
           : "border-surface-2 bg-surface"
-      }`}
+      } ${mine ? "ring-2 ring-cyan" : ""}`}
     >
       <div className="mb-2.5 flex flex-wrap items-center gap-2 pr-9">
+        {mine ? (
+          <span className="inline-flex items-center rounded-full bg-cyan/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan">
+            Your team
+          </span>
+        ) : null}
         {!autoBye ? (
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
@@ -660,10 +679,12 @@ function BrFixture({
   draw,
   canManage,
   onUpdated,
+  mine = false,
 }: {
   draw: Draw;
   canManage: boolean;
   onUpdated: (draw: Draw) => void;
+  mine?: boolean;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -696,7 +717,12 @@ function BrFixture({
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl rounded-xl border border-surface-2 bg-[#06252c] p-5">
+    <div
+      data-mine={mine ? "true" : undefined}
+      className={`relative mx-auto w-full max-w-2xl rounded-xl border bg-[#06252c] p-5 ${
+        mine ? "border-cyan ring-2 ring-cyan" : "border-surface-2"
+      }`}
+    >
       {canManage && (
         <ManageMenu
           onSelect={() => {
@@ -705,6 +731,11 @@ function BrFixture({
           }}
         />
       )}
+      {mine ? (
+        <span className="mb-2 inline-flex items-center rounded-full bg-cyan/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan">
+          Your team
+        </span>
+      ) : null}
       <h4 className="mb-1 text-center font-display text-xl text-white">
         Lobby {draw.Stage}
       </h4>

@@ -107,6 +107,34 @@ type Tab =
 
 type TeamsPanel = "teams" | "bracket";
 
+/** Draw ids where the given team (by name or a player's user id) competes. */
+function drawIdsForTeam(
+  draws: Draw[],
+  teamName: string,
+  userId: string,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!teamName && !userId) return ids;
+  const isMine = (t?: {
+    TeamName?: string;
+    Players?: { User_id?: string }[];
+  }) =>
+    Boolean(t) &&
+    ((teamName !== "" && t?.TeamName === teamName) ||
+      (userId !== "" &&
+        (t?.Players ?? []).some((pl) => pl.User_id === userId)));
+  for (const d of draws) {
+    if (
+      isMine(d.Team1) ||
+      isMine(d.Team2) ||
+      (d.BRTeams ?? []).some((t) => isMine(t))
+    ) {
+      ids.add(d.DrawId);
+    }
+  }
+  return ids;
+}
+
 export function TournamentView({
   tournament,
   initialParticipants,
@@ -223,6 +251,12 @@ export function TournamentView({
   const myTeam = participants.find((p) =>
     (p.Players ?? []).some((pl) => pl.User_id === user?.user_id),
   );
+  const myTeamName = myTeam?.TeamName ?? "";
+  const myUserId = user?.user_id ?? "";
+  // Draw ids the signed-in user's team plays in, so their fixtures can be
+  // highlighted and jumped to. Left un-memoized so the React Compiler owns it.
+  const mineDrawIds = drawIdsForTeam(draws, myTeamName, myUserId);
+  const hasMyFixtures = mineDrawIds.size > 0;
   const canCheckIn =
     Boolean(myTeam) &&
     tournament.CheckInRequired &&
@@ -478,6 +512,44 @@ export function TournamentView({
         ? current.filter((n) => n !== name)
         : [...current, name],
     );
+  };
+
+  // Deferred scroll: in groups the target may be inside a collapsed panel we
+  // open first, so the jump waits for that panel to render.
+  const wantScrollToMine = useRef(false);
+  const scrollToMineNow = () => {
+    document
+      .querySelector('[data-mine="true"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  useEffect(() => {
+    if (!wantScrollToMine.current) return;
+    const el = document.querySelector('[data-mine="true"]');
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      wantScrollToMine.current = false;
+    }
+  });
+
+  const jumpToMyFixtures = () => {
+    if (isGroups) {
+      const mineGroups = groupFixtureSections.filter(([, ds]) =>
+        ds.some((d) => mineDrawIds.has(d.DrawId)),
+      );
+      const anyClosed = mineGroups.some(
+        ([name], index) => !fixtureGroupIsOpen(name, index),
+      );
+      if (anyClosed) {
+        const openNow = groupFixtureSections
+          .filter(([name], index) => fixtureGroupIsOpen(name, index))
+          .map(([name]) => name);
+        const mineNames = mineGroups.map(([name]) => name);
+        setOpenFixtureGroups(Array.from(new Set([...openNow, ...mineNames])));
+        wantScrollToMine.current = true;
+        return;
+      }
+    }
+    scrollToMineNow();
   };
 
   const groupStandings = useMemo(() => {
@@ -1115,6 +1187,14 @@ export function TournamentView({
             );
           })()}
 
+        {tab === "fixtures" && hasMyFixtures ? (
+          <div className="mb-6 flex justify-center">
+            <Button type="button" variant="outline" onClick={jumpToMyFixtures}>
+              See my fixtures
+            </Button>
+          </div>
+        ) : null}
+
         {tab === "fixtures" &&
           (isGroups ? (
             <div className="space-y-4">
@@ -1148,6 +1228,7 @@ export function TournamentView({
                           <Fixture
                             eventVenues={eventVenues}
                             key={d.DrawId || d._id}
+                            mine={mineDrawIds.has(d.DrawId)}
                             draw={d}
                             canManage={canManage}
                             onUpdated={handleDrawUpdated}
@@ -1237,6 +1318,7 @@ export function TournamentView({
                           <Fixture
                             eventVenues={eventVenues}
                             key={d.DrawId || d._id}
+                            mine={mineDrawIds.has(d.DrawId)}
                             draw={d}
                             canManage={canManage}
                             onUpdated={handleDrawUpdated}

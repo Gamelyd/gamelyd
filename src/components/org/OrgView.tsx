@@ -26,6 +26,7 @@ import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import type { OrgRole } from "@/lib/schemas/common";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { ShareButton } from "@/components/ui/ShareButton";
 
 export function OrgView({
   org,
@@ -102,16 +103,25 @@ export function OrgView({
               </p>
             )}
           </div>
-          {canManage && (
-            <div className="flex gap-2">
-              <Button variant="dark" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-              <Button variant="outline" onClick={() => setInviteOpen(true)}>
-                Invite member
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <ShareButton
+              name={current.name}
+              description={
+                current.description || `${current.name} on Gamelyd`
+              }
+              urlPath={`/org/${current.org_id}`}
+            />
+            {canManage && (
+              <>
+                <Button variant="dark" onClick={() => setEditOpen(true)}>
+                  Edit
+                </Button>
+                <Button variant="outline" onClick={() => setInviteOpen(true)}>
+                  Invite member
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
