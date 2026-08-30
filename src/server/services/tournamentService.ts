@@ -279,6 +279,21 @@ export async function saveTournament(
     paidTier,
   );
 
+  // Idempotency guard: a double-submit (or an error-then-retry) must not create
+  // duplicates. If this host just made a tournament with the same name, return
+  // that one instead of inserting another.
+  const recentCutoff = new Date(Date.now() - 30_000).toISOString();
+  const duplicate = await col.findOne(
+    asDocFilter<TournamentDoc>({
+      $and: [
+        { $or: [{ User_id: uid }, { user_id: uid }] },
+        { $or: [{ Name: input.Name }, { name: input.Name }] },
+        { $or: [{ Created_at: { $gte: recentCutoff } }, { created_at: { $gte: recentCutoff } }] },
+      ],
+    }),
+  );
+  if (duplicate) return serializeTournament(duplicate);
+
   const feeBps = await getPlatformFeeBps();
 
   // Sponsored is an organization-run label, not a money feature: no entry fee,

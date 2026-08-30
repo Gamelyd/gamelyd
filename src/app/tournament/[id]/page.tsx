@@ -18,7 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const tournament = await getTournamentById(id);
-  if (!tournament) {
+  if (!tournament || tournament.IsDeleted) {
     return pageMeta({ title: "Tournament", path: `/tournament/${id}` });
   }
 
@@ -45,7 +45,7 @@ export default async function SingleTournamentPage({
   const { tab, checkout } = await searchParams;
 
   const tournament = await getTournamentById(id);
-  if (!tournament) notFound();
+  if (!tournament || tournament.IsDeleted) notFound();
 
   const [participants, draws] = await Promise.all([
     listParticipants(id),

@@ -50,7 +50,13 @@ export function TournamentCard({
       />
       <div className="absolute inset-0 z-1 bg-linear-to-t from-black via-black/45 to-black/10" />
 
-      <div className="absolute left-3 top-3 z-2 flex flex-wrap gap-1.5">
+      <div
+        className={`absolute left-3 top-3 z-2 flex flex-wrap gap-1.5 ${
+          tournament.OrgId && tournament.OrgName
+            ? "max-w-[calc(100%-8.5rem)]"
+            : "right-3"
+        }`}
+      >
         <Tag payment={tournament.Payment} className="rounded-md" />
         {tournament.TournamentType === "PRIVATE" ? (
           <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
