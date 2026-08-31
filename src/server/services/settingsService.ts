@@ -6,6 +6,7 @@ import { PLATFORM_FEE_BPS } from "@/lib/fees";
 import { parseCurrency } from "@/lib/currency";
 import { planSchema, type Plan } from "@/lib/plans";
 import type { Currency } from "@/lib/schemas/common";
+import type { RatingTarget } from "@/lib/schemas/rating";
 
 /**
  * The fee is read on almost every money-related render, so it is cached in
@@ -71,6 +72,9 @@ export interface PlatformSettings {
   oneOffCurrency: Currency;
   oneOffTier: Plan;
   sponsorRequiresOrg: boolean;
+  ratingUser: boolean;
+  ratingOrg: boolean;
+  ratingTournament: boolean;
   updated_at: string;
 }
 
@@ -90,6 +94,10 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     oneOffTier: normalizePlan(doc?.oneOffTier),
     // Default true: sponsored is organization-only unless an admin opens it up.
     sponsorRequiresOrg: doc?.sponsorRequiresOrg !== false,
+    // Ratings are on by default; an admin can switch each surface off.
+    ratingUser: doc?.ratingUserEnabled !== false,
+    ratingOrg: doc?.ratingOrgEnabled !== false,
+    ratingTournament: doc?.ratingTournamentEnabled !== false,
     updated_at: doc?.updated_at ?? "",
   };
 }
@@ -97,6 +105,53 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
 export async function getSponsorRequiresOrg(): Promise<boolean> {
   const doc = await (await settings()).findOne({ key: "platform" });
   return doc?.sponsorRequiresOrg !== false;
+}
+
+const RATING_FIELD: Record<
+  RatingTarget,
+  "ratingUserEnabled" | "ratingOrgEnabled" | "ratingTournamentEnabled"
+> = {
+  USER: "ratingUserEnabled",
+  ORG: "ratingOrgEnabled",
+  TOURNAMENT: "ratingTournamentEnabled",
+};
+
+export async function getRatingSettings(): Promise<{
+  user: boolean;
+  org: boolean;
+  tournament: boolean;
+}> {
+  const doc = await (await settings()).findOne({ key: "platform" });
+  return {
+    user: doc?.ratingUserEnabled !== false,
+    org: doc?.ratingOrgEnabled !== false,
+    tournament: doc?.ratingTournamentEnabled !== false,
+  };
+}
+
+export async function isRatingEnabled(kind: RatingTarget): Promise<boolean> {
+  const doc = await (await settings()).findOne({ key: "platform" });
+  return doc?.[RATING_FIELD[kind]] !== false;
+}
+
+export async function setRatingEnabled(
+  kind: RatingTarget,
+  value: boolean,
+  adminUid: string,
+): Promise<PlatformSettings> {
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        [RATING_FIELD[kind]]: value,
+        updated_at: new Date().toISOString(),
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  return getPlatformSettings();
 }
 
 export async function setSponsorRequiresOrg(

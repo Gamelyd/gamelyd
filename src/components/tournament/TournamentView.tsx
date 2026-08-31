@@ -24,6 +24,7 @@ import {
 import { Fixture, roundLabel } from "./Fixture";
 import { RegisterTeam } from "./RegisterTeam";
 import { JoinRequestsPanel } from "./JoinRequestsPanel";
+import { RatingPanel } from "@/components/rating/RatingPanel";
 import { AlertCaptain } from "./AlertCaptain";
 import { InviteSearch } from "./InviteSearch";
 import { HostInvitePanel } from "./HostInvitePanel";
@@ -39,6 +40,7 @@ import { NextStageModal } from "./NextStageModal";
 import { Confirm } from "@/components/ui/Confirm";
 import { Markdown } from "@/components/ui/Markdown";
 import { formatMoney } from "@/lib/currency";
+import { tzCityLabel } from "@/lib/timezone";
 import { SettingChangePanel } from "./SettingChangePanel";
 import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
@@ -255,6 +257,7 @@ export function TournamentView({
   const myTeam = participants.find((p) =>
     (p.Players ?? []).some((pl) => pl.User_id === user?.user_id),
   );
+  const tzLabel = tzCityLabel(tournament.TimeZone);
   const myTeamName = myTeam?.TeamName ?? "";
   const myUserId = user?.user_id ?? "";
   // Draw ids the signed-in user's team plays in, so their fixtures can be
@@ -274,6 +277,23 @@ export function TournamentView({
     InviteTournament[]
   >([]);
   const canRegister = registrationOpen(tournament) && !isRegistered;
+  // Invited to a private event and not yet registered: nudge them once.
+  const isInvited = Boolean(
+    user &&
+      tournament.TournamentType === "PRIVATE" &&
+      canJoin &&
+      !isRegistered &&
+      !canManage &&
+      registrationOpen(tournament),
+  );
+  const [invitePromptOpen, setInvitePromptOpen] = useState(false);
+  const invitePromptShown = useRef(false);
+  useEffect(() => {
+    if (isInvited && !invitePromptShown.current) {
+      invitePromptShown.current = true;
+      setInvitePromptOpen(true);
+    }
+  }, [isInvited]);
   const groupsCreated = groups.length > 0;
   const needed = rosterSize(tournament.Team, tournament.RosterCount);
   const catalogKindFlags = kindUses([], tournament.CatalogKind);
@@ -1350,6 +1370,7 @@ export function TournamentView({
                             eventVenues={eventVenues}
                             key={d.DrawId || d._id}
                             mine={mineDrawIds.has(d.DrawId)}
+                            timeZoneLabel={tzLabel}
                             draw={d}
                             canManage={canManage}
                             onUpdated={handleDrawUpdated}
@@ -1377,6 +1398,7 @@ export function TournamentView({
                             eventVenues={eventVenues}
                                 key={d.DrawId || d._id}
                                 mine={mineDrawIds.has(d.DrawId)}
+                            timeZoneLabel={tzLabel}
                                 draw={d}
                                 canManage={canManage}
                                 onUpdated={handleDrawUpdated}
@@ -1405,6 +1427,7 @@ export function TournamentView({
                             eventVenues={eventVenues}
                           key={d.DrawId || d._id}
                           mine={mineDrawIds.has(d.DrawId)}
+                          timeZoneLabel={tzLabel}
                           draw={d}
                           canManage={canManage}
                           onUpdated={handleDrawUpdated}
@@ -1442,6 +1465,7 @@ export function TournamentView({
                             eventVenues={eventVenues}
                             key={d.DrawId || d._id}
                             mine={mineDrawIds.has(d.DrawId)}
+                            timeZoneLabel={tzLabel}
                             draw={d}
                             canManage={canManage}
                             onUpdated={handleDrawUpdated}
@@ -1557,6 +1581,15 @@ export function TournamentView({
           </div>
         )}
       </section>
+
+      <section className="mx-auto max-w-6xl px-page pb-10">
+        <RatingPanel
+          targetType="TOURNAMENT"
+          targetId={tournament.TournamentId}
+          title="Rate this tournament"
+          noun="this tournament"
+        />
+      </section>
       {canManage ? (
         <NextStageModal
           prompt={stagePrompt}
@@ -1577,6 +1610,18 @@ export function TournamentView({
           }}
         />
       ) : null}
+      <Confirm
+        open={invitePromptOpen}
+        title="You're invited"
+        message="You've been invited to this tournament. Register your team to lock in your spot before the deadline."
+        confirmLabel="Go to registration"
+        confirmVariant="default"
+        onConfirm={() => {
+          setTab("register");
+          setInvitePromptOpen(false);
+        }}
+        onCancel={() => setInvitePromptOpen(false)}
+      />
       {canManage && startPrompt ? (
         <Confirm
           open={startPromptOpen}
@@ -1835,6 +1880,9 @@ function Details({
     { label: "Draw", value: tournament.Shuffle },
     { label: "Size", value: `${tournament.TournamentSize} teams` },
     { label: "Date", value: tournament.Date },
+    ...(tournament.TimeZone
+      ? [{ label: "Timezone", value: tzCityLabel(tournament.TimeZone) }]
+      : []),
     ...(locationLabel(tournament)
       ? [
           {

@@ -61,6 +61,7 @@ export function Fixture({
   hostPicksLevel,
   eventVenues = [],
   mine = false,
+  timeZoneLabel = "",
 }: {
   draw: Draw;
   canManage: boolean;
@@ -72,6 +73,8 @@ export function Fixture({
   eventVenues?: TournamentVenue[];
   /** The signed-in user's team plays in this fixture: highlight it. */
   mine?: boolean;
+  /** Timezone label shown next to match times, e.g. "Lagos". */
+  timeZoneLabel?: string;
 }) {
   if (draw.BRTeams.length > 0) {
     return (
@@ -80,6 +83,7 @@ export function Fixture({
         canManage={canManage}
         onUpdated={onUpdated}
         mine={mine}
+        timeZoneLabel={timeZoneLabel}
       />
     );
   }
@@ -93,6 +97,7 @@ export function Fixture({
       hostPicksLevel={hostPicksLevel}
       eventVenues={eventVenues}
       mine={mine}
+      timeZoneLabel={timeZoneLabel}
     />
   );
 }
@@ -106,6 +111,7 @@ function MpFixture({
   hostPicksLevel,
   eventVenues = [],
   mine = false,
+  timeZoneLabel = "",
 }: {
   draw: Draw;
   canManage: boolean;
@@ -115,6 +121,7 @@ function MpFixture({
   hostPicksLevel?: boolean;
   eventVenues?: TournamentVenue[];
   mine?: boolean;
+  timeZoneLabel?: string;
 }) {
   const toast = useToast();
   const [mode, setMode] = useState<EditMode>(null);
@@ -494,7 +501,13 @@ function MpFixture({
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               <MetaChip>{draw.Date || "Date TBD"}</MetaChip>
-              <MetaChip>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</MetaChip>
+              <MetaChip>
+                {draw.Time
+                  ? timeZoneLabel
+                    ? `${draw.Time} (${timeZoneLabel})`
+                    : draw.Time
+                  : "Time TBD"}
+              </MetaChip>
               {draw.VenueName ? (
                 mapsUrl ? (
                   <a
@@ -680,11 +693,13 @@ function BrFixture({
   canManage,
   onUpdated,
   mine = false,
+  timeZoneLabel = "",
 }: {
   draw: Draw;
   canManage: boolean;
   onUpdated: (draw: Draw) => void;
   mine?: boolean;
+  timeZoneLabel?: string;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -815,7 +830,13 @@ function BrFixture({
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 text-sm font-bold text-white">
         <span>{draw.Date || "Date TBD"}</span>
         <span className="text-white/40">|</span>
-        <span>{draw.Time ? `${draw.Time} (WAT)` : "Time TBD"}</span>
+        <span>
+          {draw.Time
+            ? timeZoneLabel
+              ? `${draw.Time} (${timeZoneLabel})`
+              : draw.Time
+            : "Time TBD"}
+        </span>
         {draw.Link ? (
           <a
             href={draw.Link}

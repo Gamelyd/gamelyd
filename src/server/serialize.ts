@@ -13,6 +13,7 @@ import type {
   PlatformDoc,
   RegisterTournamentDoc,
   JoinRequestDoc,
+  RatingDoc,
   ReportAbuseDoc,
   TournamentDoc,
   UserDoc,
@@ -22,6 +23,7 @@ import type { Tournament, TournamentVenue } from "@/lib/schemas/tournament";
 import type { Player, Teams, BRTeams, Draw } from "@/lib/schemas/draw";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { JoinRequest } from "@/lib/schemas/joinRequest";
+import { ratingTargetSchema, type Rating } from "@/lib/schemas/rating";
 import type {
   ContactUs,
   InviteTournament,
@@ -175,6 +177,9 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     ]),
     Note: readString(raw, ["Note", "note"]),
     Description: readString(raw, ["Description", "description"]),
+    TimeZone: readString(raw, ["TimeZone", "timezone"]),
+    RatingAvg: readNumber(raw, ["RatingAvg", "ratingavg"]),
+    RatingCount: readNumber(raw, ["RatingCount", "ratingcount"]),
     Announcements: serializeAnnouncements(
       raw.Announcements ?? raw.announcements,
     ),
@@ -489,6 +494,26 @@ export function serializeRegistration(
       readString(raw, ["CaptainUserId", "captainuserid"]) ||
       players[0]?.User_id ||
       "",
+  };
+}
+
+export function serializeRating(doc: RatingDoc): Rating {
+  const raw = asRecord(doc);
+  const parsedType = ratingTargetSchema.safeParse(
+    readString(raw, ["TargetType", "targettype"]).toUpperCase(),
+  );
+  return {
+    RatingId:
+      readString(raw, ["RatingId", "ratingid"]) || doc._id.toHexString(),
+    TargetType: parsedType.success ? parsedType.data : "TOURNAMENT",
+    TargetId: readString(raw, ["TargetId", "targetid"]),
+    TargetName: readString(raw, ["TargetName", "targetname"]),
+    User_id: readString(raw, ["User_id", "user_id"]),
+    UserName: readString(raw, ["UserName", "username"]),
+    Stars: readNumber(raw, ["Stars", "stars"]),
+    Comment: readString(raw, ["Comment", "comment"]),
+    Created_at: readDate(raw, ["Created_at", "created_at"]),
+    Updated_at: readDate(raw, ["Updated_at", "updated_at"]),
   };
 }
 

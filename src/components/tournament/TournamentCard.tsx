@@ -19,6 +19,8 @@ import {
   nearestVenueKm,
   venueLabel,
 } from "@/lib/venue";
+import { formatMoney } from "@/lib/currency";
+import { RatingBadge } from "@/components/rating/RatingBadge";
 
 export function TournamentCard({
   tournament,
@@ -93,12 +95,26 @@ export function TournamentCard({
       )}
 
       <div className="relative z-2 mt-auto w-full px-3 py-3">
+        {tournament.Payment === "SPONSORED" &&
+        (tournament.Prizes[0]?.Amount ?? 0) > 0 ? (
+          <span className="mb-1 inline-flex items-center gap-1 rounded-md bg-yellow/20 px-2 py-0.5 text-xs font-semibold text-yellow">
+            Win {formatMoney(tournament.Prizes[0].Amount, tournament.Currency)}
+          </span>
+        ) : null}
         <span className="line-clamp-1 font-display text-[20px] leading-tight text-white">
           {tournament.Name}
         </span>
         <span className="line-clamp-1 font-body text-xs text-body">
           {catalogSubtitle(tournament)}
         </span>
+        {tournament.RatingCount > 0 ? (
+          <span className="mt-1 block">
+            <RatingBadge
+              average={tournament.RatingAvg}
+              count={tournament.RatingCount}
+            />
+          </span>
+        ) : null}
         {venue ? (
           <span className="line-clamp-1 font-body text-xs text-white/70">
             {distance ? `${distance} · ${venue}` : venue}

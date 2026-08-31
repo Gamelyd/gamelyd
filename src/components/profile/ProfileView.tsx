@@ -20,6 +20,7 @@ import {
 import { requestContactChangeAction } from "@/server/actions/contactActions";
 import { CatalogAvatar } from "@/components/ui/CatalogAvatar";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { RatingPanel } from "@/components/rating/RatingPanel";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import { FALLBACKS, playerIconFor } from "@/lib/icons";
@@ -173,6 +174,16 @@ export function ProfileView({
             <Stat label="Tournaments created" value={created.length} />
             <Stat label="Tournaments joined" value={registered.length} />
             <Stat label="Country" value={display.country || "-"} />
+          </section>
+
+          <section className="mx-auto max-w-page px-page pb-4">
+            <RatingPanel
+              targetType="USER"
+              targetId={display.user_id}
+              title={isOwn ? "Your rating" : "Player rating"}
+              noun="this player"
+              canRate={!isOwn}
+            />
           </section>
 
           {isOwn ? (

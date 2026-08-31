@@ -15,6 +15,7 @@ import {
   adminSetEventTypeEnabledAction,
   adminSetOneOffAction,
   adminSetSponsorPolicyAction,
+  adminSetRatingEnabledAction,
   adminSetPlatformFeeAction,
 } from "@/server/actions/adminActions";
 
@@ -33,6 +34,12 @@ export default function AdminSettingsPage() {
   const [savingOneOff, setSavingOneOff] = useState(false);
   const [sponsorRequiresOrg, setSponsorRequiresOrg] = useState(true);
   const [savingSponsor, setSavingSponsor] = useState(false);
+  const [ratings, setRatings] = useState({
+    user: true,
+    org: true,
+    tournament: true,
+  });
+  const [togglingRating, setTogglingRating] = useState("");
   const [updatedAt, setUpdatedAt] = useState("");
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -52,6 +59,11 @@ export default function AdminSettingsPage() {
           tier: result.data.oneOffTier,
         });
         setSponsorRequiresOrg(result.data.sponsorRequiresOrg);
+        setRatings({
+          user: result.data.ratingUser,
+          org: result.data.ratingOrg,
+          tournament: result.data.ratingTournament,
+        });
         setUpdatedAt(result.data.updated_at);
       } else {
         toast.error(result.error);
@@ -127,6 +139,26 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const toggleRating = async (
+    kind: "USER" | "ORG" | "TOURNAMENT",
+    next: boolean,
+  ) => {
+    setTogglingRating(kind);
+    const result = await adminSetRatingEnabledAction(kind, next);
+    setTogglingRating("");
+    if (result.ok) {
+      setRatings({
+        user: result.data.ratingUser,
+        org: result.data.ratingOrg,
+        tournament: result.data.ratingTournament,
+      });
+      setUpdatedAt(result.data.updated_at);
+      toast.success(result.message ?? "Saved");
+    } else {
+      toast.error(result.error);
+    }
+  };
+
   if (current === null) return <Loader label="Loading settings" />;
 
   return (
@@ -197,6 +229,37 @@ export default function AdminSettingsPage() {
           >
             {sponsorRequiresOrg ? "Allow anyone" : "Restrict to orgs"}
           </Button>
+        </div>
+      </div>
+
+      <div className="mb-6 max-w-2xl rounded-2xl border border-surface-2 bg-surface p-5">
+        <h2 className="font-semibold text-white">Ratings</h2>
+        <p className="mt-1 text-sm text-body">
+          Turn each rating surface on or off. Off hides it everywhere and stops
+          new ratings for that type.
+        </p>
+        <div className="mt-4 grid gap-3">
+          <TypeToggle
+            label="Player ratings"
+            blurb="Players can rate each other, shown on profiles."
+            enabled={ratings.user}
+            busy={togglingRating === "USER"}
+            onToggle={(next) => void toggleRating("USER", next)}
+          />
+          <TypeToggle
+            label="Organization ratings"
+            blurb="Anyone can rate an organization on its page."
+            enabled={ratings.org}
+            busy={togglingRating === "ORG"}
+            onToggle={(next) => void toggleRating("ORG", next)}
+          />
+          <TypeToggle
+            label="Tournament ratings"
+            blurb="Anyone can rate a tournament; cards show the score."
+            enabled={ratings.tournament}
+            busy={togglingRating === "TOURNAMENT"}
+            onToggle={(next) => void toggleRating("TOURNAMENT", next)}
+          />
         </div>
       </div>
 

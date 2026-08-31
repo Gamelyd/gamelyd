@@ -4,6 +4,8 @@ import type { Tournament } from "@/lib/schemas/tournament";
 import { Tag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { formatMoney } from "@/lib/currency";
+import { RatingBadge } from "@/components/rating/RatingBadge";
 
 function formatDate(date: string): string {
   if (!date) return "Date TBA";
@@ -83,6 +85,14 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
               />
             </p>
           ) : null}
+          {tournament.RatingCount > 0 ? (
+            <span className="mt-1.5 block">
+              <RatingBadge
+                average={tournament.RatingAvg}
+                count={tournament.RatingCount}
+              />
+            </span>
+          ) : null}
         </div>
 
         <div className="mt-4 flex items-end justify-between gap-3">
@@ -93,7 +103,12 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
             <p className="font-display text-2xl leading-none text-primary">
               Free
             </p>
-            {tournament.Payment === "SPONSORED" ? (
+            {tournament.Payment === "SPONSORED" &&
+            (tournament.Prizes[0]?.Amount ?? 0) > 0 ? (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-yellow">
+                Win {formatMoney(tournament.Prizes[0].Amount, tournament.Currency)}
+              </p>
+            ) : tournament.Payment === "SPONSORED" ? (
               <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-yellow/70">
                 Sponsored event
               </p>

@@ -27,6 +27,7 @@ import { useIcons } from "@/hooks/useIcons";
 import type { OrgRole } from "@/lib/schemas/common";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { RatingPanel } from "@/components/rating/RatingPanel";
 
 export function OrgView({
   org,
@@ -123,6 +124,15 @@ export function OrgView({
             )}
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-page pt-8">
+        <RatingPanel
+          targetType="ORG"
+          targetId={current.org_id}
+          title="Organization rating"
+          noun="this organization"
+        />
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-10 px-page py-10 lg:grid-cols-3">

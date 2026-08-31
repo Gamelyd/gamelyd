@@ -368,6 +368,7 @@ export async function saveTournament(
     SettlementStatus: "NONE",
     Note: input.Note,
     Description: input.Description ?? "",
+    TimeZone: input.TimeZone ?? "",
     Announcements: [],
     AcceptedInvites: [],
     Platform: input.Platform,
@@ -2132,6 +2133,10 @@ async function applyTournamentSettings(
   if (input.Description !== undefined) {
     set.Description = input.Description;
     set.description = input.Description;
+  }
+  if (input.TimeZone !== undefined) {
+    set.TimeZone = input.TimeZone;
+    set.timezone = input.TimeZone;
   }
   if (input.ReturnLeg !== undefined) {
     set.ReturnLeg = input.ReturnLeg;

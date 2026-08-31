@@ -61,8 +61,13 @@ import { setPlan } from "@/server/services/planService";
 import {
   setOneOff,
   setSponsorRequiresOrg,
+  setRatingEnabled,
 } from "@/server/services/settingsService";
 import { currencySchema } from "@/lib/schemas/common";
+import {
+  ratingTargetSchema,
+  type RatingTarget,
+} from "@/lib/schemas/rating";
 import { PLANS, planSchema, type Plan } from "@/lib/plans";
 import {
   completeReport,
@@ -762,6 +767,24 @@ export async function adminSetOneOffAction(input: {
 }
 
 /** Toggle whether a solo host (not just orgs) can create sponsored events. */
+export async function adminSetRatingEnabledAction(
+  kind: RatingTarget,
+  enabled: boolean,
+): Promise<ActionResult<PlatformSettings>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  const parsed = ratingTargetSchema.safeParse(kind);
+  if (!parsed.success) return fail("Unknown rating type");
+  try {
+    const next = await setRatingEnabled(parsed.data, enabled, admin.uid);
+    return ok(next, enabled ? "Rating enabled" : "Rating disabled");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not save that");
+  }
+}
+
 export async function adminSetSponsorPolicyAction(
   requiresOrg: boolean,
 ): Promise<ActionResult<PlatformSettings>> {

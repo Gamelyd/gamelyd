@@ -9,6 +9,7 @@ import { CatalogImage } from "@/components/ui/CatalogImage";
 import { TextArea } from "@/components/ui/TextArea";
 import { Markdown } from "@/components/ui/Markdown";
 import { briefTemplate } from "@/lib/briefTemplates";
+import { TIMEZONES, browserTimeZone, tzCityLabel } from "@/lib/timezone";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -124,6 +125,7 @@ export function CreateTournamentWizard() {
 
   const [type, setType] = useState<TournamentType>("PRIVATE");
   const [notePreview, setNotePreview] = useState(false);
+  const [timeZone, setTimeZone] = useState("");
   const [payment, setPayment] = useState<Payment>("FREE");
   // Sponsored prize board: shown on the event, awarded off-platform by the host.
   const [currency, setCurrency] = useState<Currency>("USD");
@@ -174,6 +176,19 @@ export function CreateTournamentWizard() {
       if (result.ok) setPlanInfo(result.data);
     });
   }, [orgId]);
+
+  // Default the event timezone to the host's own, read after mount so server
+  // and client render the same thing first.
+  useEffect(() => {
+    setTimeZone(browserTimeZone());
+  }, []);
+  const tzOptions =
+    timeZone && !TIMEZONES.some((t) => t.value === timeZone)
+      ? [
+          { value: timeZone, label: `${tzCityLabel(timeZone)} (your timezone)` },
+          ...TIMEZONES,
+        ]
+      : TIMEZONES;
 
   const hasOrg = orgId !== "";
   // A solo host can sponsor only when the admin has opened it up.
@@ -397,6 +412,7 @@ export function CreateTournamentWizard() {
       Date: details.Date,
       Note: details.Note,
       Description: details.Description,
+      TimeZone: timeZone,
       Platform: kindFlags.usesPlatforms
         ? joinPlatforms(selectedPlatforms)
         : "",
@@ -1185,6 +1201,18 @@ export function CreateTournamentWizard() {
                   with a one-off payment of {oneOffPrice}.
                 </p>
               ) : null}
+              </div>
+              <div>
+                <Select
+                  label="Timezone for all dates and times"
+                  value={timeZone}
+                  onChange={(e) => setTimeZone(e.target.value)}
+                  options={tzOptions}
+                />
+                <p className="mt-1.5 text-xs text-body">
+                  Every date and match time you set is in this timezone, and it
+                  is shown to players so nobody is confused. Defaults to yours.
+                </p>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <DateInput

@@ -116,6 +116,10 @@ export interface TournamentDoc {
   Prizes: PrizePosition[];
   Note: string;
   Description?: string;
+  TimeZone?: string;
+  /** Denormalized rating so cards and lists show it without extra queries. */
+  RatingAvg?: number;
+  RatingCount?: number;
   Announcements?: {
     Id: string;
     Body: string;
@@ -223,6 +227,23 @@ export interface JoinRequestDoc {
   Players: Player[];
   Icon: string;
   Created_at: string;
+}
+
+/** A star rating and optional review, aimed at a user, an org, or a tournament. */
+export interface RatingDoc {
+  _id: ObjectId;
+  RatingId: string;
+  /** What is being rated. */
+  TargetType: "USER" | "ORG" | "TOURNAMENT";
+  TargetId: string;
+  TargetName: string;
+  /** The rater. */
+  User_id: string;
+  UserName: string;
+  Stars: number;
+  Comment: string;
+  Created_at: string;
+  Updated_at: string;
 }
 
 export interface RegisterTournamentDoc {
@@ -454,6 +475,10 @@ export interface SettingsDoc {
   oneOffTier?: Plan;
   /** When false, any signed-in host can create a sponsored event; default true. */
   sponsorRequiresOrg?: boolean;
+  /** Each rating surface can be switched off; default on (undefined = on). */
+  ratingUserEnabled?: boolean;
+  ratingOrgEnabled?: boolean;
+  ratingTournamentEnabled?: boolean;
   updated_at: string;
   updated_by: string;
 }
