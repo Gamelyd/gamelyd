@@ -516,6 +516,7 @@ export async function getTournamentsByMode(
   status = "ALL",
   kind = "ALL",
   location?: BrowseLocation,
+  org = "",
 ): Promise<Paginated<Tournament>> {
   const col = await tournaments();
   const perPage = 15;
@@ -526,6 +527,9 @@ export async function getTournamentsByMode(
   ];
   if (payment && payment.toUpperCase() !== "ALL") {
     clauses.push({ $or: [{ Payment: payment }, { payment: payment }] });
+  }
+  if (org) {
+    clauses.push({ $or: [{ OrgId: org }, { orgid: org }] });
   }
   if (type && type.toUpperCase() !== "ALL") {
     clauses.push({
@@ -565,6 +569,37 @@ export async function getTournamentsByMode(
     last_page: Math.max(Math.ceil(total / perPage), 1),
     items,
   };
+}
+
+/** Organizations that have hosted at least one public tournament. */
+export async function listHostingOrgs(): Promise<
+  { id: string; name: string }[]
+> {
+  const col = await tournaments();
+  const rows = await col
+    .aggregate<{ _id: string; name: string }>([
+      {
+        $match: {
+          $and: [
+            notDeleted(),
+            fundedPublicClause(),
+            { $or: [{ OrgId: { $gt: "" } }, { orgid: { $gt: "" } }] },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { $ifNull: ["$OrgId", "$orgid"] },
+          name: { $first: { $ifNull: ["$OrgName", "$orgname"] } },
+        },
+      },
+      { $sort: { name: 1 } },
+      { $limit: 200 },
+    ])
+    .toArray();
+  return rows
+    .filter((r) => r._id)
+    .map((r) => ({ id: r._id, name: r.name || r._id }));
 }
 
 const BANNER_SLOTS = 2;

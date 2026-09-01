@@ -20,6 +20,7 @@ import {
   getBannerTournamentsAction,
 } from "@/server/actions/tournamentActions";
 import { getGamesPageAction } from "@/server/actions/gameActions";
+import { getLeaderboard } from "@/server/services/leaderboardService";
 import { GAMES_KIND, SPORTS_KIND } from "@/lib/catalog";
 
 const homeTitle = "Gamelyd: Host and join game tournaments";
@@ -34,12 +35,18 @@ export const metadata: Metadata = pageMeta({
 });
 
 export default async function HomePage() {
-  const [bannerResult, latestResult, gamesResult, sportsResult] =
+  const [bannerResult, latestResult, gamesResult, sportsResult, leaders] =
     await Promise.all([
       getBannerTournamentsAction(),
       getTournamentsAction("", 1),
       getGamesPageAction("", 1, 10, GAMES_KIND),
       getGamesPageAction("", 1, 10, SPORTS_KIND),
+      getLeaderboard({
+        payment: "ALL",
+        games: [],
+        metric: "matchesWon",
+        limit: 5,
+      }).catch(() => []),
     ]);
   const banner = bannerResult.ok ? bannerResult.data : [];
   const latest = latestResult.ok ? latestResult.data.items.slice(0, 10) : [];
@@ -64,7 +71,7 @@ export default async function HomePage() {
       />
       <Audience />
       <HostCta />
-      <Leaderboard />
+      <Leaderboard rows={leaders} />
       <HomeFaq />
     </SiteLayout>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/Input";
+import { NumberInput } from "@/components/ui/NumberInput";
 import { DateInput, DateTimeInput } from "@/components/ui/DateTimePicker";
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import { TextArea } from "@/components/ui/TextArea";
@@ -735,26 +736,20 @@ export function CreateTournamentWizard() {
                     A loss is always 0.
                   </p>
                   <div className="grid max-w-md gap-4 sm:grid-cols-2">
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={20}
                       label="Win"
                       value={pointsWin}
-                      onChange={(e) =>
-                        setPointsWin(Math.max(0, Number(e.target.value) || 0))
-                      }
+                      onChange={setPointsWin}
                     />
                     {allowDraw ? (
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={20}
                       label="Draw"
                       value={pointsDraw}
-                      onChange={(e) =>
-                        setPointsDraw(Math.max(0, Number(e.target.value) || 0))
-                      }
+                      onChange={setPointsDraw}
                     />
                     ) : null}
                   </div>
@@ -789,16 +784,11 @@ export function CreateTournamentWizard() {
                       How many from each group go through to knockout. You can
                       change this until the event starts.
                     </p>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={1}
                       max={8}
                       value={advancePerGroup}
-                      onChange={(e) =>
-                        setAdvancePerGroup(
-                          Math.min(8, Math.max(1, Number(e.target.value) || 1)),
-                        )
-                      }
+                      onChange={setAdvancePerGroup}
                     />
                   </div>
                   <div>
@@ -919,39 +909,26 @@ export function CreateTournamentWizard() {
               {mode === "BATTLEROYALE" ? (
                 <div className="flex flex-col gap-6">
                   <div className="grid max-w-xl gap-4 sm:grid-cols-3">
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={1}
                       max={20}
                       label="Lobbies"
                       value={brLobbies}
-                      onChange={(e) =>
-                        setBrLobbies(
-                          Math.min(20, Math.max(1, Number(e.target.value) || 1)),
-                        )
-                      }
+                      onChange={setBrLobbies}
                     />
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={50}
                       label="Points per kill"
                       value={brKillPoints}
-                      onChange={(e) =>
-                        setBrKillPoints(Math.max(0, Number(e.target.value) || 0))
-                      }
+                      onChange={setBrKillPoints}
                     />
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={50}
                       label="First blood pts"
                       value={brFirstBloodPoints}
-                      onChange={(e) =>
-                        setBrFirstBloodPoints(
-                          Math.max(0, Number(e.target.value) || 0),
-                        )
-                      }
+                      onChange={setBrFirstBloodPoints}
                     />
                   </div>
                   <Input
@@ -962,19 +939,12 @@ export function CreateTournamentWizard() {
                 </div>
               ) : null}
               <div className="max-w-xs" {...helpTarget("create-roster")}>
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={32}
                   label="Players per team"
                   value={rosterCount}
-                  onChange={(e) => {
-                    const next = Math.max(
-                      1,
-                      Math.min(32, Number(e.target.value) || 1),
-                    );
-                    setRosterCount(next);
-                  }}
+                  onChange={setRosterCount}
                 />
               </div>
               <div {...helpTarget("create-draw")}>
@@ -1152,19 +1122,15 @@ export function CreateTournamentWizard() {
                 This is the hero at the top of this page and on the event page.
               </p>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Input
-                  type="number"
+                <NumberInput
                   label={
                     maxTeams === null
                       ? "Lobby size (teams)"
                       : `Lobby size (teams, up to ${maxTeams})`
                   }
                   value={details.TournamentSize}
-                  onChange={(e) =>
-                    setDetails({
-                      ...details,
-                      TournamentSize: Number(e.target.value),
-                    })
+                  onChange={(n) =>
+                    setDetails({ ...details, TournamentSize: n })
                   }
                   min={2}
                   max={
@@ -1183,7 +1149,6 @@ export function CreateTournamentWizard() {
                         } teams. Upgrade for more.`
                       : undefined
                   }
-                  required
                 />
                 <DateInput
                   label="Date"
@@ -1227,14 +1192,11 @@ export function CreateTournamentWizard() {
                 />
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
                   label="Minutes between matches"
                   value={matchInterval}
-                  onChange={(e) =>
-                    setMatchInterval(Math.max(0, Number(e.target.value) || 0))
-                  }
+                  onChange={setMatchInterval}
                 />
                 <DateInput
                   label="Check-in closes (optional)"

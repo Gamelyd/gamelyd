@@ -29,6 +29,7 @@ const links: {
   { href: "/games", label: "Games", menuOnly: true },
   { href: "/games?kind=sports", label: "Sports", menuOnly: true },
   { href: "/org", label: "Organizations", auth: true, menuOnly: true },
+  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/pricing", label: "Pricing" },
   { href: "/about", label: "About" },
   { href: "/contact-us", label: "Contact" },

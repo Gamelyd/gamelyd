@@ -32,12 +32,16 @@ export function TournamentFilters({
   kind = "ALL",
   kinds = [],
   location,
+  org = "",
+  orgs = [],
 }: {
   type: string;
   status: string;
   kind?: string;
   kinds?: { slug: string; label: string }[];
   location: BrowseLocation;
+  org?: string;
+  orgs?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -62,8 +66,19 @@ export function TournamentFilters({
       )
       .map((item) => ({ label: item.label, value: item.slug })),
   ];
+  const orgOptions = [
+    { label: "All organizers", value: "" },
+    ...orgs.map((o) => ({ label: o.name, value: o.id })),
+  ];
 
-  const href = (next: Partial<BrowseLocation> & { status?: string; kind?: string; type?: string }) =>
+  const href = (
+    next: Partial<BrowseLocation> & {
+      status?: string;
+      kind?: string;
+      type?: string;
+      org?: string;
+    },
+  ) =>
     browseTournamentsHref({
       payment: "ALL",
       type: next.type ?? type,
@@ -74,6 +89,7 @@ export function TournamentFilters({
       lat: next.lat === undefined ? location.lat : next.lat,
       lng: next.lng === undefined ? location.lng : next.lng,
       radius: next.radius ?? location.radius,
+      org: next.org ?? org,
     });
 
   const nearMe = () => {
@@ -106,6 +122,7 @@ export function TournamentFilters({
     type.toUpperCase() !== "ALL" ||
     status.toUpperCase() !== "ALL" ||
     kind.toUpperCase() !== "ALL" ||
+    Boolean(org) ||
     Boolean(location.country) ||
     Boolean(location.place) ||
     Boolean(place.trim()) ||
@@ -154,6 +171,16 @@ export function TournamentFilters({
             onChange={(e) => router.push(href({ type: e.target.value }))}
           />
         </div>
+        {orgs.length > 0 ? (
+          <div className="w-56">
+            <Select
+              label="Organizer"
+              options={orgOptions}
+              value={org}
+              onChange={(e) => router.push(href({ org: e.target.value }))}
+            />
+          </div>
+        ) : null}
         {filtered ? (
           <Button
             type="button"

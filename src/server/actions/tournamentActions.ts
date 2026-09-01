@@ -31,6 +31,7 @@ import {
   getPublicTournaments,
   getTournamentById,
   getTournamentsByMode,
+  listHostingOrgs,
   getBannerTournaments,
   groupTournament,
   listAssignableManagers,
@@ -116,8 +117,25 @@ export async function getTournamentsByModeAction(
   status = "ALL",
   kind = "ALL",
   location?: BrowseLocation,
+  org = "",
 ): Promise<ActionResult<Paginated<Tournament>>> {
-  return ok(await getTournamentsByMode(payment, type, page, status, kind, location));
+  return ok(
+    await getTournamentsByMode(
+      payment,
+      type,
+      page,
+      status,
+      kind,
+      location,
+      org,
+    ),
+  );
+}
+
+export async function listHostingOrgsAction(): Promise<
+  ActionResult<{ id: string; name: string }[]>
+> {
+  return ok(await listHostingOrgs());
 }
 
 export async function getBannerTournamentsAction(): Promise<

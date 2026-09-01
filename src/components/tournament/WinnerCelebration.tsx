@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { Teams } from "@/lib/schemas/draw";
 import type { Podium } from "@/lib/podium";
@@ -8,18 +8,22 @@ import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 
-const BURST = Array.from({ length: 18 }, (_, i) => ({
-  angle: (i / 18) * 360,
-  dist: 72 + (i % 5) * 16,
-  delay: `${(i % 9) * 0.035}s`,
-  size: 4 + (i % 3) * 2,
-  tone: i % 2 === 0 ? "teal" : "gold",
+const CONFETTI_COLORS = ["#f6c945", "#2dd4bf", "#ffffff", "#f472b6", "#a78bfa"];
+const CONFETTI = Array.from({ length: 46 }, (_, i) => ({
+  left: (i * 97) % 100,
+  delay: `${(i % 13) * 0.16}s`,
+  duration: `${2.6 + (i % 6) * 0.45}s`,
+  drift: `${((i % 7) - 3) * 26}px`,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  w: 6 + (i % 3) * 2,
+  h: 10 + (i % 4) * 3,
+  round: i % 3 === 0,
 }));
 
-const PLACE_COPY = {
-  1: { label: "Champion", rank: "1st" },
-  2: { label: "Second", rank: "2nd" },
-  3: { label: "Third", rank: "3rd" },
+const PODIUM_META = {
+  1: { color: "#f6c945", label: "Champion", crest: 84, bar: 100 },
+  2: { color: "#cbd5e1", label: "Runner-up", crest: 62, bar: 68 },
+  3: { color: "#cd7f32", label: "Third", crest: 62, bar: 50 },
 } as const;
 
 export function WinnerCelebration({
@@ -35,8 +39,8 @@ export function WinnerCelebration({
 }) {
   const { first, second, third } = podium;
   const hasPodium = Boolean(second || third);
-  const fullPodium = Boolean(second && third);
   const [mounted, setMounted] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -57,233 +61,290 @@ export function WinnerCelebration({
 
   if (!mounted) return null;
 
+  const podiumCols: Array<{ team: Teams; place: 1 | 2 | 3 }> = [];
+  if (second) podiumCols.push({ team: second, place: 2 });
+  podiumCols.push({ team: first, place: 1 });
+  if (third) podiumCols.push({ team: third, place: 3 });
+
   return createPortal(
     <div
-      className="champion-overlay"
+      className="fixed inset-0 z-200 flex items-center justify-center overflow-hidden bg-black/85 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="champion-title"
       onClick={onClose}
     >
-      <div className="champion-glow" aria-hidden />
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[72vmin] w-[72vmin] -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow/20 blur-3xl"
+        style={{ animation: "champ-glow 3s ease-in-out infinite" }}
+        aria-hidden
+      />
 
-      <div className="champion-overlay-inner">
-        <div
-          className="champion-stage"
-          onClick={(event) => event.stopPropagation()}
-        >
-        <p className="champion-kicker">{gameName || "Tournament complete"}</p>
-        <p className="champion-event champion-event-top">{tournamentName}</p>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        {CONFETTI.map((c, i) => (
+          <span
+            key={i}
+            className="champ-confetti-piece absolute top-0 block"
+            style={
+              {
+                left: `${c.left}%`,
+                width: c.w,
+                height: c.h,
+                backgroundColor: c.color,
+                borderRadius: c.round ? "9999px" : "2px",
+                "--drift": c.drift,
+                animation: `champ-confetti ${c.duration} linear ${c.delay} infinite`,
+              } as CSSProperties
+            }
+          />
+        ))}
+      </div>
 
-        {hasPodium ? (
+      <div
+        className="relative w-full max-w-lg"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {hasPodium && !focused ? (
           <div
-            className={`champion-podium ${fullPodium ? "has-third" : "has-two"}`}
+            className="champ-animate relative overflow-hidden rounded-3xl border border-surface-2 bg-primary-panel p-6 shadow-2xl sm:p-8"
+            style={{ animation: "champ-pop .5s cubic-bezier(.2,.8,.2,1) both" }}
           >
-            {fullPodium ? (
-              <>
-                <PodiumSlot team={second!} place={2} />
-                <PodiumSlot team={first} place={1} featured />
-                <PodiumSlot team={third!} place={3} />
-              </>
-            ) : (
-              <>
-                <PodiumSlot team={first} place={1} featured />
-                {second ? <PodiumSlot team={second} place={2} /> : null}
-                {third && !second ? (
-                  <PodiumSlot team={third} place={3} />
-                ) : null}
-              </>
-            )}
+            <CloseButton onClose={onClose} />
+            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-yellow">
+              Final standings
+            </p>
+            <h2
+              id="champion-title"
+              className="mt-1 text-center font-display text-2xl text-white"
+            >
+              {tournamentName}
+            </h2>
+            {gameName ? (
+              <p className="mt-1 text-center text-xs text-body">{gameName}</p>
+            ) : null}
+
+            <div className="mt-8 flex items-end justify-center gap-3 sm:gap-5">
+              {podiumCols.map(({ team, place }) => (
+                <PodiumCol key={place} team={team} place={place} />
+              ))}
+            </div>
+
+            <RosterRow team={first} className="mt-7" label="Champion roster" />
+
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Button variant="outline" onClick={() => setFocused(true)}>
+                Champion view
+              </Button>
+              <Button onClick={onClose}>Enter tournament</Button>
+            </div>
           </div>
         ) : (
-          <ChampionHero team={first} />
+          <ChampionCard
+            team={first}
+            tournamentName={tournamentName}
+            gameName={gameName}
+            onClose={onClose}
+            onBack={hasPodium ? () => setFocused(false) : undefined}
+          />
         )}
-
-        {!hasPodium ? (
-          <>
-            <p className="champion-label">Champion</p>
-            <h2 id="champion-title" className="champion-name">
-              {first.TeamName}
-            </h2>
-            <span className="champion-rule" aria-hidden />
-            <Roster team={first} />
-          </>
-        ) : (
-          <h2 id="champion-title" className="sr-only">
-            {first.TeamName} won {tournamentName}
-          </h2>
-        )}
-
-          <Button onClick={onClose} className="mt-8">
-            Enter tournament
-          </Button>
-        </div>
       </div>
     </div>,
     document.body,
   );
 }
 
-function ChampionHero({ team }: { team: Teams }) {
-  const crest = resolveIcon(team.Icon, FALLBACKS.team);
-  return (
-    <div className="champion-core">
-      <div className="champion-burst" aria-hidden>
-        {BURST.map((spark, i) => (
-          <span
-            key={i}
-            className={`champion-spark champion-spark-${spark.tone}`}
-            style={{
-              width: spark.size,
-              height: spark.size,
-              animationDelay: spark.delay,
-              ["--a" as string]: `${spark.angle}deg`,
-              ["--d" as string]: `${spark.dist}px`,
-            }}
-          />
-        ))}
-      </div>
-      <HudRings />
-      <div className="champion-hex">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={crest} alt="" className="champion-crest" />
-      </div>
-    </div>
-  );
-}
-
-function PodiumSlot({
+function ChampionCard({
   team,
-  place,
-  featured = false,
+  tournamentName,
+  gameName,
+  onClose,
+  onBack,
 }: {
   team: Teams;
-  place: 1 | 2 | 3;
-  featured?: boolean;
+  tournamentName: string;
+  gameName: string;
+  onClose: () => void;
+  onBack?: () => void;
 }) {
   const crest = resolveIcon(team.Icon, FALLBACKS.team);
-  const copy = PLACE_COPY[place];
-  const wing = place === 2 ? "left" : place === 3 ? "right" : "under";
   return (
-    <div className={`champion-place champion-place-${place}`}>
-      <div className="champion-place-body">
-        {wing === "left" ? <Roster team={team} layout="stack" /> : null}
-        <div className="champion-place-team">
-          {featured ? (
-            <div className="champion-core champion-core-podium">
-              <div className="champion-burst" aria-hidden>
-                {BURST.map((spark, i) => (
-                  <span
-                    key={i}
-                    className={`champion-spark champion-spark-${spark.tone}`}
-                    style={{
-                      width: spark.size,
-                      height: spark.size,
-                      animationDelay: spark.delay,
-                      ["--a" as string]: `${spark.angle}deg`,
-                      ["--d" as string]: `${spark.dist}px`,
-                    }}
-                  />
-                ))}
-              </div>
-              <HudRings />
-              <div className="champion-hex">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={crest} alt="" className="champion-crest" />
-              </div>
-            </div>
-          ) : (
-            <div className={`champion-hex champion-hex-${place}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={crest} alt="" className="champion-crest" />
-            </div>
-          )}
-          <p className={`champion-place-rank champion-place-rank-${place}`}>
-            {copy.rank}
-          </p>
-          <p className="champion-place-label">{copy.label}</p>
-          <p className="champion-place-name">{team.TeamName}</p>
-          {wing === "under" ? <Roster team={team} layout="under" /> : null}
-        </div>
-        {wing === "right" ? <Roster team={team} layout="stack" /> : null}
+    <div
+      className="champ-animate relative overflow-hidden rounded-3xl border border-yellow/30 bg-primary-panel p-8 text-center shadow-2xl"
+      style={{ animation: "champ-pop .5s cubic-bezier(.2,.8,.2,1) both" }}
+    >
+      <CloseButton onClose={onClose} />
+      <Trophy />
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.4em] text-yellow">
+        Champion
+      </p>
+
+      <div className="relative mx-auto mt-5 h-28 w-28">
+        <div
+          className="absolute inset-0 rounded-full bg-yellow/30 blur-xl"
+          style={{ animation: "champ-glow 2.5s ease-in-out infinite" }}
+          aria-hidden
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={crest}
+          alt=""
+          className="relative h-28 w-28 rounded-full object-cover"
+          style={{ boxShadow: "0 0 0 4px #f6c945, 0 0 32px #f6c94577" }}
+        />
       </div>
-      <span className="champion-place-stand" aria-hidden />
+
+      <h2 id="champion-title" className="mt-5 font-display text-3xl text-white">
+        {team.TeamName}
+      </h2>
+      <RosterRow team={team} className="mt-4" />
+      <p className="mt-4 text-sm text-body">
+        {[gameName, tournamentName].filter(Boolean).join(" · ")}
+      </p>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        {onBack ? (
+          <Button variant="outline" onClick={onBack}>
+            Back to standings
+          </Button>
+        ) : null}
+        <Button onClick={onClose}>View tournament</Button>
+      </div>
     </div>
   );
 }
 
-function Roster({
+function PodiumCol({ team, place }: { team: Teams; place: 1 | 2 | 3 }) {
+  const meta = PODIUM_META[place];
+  const crest = resolveIcon(team.Icon, FALLBACKS.team);
+  return (
+    <div className="flex w-full max-w-[8.5rem] flex-1 flex-col items-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={crest}
+        alt=""
+        className="rounded-full object-cover"
+        style={{
+          width: meta.crest,
+          height: meta.crest,
+          boxShadow: `0 0 0 3px ${meta.color}, 0 0 22px ${meta.color}55`,
+        }}
+      />
+      <p className="mt-2 max-w-full truncate text-center text-sm font-semibold text-white">
+        {team.TeamName}
+      </p>
+      <p
+        className="text-[10px] font-semibold uppercase tracking-wide"
+        style={{ color: meta.color }}
+      >
+        {meta.label}
+      </p>
+      <div
+        className="mt-2 flex w-full justify-center rounded-t-lg"
+        style={{
+          height: meta.bar,
+          background: `linear-gradient(to bottom, ${meta.color}, ${meta.color}bb)`,
+        }}
+      >
+        <span className="mt-2 font-display text-2xl text-black/70">{place}</span>
+      </div>
+    </div>
+  );
+}
+
+function RosterRow({
   team,
-  layout = "row",
+  className = "",
+  label,
 }: {
   team: Teams;
-  layout?: "row" | "stack" | "under";
+  className?: string;
+  label?: string;
 }) {
   const roster = (team.Players ?? []).filter(
     (p) => p.UserName || p.GameUserName,
   );
   if (roster.length === 0) return null;
-  const scrollable = roster.length > 6;
   return (
-    <div
-      className={`champion-roster-wrap champion-roster-wrap-${layout}${
-        scrollable ? " is-scroll" : ""
-      }`}
-    >
-      {scrollable ? (
-        <p className="champion-roster-count">{roster.length} players</p>
+    <div className={className}>
+      {label ? (
+        <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-wider text-body">
+          {label}
+        </p>
       ) : null}
-      <ul className={`champion-roster champion-roster-${layout}`}>
-        {roster.map((player) => (
-          <li key={player.User_id || player.UserName}>
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+        {roster.slice(0, 8).map((player) => (
+          <span
+            key={player.User_id || player.UserName}
+            className="inline-flex items-center gap-1.5 text-xs text-body"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={resolvePlayerIcon(player.Icon, player.User_id)}
               alt=""
+              className="h-5 w-5 rounded-full object-cover"
             />
             <VerifiedName
               name={player.GameUserName || player.UserName}
               verified={player.Verified}
             />
-          </li>
+          </span>
         ))}
-      </ul>
+        {roster.length > 8 ? (
+          <span className="text-xs text-body">+{roster.length - 8}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function HudRings() {
+function CloseButton({ onClose }: { onClose: () => void }) {
   return (
-    <svg className="champion-rings" viewBox="0 0 280 280" aria-hidden>
-      <g className="champion-orbit champion-orbit-a">
-        <circle
-          cx="140"
-          cy="140"
-          r="126"
-          fill="none"
+    <button
+      type="button"
+      aria-label="Close"
+      onClick={onClose}
+      className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-black/30 text-white/70 transition-colors hover:bg-black/50 hover:text-white"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M6 6l12 12M18 6L6 18"
           stroke="currentColor"
-          strokeWidth="1.25"
-          strokeDasharray="6 10"
+          strokeWidth="2"
+          strokeLinecap="round"
         />
-        <circle cx="140" cy="14" r="3.5" fill="currentColor" />
-      </g>
-      <g className="champion-orbit champion-orbit-b">
-        <circle
-          cx="140"
-          cy="140"
-          r="108"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          strokeDasharray="2 14"
-        />
-      </g>
-      <polygon
-        points="140,28 238,84 238,196 140,252 42,196 42,84"
-        fill="none"
+      </svg>
+    </button>
+  );
+}
+
+function Trophy() {
+  return (
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      className="mx-auto text-yellow"
+      aria-hidden
+    >
+      <path
+        d="M7 4h10v4a5 5 0 0 1-10 0V4z"
         stroke="currentColor"
         strokeWidth="1.5"
-        className="champion-hex-stroke"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5A3.5 3.5 0 0 1 16.5 11"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12 13v3M8.5 20h7M9.5 20l.5-4h4l.5 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

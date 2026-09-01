@@ -37,6 +37,7 @@ export function browseTournamentsHref(args: {
   lat?: number | null;
   lng?: number | null;
   radius?: number;
+  org?: string;
 }): string {
   const pay = args.payment || "ALL";
   const fmt = args.type || "ALL";
@@ -49,6 +50,8 @@ export function browseTournamentsHref(args: {
   if (country) params.set("country", country);
   const place = (args.place ?? "").trim();
   if (place) params.set("place", place);
+  const org = (args.org ?? "").trim();
+  if (org) params.set("org", org);
   if (
     args.lat != null &&
     args.lng != null &&

@@ -13,7 +13,10 @@ import {
   browseTournamentsHref,
   parseBrowseStatus,
 } from "@/lib/tournamentStatus";
-import { getTournamentsByModeAction } from "@/server/actions/tournamentActions";
+import {
+  getTournamentsByModeAction,
+  listHostingOrgsAction,
+} from "@/server/actions/tournamentActions";
 import { getCatalogKindsAction } from "@/server/actions/catalogKindActions";
 import { DEFAULT_CATALOG_KINDS, parseCatalogKind } from "@/lib/catalog";
 import { parseBrowseLocation } from "@/lib/venue";
@@ -49,6 +52,7 @@ export default async function TournamentsPage({
     lat?: string;
     lng?: string;
     radius?: string;
+    org?: string;
   }>;
 }) {
   const { type } = await params;
@@ -57,16 +61,19 @@ export default async function TournamentsPage({
   const status = parseBrowseStatus(sp.status);
   const kind = parseCatalogKind(sp.kind);
   const location = parseBrowseLocation(sp);
+  const org = (sp.org ?? "").trim();
 
-  const [result, kindsResult] = await Promise.all([
+  const [result, kindsResult, orgsResult] = await Promise.all([
     // Payment is no longer a browse dimension; always list across all entries.
-    getTournamentsByModeAction("ALL", type, page, status, kind, location),
+    getTournamentsByModeAction("ALL", type, page, status, kind, location, org),
     getCatalogKindsAction(),
+    listHostingOrgsAction(),
   ]);
   const data = result.ok
     ? result.data
     : { items: [], total: 0, page, last_page: 1 };
   const kinds = kindsResult.ok ? kindsResult.data : DEFAULT_CATALOG_KINDS;
+  const orgs = orgsResult.ok ? orgsResult.data : [];
 
   return (
     <SiteLayout>
@@ -93,6 +100,8 @@ export default async function TournamentsPage({
           kind={kind}
           kinds={kinds.map((item) => ({ slug: item.slug, label: item.label }))}
           location={location}
+          org={org}
+          orgs={orgs}
         />
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -133,6 +142,7 @@ export default async function TournamentsPage({
                   lat: location.lat,
                   lng: location.lng,
                   radius: location.radius,
+                  org,
                 })}
                 className={`rounded-lg px-4 py-2 text-sm ${
                   p === data.page
