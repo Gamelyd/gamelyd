@@ -1909,23 +1909,6 @@ function Details({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5" {...helpTarget("tour-details")}>
-      <div className="rounded-xl border border-surface-2 bg-surface p-5">
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
-          About
-        </h3>
-        {tournament.Description ? (
-          <p className="mb-3 text-sm leading-relaxed text-white/90">
-            {tournament.Description}
-          </p>
-        ) : null}
-        {tournament.Note ? (
-          <Markdown source={tournament.Note} />
-        ) : !tournament.Description ? (
-          <p className="text-sm leading-relaxed text-body">
-            No description yet.
-          </p>
-        ) : null}
-      </div>
       {tournament.Payment === "SPONSORED" && tournament.Prizes.length > 0 ? (
         <div className="rounded-xl border border-yellow/40 bg-yellow/10 p-5">
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-yellow">
@@ -1952,6 +1935,23 @@ function Details({
           </p>
         </div>
       ) : null}
+      <div className="rounded-xl border border-surface-2 bg-surface p-5">
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white">
+          About
+        </h3>
+        {tournament.Description ? (
+          <p className="mb-3 text-sm leading-relaxed text-white/90">
+            {tournament.Description}
+          </p>
+        ) : null}
+        {tournament.Note ? (
+          <Markdown source={tournament.Note} />
+        ) : !tournament.Description ? (
+          <p className="text-sm leading-relaxed text-body">
+            No description yet.
+          </p>
+        ) : null}
+      </div>
       <div className="rounded-xl border border-surface-2 bg-surface p-5">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white">
           Details
