@@ -285,7 +285,8 @@ export async function removeUserAction(
 export async function deleteTournamentAction(
   id: string,
 ): Promise<ActionResult<{ isDeleted: boolean }>> {
-  const admin = await requireTournamentAdmin(id);
+  // Deleting/restoring is cleanup, allowed even on a finished tournament.
+  const admin = await requireTournamentAdmin(id, { allowFinished: true });
   if (!admin.ok) return admin;
   try {
     const isDeleted = await toggleDeleteTournament(admin.uid, id);
@@ -299,7 +300,7 @@ export async function deleteTournamentAction(
 export async function suspendTournamentAction(
   id: string,
 ): Promise<ActionResult<{ isSuspended: boolean }>> {
-  const admin = await requireTournamentAdmin(id);
+  const admin = await requireTournamentAdmin(id, { allowFinished: true });
   if (!admin.ok) return admin;
   try {
     const isSuspended = await toggleSuspendTournament(admin.uid, id);

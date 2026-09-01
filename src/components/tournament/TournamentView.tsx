@@ -56,6 +56,7 @@ import {
   groupQualifiersComplete,
 } from "@/lib/groupQualifiers";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
+import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import {
   groupKnockoutTies,
   knockoutRoundsForBracket,
@@ -209,6 +210,8 @@ export function TournamentView({
   );
   const champion = podium?.first;
   const championName = champion?.TeamName?.trim() ?? "";
+  // Once a champion is decided the event is frozen: view-only, no more edits.
+  const isFinished = Boolean(championName);
 
   const [celebrate, setCelebrate] = useState(() => Boolean(championName));
 
@@ -356,8 +359,10 @@ export function TournamentView({
   }, [canManage, champion, draws, started, participants, tournament, isGroups, isKnockout]);
 
   useEffect(() => {
-    if ((tab === "run" || tab === "invite") && !canManage) setTab("details");
-  }, [tab, canManage]);
+    if ((tab === "run" || tab === "invite") && (!canManage || isFinished)) {
+      setTab("details");
+    }
+  }, [tab, canManage, isFinished]);
 
   useEffect(() => {
     if (!user) {
@@ -395,7 +400,7 @@ export function TournamentView({
           : "Announcements",
       show: true,
     },
-    { id: "invite", label: "Invite", show: canManage },
+    { id: "invite", label: "Invite", show: canManage && !isFinished },
     {
       id: "teams",
       label: isGroups
@@ -412,7 +417,7 @@ export function TournamentView({
     },
     { id: "fixtures", label: "Fixtures", show: true },
     { id: "register", label: "Register", show: canRegister },
-    { id: "run", label: "Run", show: canManage },
+    { id: "run", label: "Run", show: canManage && !isFinished },
   ];
 
   const teamIcons = useMemo(
@@ -1372,7 +1377,7 @@ export function TournamentView({
                             mine={mineDrawIds.has(d.DrawId)}
                             timeZoneLabel={tzLabel}
                             draw={d}
-                            canManage={canManage}
+                            canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
                             onUpdated={handleDrawUpdated}
                             knockoutFormat={tournament.KnockoutFormat}
                             seriesGames={
@@ -1400,7 +1405,7 @@ export function TournamentView({
                                 mine={mineDrawIds.has(d.DrawId)}
                             timeZoneLabel={tzLabel}
                                 draw={d}
-                                canManage={canManage}
+                                canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
                                 onUpdated={handleDrawUpdated}
                                 knockoutFormat={tournament.KnockoutFormat}
                                 seriesGames={
@@ -1429,7 +1434,7 @@ export function TournamentView({
                           mine={mineDrawIds.has(d.DrawId)}
                           timeZoneLabel={tzLabel}
                           draw={d}
-                          canManage={canManage}
+                          canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
                           onUpdated={handleDrawUpdated}
                         />
                       ))}
@@ -1467,7 +1472,7 @@ export function TournamentView({
                             mine={mineDrawIds.has(d.DrawId)}
                             timeZoneLabel={tzLabel}
                             draw={d}
-                            canManage={canManage}
+                            canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
                             onUpdated={handleDrawUpdated}
                             knockoutFormat={
                               tournament.TournamentMode === "MULTIPLAYER"

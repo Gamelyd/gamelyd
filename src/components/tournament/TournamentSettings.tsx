@@ -238,7 +238,9 @@ export function EditTournamentSettings({
     setPendingSave(null);
   };
 
-  const locked = Boolean(busyField) || Boolean(pendingSave);
+  // A finished tournament is frozen: view-only, so every control is disabled.
+  const finished = Boolean(tournament.Winner?.TeamName?.trim());
+  const locked = finished || Boolean(busyField) || Boolean(pendingSave);
 
   const changeShuffle = (next: Tournament["Shuffle"]) => {
     if (next === tournament.Shuffle || locked) return;
@@ -442,9 +444,11 @@ export function EditTournamentSettings({
       <div>
         <h3 className="mb-1 font-semibold text-white">Tournament settings</h3>
         <p className="text-sm text-body">
-          {started
-            ? "You can still edit anything. Rules that change how the event is played wait for every registered player to accept, then you apply them."
-            : "You'll be asked to confirm each change."}
+          {finished
+            ? "This tournament has finished, so it is view-only. Settings are locked."
+            : started
+              ? "You can still edit anything. Rules that change how the event is played wait for every registered player to accept, then you apply them."
+              : "You'll be asked to confirm each change."}
         </p>
       </div>
 

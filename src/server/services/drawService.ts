@@ -20,6 +20,7 @@ import {
 import { relatedTournamentIds } from "./tournamentService";
 import { settleEndedTournament } from "./paymentService";
 import { ServiceError } from "./userService";
+import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import { createNotifications } from "./notificationService";
 import { sendEmail } from "../email/mailer";
 import {
@@ -942,6 +943,7 @@ export async function getDrawTournamentId(
 }
 
 export async function addWinner(drawId: string, winner: string): Promise<Draw> {
+  await assertDrawEditable(drawId);
   const col = await draws();
   const updated = await col.findOneAndUpdate(
     asDocFilter<DrawDoc>(byDrawId(drawId)),
@@ -954,10 +956,31 @@ export async function addWinner(drawId: string, winner: string): Promise<Draw> {
   return hydrateDraw(mapped);
 }
 
+/**
+ * Rejects an edit to a fixture in a round the tournament has moved past: once a
+ * later knockout round (or the knockout after groups) is drawn, old rounds are
+ * frozen so results cannot shift under the bracket built from them.
+ */
+async function assertDrawEditable(drawId: string): Promise<void> {
+  const col = await draws();
+  const doc = await col.findOne(asDocFilter<DrawDoc>(byDrawId(drawId)));
+  if (!doc) return;
+  const draw = serializeDraw(doc);
+  const siblings = await col
+    .find(asDocFilter<DrawDoc>(byTournamentId(draw.TournamentId)))
+    .toArray();
+  if (isFixtureStageLocked(draw, siblings.map(serializeDraw))) {
+    throw new ServiceError(
+      "This round is locked because a later round has already been drawn",
+    );
+  }
+}
+
 export async function addTime(
   drawId: string,
   input: AddTimeInput,
 ): Promise<Draw> {
+  await assertDrawEditable(drawId);
   const col = await draws();
   const updated = await col.findOneAndUpdate(
     asDocFilter<DrawDoc>(byDrawId(drawId)),
@@ -985,6 +1008,7 @@ export async function setDrawVenue(
   drawId: string,
   input: SetDrawVenueInput,
 ): Promise<Draw> {
+  await assertDrawEditable(drawId);
   const col = await draws();
   const name = input.VenueName.trim();
   const hasPoint =
@@ -1039,6 +1063,7 @@ export async function addScore(
   drawId: string,
   input: AddScoreInput,
 ): Promise<Draw> {
+  await assertDrawEditable(drawId);
   const col = await draws();
   const winner =
     input.Team1 > input.Team2
@@ -1093,6 +1118,7 @@ export async function addScore(
 }
 
 export async function addLink(drawId: string, link: string): Promise<Draw> {
+  await assertDrawEditable(drawId);
   const col = await draws();
   const updated = await col.findOneAndUpdate(
     asDocFilter<DrawDoc>(byDrawId(drawId)),

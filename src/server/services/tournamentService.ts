@@ -1345,6 +1345,13 @@ export async function canManuallyAddParticipants(
   return t.OwnerCanAddParticipants;
 }
 
+/** A finished tournament (a champion is decided) is frozen: view-only. */
+export async function tournamentIsFinished(id: string): Promise<boolean> {
+  const found = await findByAnyId(id);
+  if (!found) return false;
+  return Boolean(serializeTournament(found).Winner?.TeamName?.trim());
+}
+
 /**
  * True if the user can drag teams between groups before fixtures are drawn.
  * Platform admins always can. Owners and co-managers can only when the

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -257,7 +257,7 @@ function MpFixture({
           : "border-surface-2 bg-surface"
       } ${mine ? "ring-2 ring-cyan" : ""}`}
     >
-      <div className="mb-2.5 flex flex-wrap items-center gap-2 pr-9">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
         {mine ? (
           <span className="inline-flex items-center rounded-full bg-cyan/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan">
             Your team
@@ -290,16 +290,6 @@ function MpFixture({
           </span>
         ) : null}
       </div>
-
-      {canManage && !autoBye ? (
-        <ManageMenu
-          hasVenue={Boolean(draw.VenueName)}
-          onSelect={(next) => {
-            if (next === "score") beginScoreEdit();
-            else setMode(next);
-          }}
-        />
-      ) : null}
 
       {autoBye ? (
         <div className="flex items-center justify-between gap-3">
@@ -536,9 +526,55 @@ function MpFixture({
               ) : null}
             </div>
           )}
+
+          {canManage && mode === null ? (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-surface-2 pt-3">
+              <FixtureAction
+                onClick={beginScoreEdit}
+                label={played ? "Edit score" : "Add score"}
+                primary
+              />
+              <FixtureAction
+                onClick={() => setMode("time")}
+                label={draw.Time ? "Change time" : "Add time"}
+              />
+              <FixtureAction
+                onClick={() => setMode("venue")}
+                label={draw.VenueName ? "Change location" : "Add location"}
+              />
+              <FixtureAction
+                onClick={() => setMode("link")}
+                label={draw.Link ? "Edit link" : "Add link"}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
+  );
+}
+
+function FixtureAction({
+  onClick,
+  label,
+  primary = false,
+}: {
+  onClick: () => void;
+  label: string;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+        primary
+          ? "bg-primary text-on-primary hover:bg-primary-dark"
+          : "border border-primary/40 text-primary hover:bg-primary hover:text-on-primary"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -626,68 +662,6 @@ function TeamRow({
   );
 }
 
-function ManageMenu({
-  onSelect,
-  hasVenue = false,
-}: {
-  onSelect: (mode: "score" | "time" | "link" | "venue") => void;
-  hasVenue?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  return (
-    <div ref={root} className="absolute right-0 top-0 z-40">
-      <button
-        type="button"
-        aria-label="Fixture actions"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow text-on-primary shadow-lg ring-2 ring-black/30 hover:bg-yellow-soft"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="12" cy="5" r="2.25" />
-          <circle cx="12" cy="12" r="2.25" />
-          <circle cx="12" cy="19" r="2.25" />
-        </svg>
-      </button>
-      {open ? (
-        <div className="absolute right-0 top-10 min-w-[160px] overflow-hidden rounded-lg border border-surface-2 bg-surface py-1 shadow-xl">
-          {(
-            [
-              ["score", "Add score"],
-              ["time", "Add time"],
-              ["venue", hasVenue ? "Change location" : "Add location"],
-              ["link", "Add match link"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                onSelect(value);
-                setOpen(false);
-              }}
-              className="block w-full px-4 py-2.5 text-left text-sm text-white hover:bg-surface-2"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function BrFixture({
   draw,
   canManage,
@@ -738,14 +712,6 @@ function BrFixture({
         mine ? "border-cyan ring-2 ring-cyan" : "border-surface-2"
       }`}
     >
-      {canManage && (
-        <ManageMenu
-          onSelect={() => {
-            setRows(draw.BRTeams);
-            setOpen(true);
-          }}
-        />
-      )}
       {mine ? (
         <span className="mb-2 inline-flex items-center rounded-full bg-cyan/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan">
           Your team
@@ -848,6 +814,20 @@ function BrFixture({
           </a>
         ) : null}
       </div>
+      {canManage && !open ? (
+        <div className="mt-4 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setRows(draw.BRTeams);
+              setOpen(true);
+            }}
+          >
+            {draw.Played ? "Edit results & time" : "Enter results & time"}
+          </Button>
+        </div>
+      ) : null}
       {canManage && open && (
         <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
           <DateInput

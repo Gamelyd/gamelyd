@@ -135,6 +135,13 @@ export function TournamentManageView({
         </Link>
       </div>
 
+      {tournament.Winner?.TeamName?.trim() ? (
+        <div className="mb-6 rounded-xl border border-yellow/40 bg-yellow/10 p-4 text-sm text-yellow">
+          This tournament has finished, so it is now view-only. Settings,
+          fixtures, and teams are locked.
+        </div>
+      ) : null}
+
       <div className="mb-8 flex gap-1 overflow-x-auto border-b border-surface-2">
         {MANAGE_TABS.filter(
           (t) => t.id !== "settings" || canAdminister,
