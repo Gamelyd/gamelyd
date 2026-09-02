@@ -38,7 +38,6 @@ export default async function PricingPage() {
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Pricing"
         title="Free to play. Free to run."
         description="Creating a tournament and joining one are always free. If you organise at scale, a plan or a one-off payment lifts the limits. Players are never charged."
       />
@@ -51,10 +50,8 @@ export default async function PricingPage() {
             return (
               <div
                 key={plan}
-                className={`flex flex-col rounded-2xl border p-6 ${
-                  featured
-                    ? "border-primary bg-primary/10"
-                    : "border-surface-2 bg-surface"
+                className={`flex flex-col rounded-2xl border bg-primary-panel p-6 ${
+                  featured ? "border-primary" : "border-white/10"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -69,18 +66,23 @@ export default async function PricingPage() {
                 </div>
                 <p className="mt-1 text-sm text-body">{l.blurb}</p>
 
-                <p className="mt-4 font-display text-3xl text-white">
-                  {plan === "FREE" ? "Free" : "Contact us"}
+                {/*
+                 * The paid tiers are quoted, not listed. "Contact us" in the
+                 * price slot read like a broken price, so say Custom and put
+                 * the ask in the button where it belongs.
+                 */}
+                <p className="mt-5 font-display text-4xl leading-none text-secondary">
+                  {plan === "FREE" ? "Free" : "Custom"}
                 </p>
-                <p className="text-xs text-body">
+                <p className="mt-1.5 text-xs text-body">
                   {plan === "FREE"
                     ? "No card, no catch."
-                    : "Monthly subscription, billed to the organiser."}
+                    : "Monthly, quoted for your club. Billed to the organiser, never to players."}
                 </p>
 
-                <ul className="mt-5 flex flex-1 flex-col gap-2 text-sm text-body">
+                <ul className="mt-6 flex flex-1 flex-col gap-2.5 border-t border-white/10 pt-6 text-sm text-body">
                   {featureLines(plan).map((line) => (
-                    <li key={line} className="flex gap-2">
+                    <li key={line} className="flex gap-2.5">
                       <span className="mt-0.5 text-primary">✓</span>
                       <span>{line}</span>
                     </li>
@@ -90,7 +92,7 @@ export default async function PricingPage() {
                 <div className="mt-6">
                   {plan === "FREE" ? (
                     <Link href="/tournament/new">
-                      <span className="block rounded-lg border border-primary/40 py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary">
+                      <span className="block rounded-lg border border-primary py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary">
                         Create a tournament
                       </span>
                     </Link>
@@ -100,10 +102,10 @@ export default async function PricingPage() {
                         className={`block rounded-lg py-2.5 text-center text-sm font-semibold transition-colors ${
                           featured
                             ? "bg-primary text-on-primary hover:bg-primary-dark"
-                            : "border border-primary/40 text-primary hover:bg-primary hover:text-on-primary"
+                            : "border border-primary text-primary hover:bg-primary hover:text-on-primary"
                         }`}
                       >
-                        Contact us to upgrade
+                        Get a quote
                       </span>
                     </Link>
                   )}
@@ -114,7 +116,7 @@ export default async function PricingPage() {
         </div>
 
         {oneOff.enabled && oneOff.priceMinor > 0 ? (
-          <div className="mt-8 rounded-2xl border border-surface-2 bg-surface p-6">
+          <div className="mt-5 rounded-2xl border border-white/10 bg-primary-panel p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="max-w-xl">
                 <h2 className="font-display text-xl text-white">
@@ -127,7 +129,7 @@ export default async function PricingPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-display text-3xl text-white">
+                <p className="font-display text-3xl leading-none text-secondary">
                   {formatMoney(oneOff.priceMinor / 100, oneOff.currency)}
                 </p>
                 <p className="text-xs text-body">per tournament</p>

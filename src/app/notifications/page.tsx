@@ -180,7 +180,6 @@ export default function NotificationsPage() {
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Inbox"
         title="Notifications"
         description="Invites, announcements, fixture draws, match times, scores, and setting changes. You are not on a team until you accept a team invite."
         width="max-w-3xl"

@@ -893,8 +893,13 @@
   transition: opacity 0.25s ease;
 }
 
+/*
+ * Neutral by default. Teal is reserved for things you can act on - when it
+ * also outlines every static panel, buttons and links stop standing out.
+ * Panels that are themselves interactive still light up teal on hover.
+ */
 .arena-panel {
-  border: 1px solid rgb(11 192 180 / 0.25);
+  border: 1px solid rgb(255 255 255 / 0.1);
   background: var(--color-primary-panel);
   border-radius: 1rem;
 }

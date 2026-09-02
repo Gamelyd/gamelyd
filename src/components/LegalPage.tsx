@@ -19,29 +19,35 @@ export function LegalPage({
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Legal"
         title={title}
         description={`Last updated: ${updated}`}
         width="max-w-4xl"
       />
 
-      <section className="mx-auto max-w-4xl space-y-4 px-page py-16">
-        <Reveal>
-          <div className="space-y-4">
-            {sections.map((s, i) => (
-              <div key={i} className="arena-panel arena-hud-corners p-5 sm:p-6">
-                <h2 className="font-display text-xl text-white">
-                  {i + 1}. {s.heading}
-                </h2>
-                {(Array.isArray(s.body) ? s.body : [s.body]).map((p, j) => (
-                  <p key={j} className="mt-2 text-sm leading-relaxed text-body">
-                    {p}
-                  </p>
-                ))}
-              </div>
-            ))}
-          </div>
-        </Reveal>
+      {/* Legal copy reads as a document, so the clauses are separated by rules
+          rather than boxed into cards. */}
+      <section className="border-t border-white/8">
+        <div className="mx-auto max-w-4xl px-page py-16">
+          <Reveal>
+            <div className="divide-y divide-white/10">
+              {sections.map((s, i) => (
+                <div key={i} className="py-7 first:pt-0 last:pb-0">
+                  <h2 className="font-display text-xl text-white">
+                    <span className="text-primary">{i + 1}.</span> {s.heading}
+                  </h2>
+                  {(Array.isArray(s.body) ? s.body : [s.body]).map((p, j) => (
+                    <p
+                      key={j}
+                      className="mt-2 max-w-3xl text-sm leading-relaxed text-body"
+                    >
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
       </section>
     </SiteLayout>
   );

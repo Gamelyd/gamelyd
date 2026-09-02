@@ -61,7 +61,6 @@ export default function CreateOrgPage() {
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Clubs"
         title="Create an organization"
         description="Host tournaments under your brand and invite teammates to help manage them."
         width="max-w-3xl"

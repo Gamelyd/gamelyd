@@ -21,7 +21,6 @@ export default async function LeaderboardPage() {
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Rankings"
         title="Leaderboard"
         description="The top players across Gamelyd. Rank by tournaments won or matches won, and filter by game or event type."
       />

@@ -9,11 +9,7 @@ import {
   tournamentBrowsePhase,
 } from "@/lib/tournamentStatus";
 import { VerifiedName } from "@/components/ui/VerifiedName";
-import {
-  catalogSubtitle,
-  GAMES_KIND,
-  kindPublicLabel,
-} from "@/lib/catalog";
+import { catalogSubtitle } from "@/lib/catalog";
 import {
   formatDistanceKm,
   nearestVenueKm,
@@ -25,14 +21,19 @@ import { RatingBadge } from "@/components/rating/RatingBadge";
 export function TournamentCard({
   tournament,
   from,
+  /*
+   * "notable" drops the phase badge from events that are open to register,
+   * for lists that already say so in their heading - ten identical
+   * REGISTRATION OPEN chips under "Open now" are noise, not information.
+   */
+  phaseBadge = "all",
 }: {
   tournament: Tournament;
   from?: { lat: number; lng: number };
+  phaseBadge?: "all" | "notable";
 }) {
   const image = resolveIcon(tournament.icon, FALLBACKS.tournament);
   const phase = tournamentBrowsePhase(tournament);
-  const kindSlug = tournament.CatalogKind || GAMES_KIND;
-  const kindLabel = kindPublicLabel(kindSlug);
   const venue = venueLabel(tournament);
   const km = from ? nearestVenueKm(tournament, from) : null;
   const distance = km != null ? formatDistanceKm(km) : "";
@@ -52,6 +53,11 @@ export function TournamentCard({
       />
       <div className="absolute inset-0 z-1 bg-linear-to-t from-black via-black/45 to-black/10" />
 
+      {/*
+       * Four stacked badges covered the top third of the artwork and ran into
+       * the org chip. Phase is what people scan for, payment is what makes an
+       * event special; access and catalogue kind are on the event page.
+       */}
       <div
         className={`absolute left-3 top-3 z-2 flex flex-wrap gap-1.5 ${
           tournament.OrgId && tournament.OrgName
@@ -59,20 +65,12 @@ export function TournamentCard({
             : "right-3"
         }`}
       >
+        {phaseBadge === "all" || phase !== "REGISTRATION" ? (
+          <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+            {BROWSE_STATUS_LABEL[phase]}
+          </span>
+        ) : null}
         <Tag payment={tournament.Payment} className="rounded-md" />
-        {tournament.TournamentType === "PRIVATE" ? (
-          <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
-            Invite only
-          </span>
-        ) : null}
-        <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
-          {BROWSE_STATUS_LABEL[phase]}
-        </span>
-        {kindSlug !== GAMES_KIND ? (
-          <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
-            {kindLabel}
-          </span>
-        ) : null}
       </div>
 
       {tournament.OrgId && tournament.OrgName && (

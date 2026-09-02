@@ -11,15 +11,17 @@ export function SectionHead({
   title,
   description,
 }: {
-  kicker: string;
+  kicker?: string;
   title: string;
   description?: ReactNode;
 }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
-        {kicker}
-      </p>
+      {kicker ? (
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
+          {kicker}
+        </p>
+      ) : null}
       <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
         {title}
       </h2>
@@ -35,53 +37,51 @@ export function HowItWorks() {
     {
       n: "01",
       title: "Create the event",
-      body: "Pick a game or a sport, then the format. Set the date and how many teams can join. Publishing closes nothing. Registration stays open until you start.",
+      body: "Pick a game or sport, then the format. Registration stays open until you start.",
     },
     {
       n: "02",
       title: "Players register",
-      body: "Solo, duo, or squad. Every event shows on the tournament list. Invite-only means people still need an invite to register.",
+      body: "Solo, duo, or squad. Every event shows on the tournament list, invite-only included.",
     },
     {
       n: "03",
       title: "Draw fixtures",
-      body: "Start the tournament when the lobby is full. Knockouts pair teams. Groups get a round-robin inside each pool, then a seeded bracket. Leagues generate every matchday. Battle royale uses a single lobby.",
+      body: "Knockouts pair teams, groups play a round-robin, leagues generate every matchday.",
     },
     {
       n: "04",
       title: "Record results",
-      body: "Hosts enter scores from the fixtures tab. Tables and the knockout tree update from those results. Unplayed matches block the next draw so a round cannot skip ahead. Keep screenshots of your games in case a result is disputed.",
+      body: "Enter scores and the table and the knockout tree update from them.",
     },
   ];
 
   return (
-    <section className="border-t border-primary/20">
+    <section className="border-t border-white/8">
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <div {...helpTarget("home-how")}>
-          <SectionHead
-            kicker="How it works"
-            title="From lobby to final"
-            description="Gamelyd is the operations layer for a tournament: signup, draws, scores, and a public page players can follow. You do not need a spreadsheet or a second chat for fixtures."
-          />
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step) => (
-              <article
-                key={step.n}
-                className="arena-panel arena-hud-corners p-5 sm:p-6"
-              >
-                <p className="grid h-10 w-10 place-items-center rounded-lg bg-primary font-display text-lg text-[#04201e]">
-                  {step.n}
-                </p>
-                <h3 className="mt-4 font-display text-xl text-white">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-body">
-                  {step.body}
-                </p>
-              </article>
-            ))}
-          </div>
+            <SectionHead
+              title="From lobby to final"
+              description="Gamelyd is the operations layer for a tournament: signup, draws, scores, and a public page players can follow."
+            />
+            {/* A numbered rail rather than four bordered cards - the steps are
+                one sequence, so they should read as one object. */}
+            <ol className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+              {steps.map((step) => (
+                <li key={step.n} className="lg:border-t lg:border-white/10 lg:pt-5">
+                  <p className="font-display text-2xl leading-none text-primary">
+                    {step.n}
+                  </p>
+                  <h3 className="mt-3 font-display text-xl text-white">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-body">
+                    {step.body}
+                  </p>
+                </li>
+              ))}
+            </ol>
           </div>
         </Reveal>
       </div>
@@ -89,158 +89,137 @@ export function HowItWorks() {
   );
 }
 
-export function MoneyAndSafety() {
-  const items = [
-    {
-      title: "Free to run",
-      body: "Create a tournament, invite players, draw fixtures, and record results at no cost. A knockout for your friends is free, always, with no catch.",
-    },
-    {
-      title: "Pay only if you organise big",
-      body: "Running large events, leagues, or several at once? A club plan or a one-off payment unlocks bigger tournaments. Players never pay to join.",
-    },
-    {
-      title: "Keep proof of your games",
-      body: "Save screenshots, recordings, and match IDs of your wins. If a score is disputed, that proof is what you and the host use. Do not rely on a chat that can disappear.",
-    },
-  ];
+const FORMATS: {
+  title: string;
+  body: string;
+  glyph: "knockout" | "groups" | "league" | "br";
+}[] = [
+  {
+    title: "Knockout",
+    glyph: "knockout",
+    body: "Single-elimination tree. Byes handled when the field is odd.",
+  },
+  {
+    title: "Groups",
+    glyph: "groups",
+    body: "Round-robin pools, then a seeded bracket for the teams that advance.",
+  },
+  {
+    title: "League",
+    glyph: "league",
+    body: "Everyone plays everyone, with an optional return leg. The table decides it.",
+  },
+  {
+    title: "Battle royale",
+    glyph: "br",
+    body: "One lobby, many teams. Record placements, kills, and wins on a single draw.",
+  },
+];
 
+/**
+ * Formats and the catalogue answer the same question - "will it run my
+ * competition?" - so they share one section instead of three.
+ */
+export function FormatsAndGames({
+  games,
+  sports,
+}: {
+  games: Game[];
+  sports: Game[];
+}) {
   return (
-    <section className="border-t border-primary/20">
+    <section className="border-t border-white/8 bg-primary-panel">
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <SectionHead
-            kicker="What it costs"
-            title="Free to play. Free to run."
-            description="Tournaments are free to create and free to join. Organisers running competitions at scale can upgrade for bigger events."
-          />
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {items.map((item) => (
-              <article
-                key={item.title}
-                className="arena-panel arena-hud-corners p-5 sm:p-6"
-              >
-                <h3 className="font-display text-xl text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-body">
-                  {item.body}
-                </p>
-              </article>
-            ))}
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-export function Formats() {
-  const formats: {
-    title: string;
-    body: string;
-    glyph: "knockout" | "groups" | "league" | "br";
-  }[] = [
-    {
-      title: "Knockout",
-      glyph: "knockout",
-      body: "Single-elimination tree. Winners move toward the final. Byes are handled when the field is odd. The bracket fills as rounds are drawn.",
-    },
-    {
-      title: "Groups",
-      glyph: "groups",
-      body: "Round-robin inside each group, then a knockout. Top teams advance (you choose how many). Tables show points, and the knockout uses group-winner placeholders until qualification.",
-    },
-    {
-      title: "League",
-      glyph: "league",
-      body: "Everyone plays everyone. Matchdays are generated up front, including a return leg if you want home and away. First place is decided by the points system you set.",
-    },
-    {
-      title: "Battle royale",
-      glyph: "br",
-      body: "One lobby, many teams. Record placements, kills, and wins on a single draw instead of a pairwise tree. Built for titles that do not play as 1v1 fixtures.",
-    },
-  ];
-
-  return (
-    <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-page px-page py-16">
-        <Reveal>
-          <SectionHead
-            kicker="Formats"
             title="Run the structure the game needs"
-            description="FIFA cups, Warzone lobbies, and club leagues do not share a bracket. Choose the mode when you create the event. The draw engine and the public page follow that choice."
+            description="FIFA cups, Warzone lobbies, and club leagues do not share a bracket. Choose the mode when you create the event, and the draw engine follows."
           />
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
-            {formats.map((item) => (
-              <article
-                key={item.title}
-                className="arena-panel arena-hud-corners p-5 sm:p-6"
-              >
-                <span className="mb-4 grid h-10 w-10 place-items-center rounded-lg bg-primary text-[#04201e]">
+
+          <div className="mt-10 grid gap-x-6 gap-y-7 sm:grid-cols-2 lg:grid-cols-4">
+            {FORMATS.map((item) => (
+              <article key={item.title}>
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/15 text-primary">
                   <FormatGlyph kind={item.glyph} />
                 </span>
-                <h3 className="font-display text-2xl text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-body">
+                <h3 className="mt-3 font-display text-xl text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-body">
                   {item.body}
                 </p>
               </article>
             ))}
           </div>
-          <p className="mt-6 text-sm text-body">
+
+          <p className="mt-7 border-t border-white/10 pt-6 text-sm text-body">
             Rosters can be solo, duo, or squad. Draws can be automatic or kept
             in registration order.
           </p>
+
+          <GameRow
+            games={games}
+            title="Games you can host"
+            description="Pick a title, then the platforms it supports: Crossplay, PlayStation, Xbox, or PC."
+            href="/games"
+          />
+          <GameRow
+            games={sports}
+            title="Sports you can host"
+            description="Football, basketball, and any sport you add. Pick a format like 5-a-side, then run knockout, groups, or a league."
+            href="/games?kind=sports"
+          />
         </Reveal>
       </div>
     </section>
   );
 }
 
-export function GamesStrip({
+function GameRow({
   games,
-  kicker = "Titles",
-  title = "Games you can host",
-  description = "Pick a title when you create a tournament, then choose the platforms it supports: Crossplay, PlayStation, Xbox, or PC.",
-  href = "/games",
-  moreLabel = "View more",
+  title,
+  description,
+  href,
 }: {
   games: Game[];
-  kicker?: string;
-  title?: string;
-  description?: string;
-  href?: string;
-  moreLabel?: string;
+  title: string;
+  description: string;
+  href: string;
 }) {
   if (games.length === 0) return null;
 
   return (
-    <section className="border-t border-primary/20">
-      <div className="mx-auto max-w-page px-page py-16">
-        <Reveal>
-          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-            <SectionHead
-              kicker={kicker}
-              title={title}
-              description={description}
-            />
-            <Link href={href}>
-              <Button variant="outline">{moreLabel}</Button>
-            </Link>
-          </div>
-          <GamesCarousel games={games} />
-        </Reveal>
+    <div className="mt-12">
+      <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h3 className="font-display text-2xl text-white">{title}</h3>
+          <p className="mt-1 max-w-xl text-sm text-body">{description}</p>
+        </div>
+        <Link
+          href={href}
+          className="text-sm font-semibold text-primary hover:underline"
+        >
+          View all
+        </Link>
       </div>
-    </section>
+      <GamesCarousel games={games} />
+    </div>
   );
 }
 
-export function Audience() {
+const PRICING = [
+  ["Free to run", "Create, invite, draw, and record results at no cost."],
+  ["Pay only to scale", "Bigger lobbies, leagues, or several at once need a plan."],
+  ["Players never pay", "Joining a tournament is always free."],
+];
+
+export function PlayersAndHosts() {
   return (
-    <section className="border-t border-primary/20">
+    <section className="border-t border-white/8">
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <article className="arena-panel arena-hud-corners p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <article className="rounded-2xl border border-white/10 bg-primary-panel p-6 sm:p-7">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
                 Players
               </p>
@@ -248,23 +227,24 @@ export function Audience() {
                 Find a lobby and show up
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Browse tournaments by mode and type. Open an event to see
-                the roster, group tables, fixtures, and the knockout tree.
-                Register with the team size the host set. Only join hosts you
-                trust, and keep proof of your matches. After it starts, follow
-                results on the same page.
+                Browse tournaments by mode and type. Open an event to see the
+                roster, group tables, fixtures, and the knockout tree, then
+                register with the team size the host set. Invite-only events
+                still show on the list, you just need the invite first.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Invite-only events still show on the list. You just cannot
-                register until the host invites you and you accept. Create an
-                account so your registrations and hosted events sit on your
-                dashboard.
+                Only join hosts you trust, and keep screenshots of your matches
+                in case a result is disputed.
               </p>
-              <Link href="/tournament/all/ALL/ALL" className="mt-6 inline-block">
+              <Link
+                href="/tournament/all/ALL/ALL"
+                className="mt-6 inline-block"
+              >
                 <Button>Browse tournaments</Button>
               </Link>
             </article>
-            <article className="arena-panel arena-hud-corners p-5 sm:p-6">
+
+            <article className="rounded-2xl border border-white/10 bg-primary-panel p-6 sm:p-7">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
                 Hosts
               </p>
@@ -272,23 +252,35 @@ export function Audience() {
                 Run the event without a side spreadsheet
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Create the tournament, share the page, and close registration
-                when you start. Group hosts can rearrange teams before the first
-                draw. Co-managers from your organization can record scores if
-                you add them in settings.
+                Create the tournament, share one URL for the roster, fixtures,
+                tables, and the bracket, and close registration when you start.
+                Group hosts can rearrange teams before the first draw.
               </p>
               <p className="mt-3 text-sm leading-relaxed text-body">
-                Invite-only is the default: the event still shows on the list,
-                and players register after they accept an invite. Switch to
-                anyone-can-join if you want open registration. Tournament size
-                can grow before the event starts. Once you draw, fixtures stay
-                on the tournament page until the last match is played.
+                Clubs can wrap events in an organization so co-managers record
+                scores under a shared name and logo.
               </p>
-              <Link href="/tournament/new" className="mt-6 inline-block">
-                <Button variant="outline">Create tournament</Button>
-              </Link>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/tournament/new">
+                  <Button>Create tournament</Button>
+                </Link>
+                <Link href="/org/new">
+                  <Button variant="outline">Create organization</Button>
+                </Link>
+              </div>
             </article>
           </div>
+
+          <dl className="mt-5 grid gap-x-8 gap-y-5 rounded-2xl border border-white/10 px-6 py-6 sm:grid-cols-3">
+            {PRICING.map(([label, line]) => (
+              <div key={label}>
+                <dt className="font-display text-lg text-secondary">{label}</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-body">
+                  {line}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </Reveal>
       </div>
     </section>
@@ -340,23 +332,40 @@ export function HomeFaq() {
   ];
 
   return (
-    <section className="border-t border-primary/20">
+    <section className="border-t border-white/8">
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
-          <SectionHead kicker="Questions" title="Before you create or join" />
-          <dl className="mt-10 grid gap-4 md:grid-cols-2">
-            {items.map((item) => (
-              <div
-                key={item.q}
-                className="arena-panel arena-hud-corners p-5 sm:p-6"
-              >
-                <dt className="font-display text-xl text-white">{item.q}</dt>
-                <dd className="mt-2 text-sm leading-relaxed text-body">
-                  {item.a}
-                </dd>
+          <SectionHead title="Before you create or join" />
+          {/* Collapsed by default: ten open answers made this the tallest
+              block on the page, below everything people came for. The two
+              halves are separate stacks, so opening one answer does not
+              shunt the rows in the other column. */}
+          <div className="mt-8 grid gap-x-10 md:grid-cols-2">
+            {[items.slice(0, 5), items.slice(5)].map((column, col) => (
+              <div key={col}>
+                {column.map((item, i) => (
+                  <details
+                    key={item.q}
+                    open={col === 0 && i === 0}
+                    className="group border-b border-white/10"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-display text-lg text-white hover:text-primary [&::-webkit-details-marker]:hidden">
+                      {item.q}
+                      <span
+                        className="shrink-0 text-lg leading-none text-primary transition-transform duration-200 group-open:rotate-45"
+                        aria-hidden
+                      >
+                        +
+                      </span>
+                    </summary>
+                    <p className="pb-4 text-sm leading-relaxed text-body">
+                      {item.a}
+                    </p>
+                  </details>
+                ))}
               </div>
             ))}
-          </dl>
+          </div>
         </Reveal>
       </div>
     </section>
@@ -368,7 +377,7 @@ function FormatGlyph({
 }: {
   kind: "knockout" | "groups" | "league" | "br";
 }) {
-  const cls = "h-6 w-6";
+  const cls = "h-5 w-5";
   if (kind === "knockout") {
     return (
       <svg

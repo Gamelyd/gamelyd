@@ -262,7 +262,7 @@ export function ProfileView({
                   <Link
                     key={reg.RegisterTournamentId || reg._id}
                     href={`/tournament/${reg.TournamentId}`}
-                    className="arena-panel arena-hud-corners p-4 transition-colors hover:border-primary"
+                    className="arena-panel p-4 transition-colors hover:border-primary"
                   >
                     <h3 className="font-semibold text-white">
                       {reg.TournamentName || "Tournament"}
@@ -402,7 +402,7 @@ function PencilIcon() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="arena-panel arena-hud-corners p-5">
+    <div className="arena-panel p-5">
       <p className="font-display text-3xl text-primary">{value}</p>
       <p className="mt-1 text-sm text-body">{label}</p>
     </div>

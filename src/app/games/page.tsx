@@ -79,7 +79,6 @@ export default async function GamesPage({
     <SiteLayout>
       <PageTour tour={GAMES_TOUR} />
       <PageHeader
-        kicker="Catalog"
         title={kindLabel}
         description={`Search the ${noun} catalog by name. Pick a title when you create a tournament.`}
         actions={

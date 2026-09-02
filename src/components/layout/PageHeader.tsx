@@ -16,7 +16,7 @@ export function PageHeader({
   width?: string;
 }) {
   return (
-    <section className="border-b border-primary/20 bg-primary-panel">
+    <section className="border-b border-white/8 bg-primary-panel">
       <div className={`mx-auto px-page py-10 lg:py-12 ${width}`}>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">

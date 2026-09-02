@@ -79,7 +79,6 @@ export default async function TournamentsPage({
     <SiteLayout>
       <PageTour tour={BROWSE_TOUR} />
       <PageHeader
-        kicker="Compete"
         title="Tournaments"
         description={
           type.toUpperCase() === "ALL"

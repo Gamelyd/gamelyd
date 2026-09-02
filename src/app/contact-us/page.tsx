@@ -31,8 +31,7 @@ export default function ContactPage() {
   return (
     <SiteLayout>
       <PageHeader
-        kicker="Support"
-        title="Open a line"
+        title="Talk to us"
         description="Questions about a cup, hosting, or a partnership. Send a message. We read everything that lands here."
         width="max-w-5xl"
       />
@@ -42,7 +41,7 @@ export default function ContactPage() {
           <div className="grid gap-6 md:grid-cols-2">
         <form
           onSubmit={handleSubmit}
-          className="arena-panel arena-hud-corners flex flex-col gap-4 p-5 sm:p-6"
+          className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-primary-panel p-6"
         >
           <Input
             label="Name"
@@ -69,7 +68,7 @@ export default function ContactPage() {
           </Button>
         </form>
 
-        <div className="arena-panel arena-hud-corners space-y-6 p-5 text-body sm:p-6">
+        <div className="h-fit space-y-6 rounded-2xl border border-white/10 bg-primary-panel p-6 text-body">
           <div>
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Email

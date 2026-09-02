@@ -46,12 +46,11 @@ export function Leaderboard({ rows: initialRows }: { rows: LeaderRow[] }) {
   }, [metric]);
 
   return (
-    <section className="border-t border-primary/20">
+    <section className="border-t border-white/8 bg-primary-panel">
       <div className="mx-auto max-w-page px-page py-16">
         <Reveal>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <SectionHead
-              kicker="Rankings"
               title="Leaderboard"
               description="Top players. Rank by tournaments won, matches won, or matches played."
             />
@@ -66,11 +65,11 @@ export function Leaderboard({ rows: initialRows }: { rows: LeaderRow[] }) {
           </div>
 
           {rows.length === 0 ? (
-            <div className="mt-8 rounded-2xl border border-primary/25 bg-primary-panel py-14 text-center text-body">
+            <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 py-14 text-center text-body">
               No rankings yet. They fill in as tournaments finish.
             </div>
           ) : (
-            <div className="mt-8 overflow-hidden rounded-2xl border border-primary/25 bg-primary-panel">
+            <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
               <table className="w-full text-left">
                 <thead className="bg-black/25 text-[11px] font-semibold uppercase tracking-wider text-white/50">
                   <tr>
@@ -83,7 +82,7 @@ export function Leaderboard({ rows: initialRows }: { rows: LeaderRow[] }) {
                 </thead>
                 <tbody>
                   {rows.map((row, i) => (
-                    <tr key={row.name} className="border-t border-primary/15">
+                    <tr key={row.name} className="border-t border-white/8">
                       <td className="px-5 py-4 font-display text-xl text-primary">
                         {i + 1}
                       </td>

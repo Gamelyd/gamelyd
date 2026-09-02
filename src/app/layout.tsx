@@ -56,12 +56,20 @@ export default async function RootLayout({
     ? await listUserOrgs(initialUser.user_id)
     : [];
 
+  /*
+   * The font variables must sit on <html>, not <body>. Tailwind's @theme
+   * declares --font-sans/--font-display on :root, so a var(--font-roboto)
+   * defined lower down is already out of scope when the theme value computes -
+   * the custom property goes invalid and every element silently falls back to
+   * the system font stack.
+   */
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${roboto.variable} ${lalezar.variable} ${lato.variable} ${inter.variable} antialiased`}
-        suppressHydrationWarning
-      >
+    <html
+      lang="en"
+      className={`${roboto.variable} ${lalezar.variable} ${lato.variable} ${inter.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="antialiased" suppressHydrationWarning>
         <AuthProvider initialUser={initialUser} initialOrgs={initialOrgs}>
           <HelpProvider>
             <ToastProvider>{children}</ToastProvider>

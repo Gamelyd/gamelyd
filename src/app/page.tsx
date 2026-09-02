@@ -5,18 +5,16 @@ import { HOME_TOUR } from "@/components/help/tours";
 import { pageMeta } from "@/lib/seo";
 import { Hero } from "@/components/home/Hero";
 import { LatestTournaments } from "@/components/home/LatestTournaments";
-import { HostCta } from "@/components/home/HostCta";
 import { Leaderboard } from "@/components/home/Leaderboard";
 import {
   HowItWorks,
-  MoneyAndSafety,
-  Formats,
-  GamesStrip,
-  Audience,
+  FormatsAndGames,
+  PlayersAndHosts,
   HomeFaq,
 } from "@/components/home/HomeContent";
 import {
   getTournamentsAction,
+  getTournamentsByModeAction,
   getBannerTournamentsAction,
 } from "@/server/actions/tournamentActions";
 import { getGamesPageAction } from "@/server/actions/gameActions";
@@ -35,42 +33,60 @@ export const metadata: Metadata = pageMeta({
 });
 
 export default async function HomePage() {
-  const [bannerResult, latestResult, gamesResult, sportsResult, leaders] =
-    await Promise.all([
-      getBannerTournamentsAction(),
-      getTournamentsAction("", 1),
-      getGamesPageAction("", 1, 10, GAMES_KIND),
-      getGamesPageAction("", 1, 10, SPORTS_KIND),
-      getLeaderboard({
-        payment: "ALL",
-        games: [],
-        metric: "matchesWon",
-        limit: 5,
-      }).catch(() => []),
-    ]);
+  const [
+    bannerResult,
+    latestResult,
+    openResult,
+    gamesResult,
+    sportsResult,
+    leaders,
+  ] = await Promise.all([
+    getBannerTournamentsAction(),
+    getTournamentsAction("", 1),
+    getTournamentsByModeAction("ALL", "ALL", 1, "REGISTRATION"),
+    getGamesPageAction("", 1, 10, GAMES_KIND),
+    getGamesPageAction("", 1, 10, SPORTS_KIND),
+    getLeaderboard({
+      payment: "ALL",
+      games: [],
+      metric: "matchesWon",
+      limit: 5,
+    }).catch(() => []),
+  ]);
+
   const banner = bannerResult.ok ? bannerResult.data : [];
-  const latest = latestResult.ok ? latestResult.data.items.slice(0, 10) : [];
+  const latest = latestResult.ok ? latestResult.data.items : [];
+  const open = openResult.ok ? openResult.data : null;
   const games = gamesResult.ok ? gamesResult.data.items : [];
   const sports = sportsResult.ok ? sportsResult.data.items : [];
+
+  // Lead with events people can still register for, and top up from the
+  // general list so a quiet week still fills the row.
+  const seen = new Set<string>();
+  const shown = [...(open?.items ?? []), ...latest]
+    .filter((t) => {
+      if (seen.has(t.TournamentId)) return false;
+      seen.add(t.TournamentId);
+      return true;
+    })
+    .slice(0, 10);
+
+  const stats = {
+    tournaments: latestResult.ok ? latestResult.data.total : 0,
+    open: open?.total ?? 0,
+    titles:
+      (gamesResult.ok ? gamesResult.data.total : 0) +
+      (sportsResult.ok ? sportsResult.data.total : 0),
+  };
 
   return (
     <SiteLayout>
       <PageTour tour={HOME_TOUR} />
-      <Hero banner={banner} />
+      <Hero banner={banner} stats={stats} />
+      <LatestTournaments tournaments={shown} />
       <HowItWorks />
-      <MoneyAndSafety />
-      <LatestTournaments tournaments={latest} />
-      <Formats />
-      <GamesStrip games={games} />
-      <GamesStrip
-        games={sports}
-        kicker="Pitch"
-        title="Sports you can host"
-        description="Football, basketball, and any sport you add. Pick a format like 5-a-side, then run knockout, groups, or a league."
-        href="/games?kind=sports"
-      />
-      <Audience />
-      <HostCta />
+      <FormatsAndGames games={games} sports={sports} />
+      <PlayersAndHosts />
       <Leaderboard rows={leaders} />
       <HomeFaq />
     </SiteLayout>

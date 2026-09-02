@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => {
           const inner = (
-            <div className="arena-panel arena-hud-corners p-6 hover:border-primary">
+            <div className="arena-panel p-6 hover:border-primary">
               <p className="text-sm text-body">{card.label}</p>
               <p className="mt-2 font-display text-4xl text-white">
                 {card.value.toLocaleString()}

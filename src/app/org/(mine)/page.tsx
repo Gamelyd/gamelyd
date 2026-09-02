@@ -62,7 +62,6 @@ export default function OrgsIndexPage() {
     <SiteLayout>
       <PageTour tour={ORG_TOUR} />
       <PageHeader
-        kicker="Clubs"
         title="Organizations"
         description="Host events under a shared brand and invite people to help run them."
         width="max-w-6xl"
@@ -131,7 +130,7 @@ export default function OrgsIndexPage() {
               <Link
                 key={org.org_id}
                 href={`/org/${org.org_id}`}
-                className="arena-panel arena-hud-corners flex items-center gap-4 p-5 hover:border-primary"
+                className="arena-panel flex items-center gap-4 p-5 hover:border-primary"
               >
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-4">
                   {org.image ? (
