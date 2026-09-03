@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 
 export const scoreLabelSchema = z.enum(["Goals", "Points"]);
 export type ScoreLabel = z.infer<typeof scoreLabelSchema>;
@@ -29,7 +30,7 @@ export type Game = z.infer<typeof gameSchema>;
 export const createGameInputSchema = z.object({
   name: z.string().min(1).max(100),
   image: z.string().max(500).optional().default(""),
-  platforms: z.array(z.string()).optional().default([]),
+  platforms: z.array(z.string().max(LIMITS.platformName)).max(32).optional().default([]),
   kind: z.string().min(1).max(40).optional().default("games"),
   formats: z.array(catalogFormatSchema).optional().default([]),
   allowDraw: z.boolean().optional().default(true),
@@ -41,7 +42,7 @@ export type CreateGameInput = z.infer<typeof createGameInputSchema>;
 export const updateGameInputSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   image: z.string().max(500).optional(),
-  platforms: z.array(z.string()).optional(),
+  platforms: z.array(z.string().max(LIMITS.platformName)).max(32).optional(),
   kind: z.string().min(1).max(40).optional(),
   formats: z.array(catalogFormatSchema).optional(),
   allowDraw: z.boolean().optional(),

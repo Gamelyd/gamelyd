@@ -461,7 +461,7 @@ function StatusChip({
         ? "text-lose"
         : "text-pink";
   return (
-    <span className={`rounded-full bg-black/20 px-2.5 py-1 text-xs ${cls}`}>
+    <span className={`inline-flex items-center justify-center leading-none rounded-full bg-black/20 px-2.5 py-1 text-xs ${cls}`}>
       {label}
     </span>
   );

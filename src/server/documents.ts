@@ -10,7 +10,8 @@ import type {
 import type { Player, Teams, BRTeams } from "@/lib/schemas/draw";
 import type { SavedTeamRole } from "@/lib/schemas/savedTeam";
 import type { ReportKind } from "@/lib/schemas/misc";
-import type { Plan } from "@/lib/plans";
+import type { Plan, PlanConfig } from "@/lib/plans";
+import type { TournamentTemplate } from "@/lib/tournamentTemplates";
 import type { SaveTournamentInput } from "@/lib/schemas/tournament";
 import type {
   PointSystem,
@@ -473,6 +474,14 @@ export interface SettingsDoc {
   oneOffPriceMinor?: number;
   oneOffCurrency?: string;
   oneOffTier?: Plan;
+  /**
+   * Per-tier limits, prices and branding flags, edited from the admin desk.
+   * Missing on a deployment that has never saved them, which resolves to the
+   * defaults in `@/lib/plans`.
+   */
+  plans?: PlanConfig;
+  /** Ready-made tournament setups offered in the create wizard. */
+  templates?: TournamentTemplate[];
   /** When false, any signed-in host can create a sponsored event; default true. */
   sponsorRequiresOrg?: boolean;
   /** Each rating surface can be switched off; default on (undefined = on). */

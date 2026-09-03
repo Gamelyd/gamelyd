@@ -17,9 +17,9 @@ import {
   adminSetPlanAction,
   adminToggleDeleteOrgAction,
 } from "@/server/actions/adminActions";
-import { PLANS, type Plan } from "@/lib/plans";
+import { DEFAULT_PLANS, PLAN_ORDER, type Plan } from "@/lib/plans";
 
-const PLAN_OPTIONS: Plan[] = ["FREE", "CLUB", "LEAGUE"];
+const PLAN_OPTIONS: Plan[] = [...PLAN_ORDER];
 
 export default function AdminOrgsPage() {
   const toast = useToast();
@@ -135,13 +135,13 @@ export default function AdminOrgsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
                       org.plan === "FREE"
                         ? "bg-surface-2 text-body"
                         : "bg-win-deep text-white"
                     }`}
                   >
-                    {PLANS[org.plan].label}
+                    {DEFAULT_PLANS[org.plan].label}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -165,7 +165,7 @@ export default function AdminOrgsPage() {
                         onSelect: () => router.push(`/admin/orgs/${org.org_id}`),
                       },
                       ...PLAN_OPTIONS.filter((p) => p !== org.plan).map((p) => ({
-                        label: `Move to ${PLANS[p].label} plan`,
+                        label: `Move to ${DEFAULT_PLANS[p].label} plan`,
                         onSelect: () => void setOrgPlan(org, p),
                       })),
                       {

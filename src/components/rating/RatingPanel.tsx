@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { RatingStars } from "./RatingStars";
 import type { RatingTarget } from "@/lib/schemas/rating";
+import { LIMITS } from "@/lib/limits";
 import {
   rateAction,
   ratingBoardAction,
@@ -140,6 +141,7 @@ export function RatingPanel({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Optional: leave a short review"
+              maxLength={LIMITS.comment}
             />
           </div>
           <div className="mt-3">

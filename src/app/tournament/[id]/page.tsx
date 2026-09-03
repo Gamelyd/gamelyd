@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PoweredBy } from "@/components/layout/PoweredBy";
 import { TournamentView } from "@/components/tournament/TournamentView";
 import { getTournamentById, listParticipants } from "@/server/services/tournamentService";
 import { getDrawsByTournament } from "@/server/services/drawService";
+import { limitsForHost } from "@/server/services/planService";
 import {
   tournamentShareDescription,
 } from "@/lib/tournamentShare";
@@ -47,9 +49,12 @@ export default async function SingleTournamentPage({
   const tournament = await getTournamentById(id);
   if (!tournament || tournament.IsDeleted) notFound();
 
-  const [participants, draws] = await Promise.all([
+  const [participants, draws, hostLimits] = await Promise.all([
     listParticipants(id),
     getDrawsByTournament(id),
+    // The credit belongs to whoever runs the event, so it follows the host's
+    // plan rather than the viewer's.
+    limitsForHost(tournament.User_id, tournament.OrgId || undefined),
   ]);
 
   return (
@@ -63,6 +68,7 @@ export default async function SingleTournamentPage({
         }
         checkout={checkout}
       />
+      <PoweredBy show={hostLimits.showsAttribution} />
     </SiteLayout>
   );
 }

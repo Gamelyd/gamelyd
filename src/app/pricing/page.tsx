@@ -3,85 +3,104 @@ import type { Metadata } from "next";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { pageMeta } from "@/lib/seo";
-import { PLANS, MODE_LABEL, limitLabel, type Plan } from "@/lib/plans";
-import { getOneOff } from "@/server/services/settingsService";
+import {
+  INTERVAL_LABEL,
+  MODE_LABEL,
+  PLAN_ORDER,
+  limitLabel,
+  type Plan,
+  type PlanLimits,
+} from "@/lib/plans";
+import { getPlans } from "@/server/services/settingsService";
 import { formatMoney } from "@/lib/currency";
 
 export const metadata: Metadata = pageMeta({
   title: "Pricing",
   description:
-    "Tournaments are free to run and free to join. Organisers running at scale can upgrade with a plan or a one-off payment.",
+    "Gamelyd is free. Every format, every organiser tool, as many tournaments as you want. Paying is only for putting your own club's name on it.",
   path: "/pricing",
 });
 
-const ORDER: Plan[] = ["FREE", "CLUB", "LEAGUE"];
-
-/** Turns a tier's limits into the plain lines shown on its card. */
-function featureLines(plan: Plan): string[] {
-  const l = PLANS[plan];
+/**
+ * Feature lines are derived from the limits that actually enforce them, so the
+ * page can never advertise a ceiling the server does not honour.
+ */
+function featureLines(limits: PlanLimits): string[] {
   return [
-    `${limitLabel(l.maxTeams)} teams per tournament`,
-    l.modes.length === 1
-      ? `${MODE_LABEL[l.modes[0]]} only`
-      : `${l.modes.map((m) => MODE_LABEL[m]).join(", ")}`,
-    `${limitLabel(l.maxActive)} tournament${l.maxActive === 1 ? "" : "s"} running at once`,
-    l.maxManagers === 0
-      ? "No co-managers"
-      : `${limitLabel(l.maxManagers)} co-managers`,
-    l.canHostAsOrg ? "Host under your organization's name" : "Personal hosting",
+    `${limitLabel(limits.maxActive)} tournaments`,
+    `Up to ${limits.maxTeams} teams in one tournament`,
+    limits.modes.length === 1
+      ? `${MODE_LABEL[limits.modes[0]]} only`
+      : `Every format: ${limits.modes.map((m) => MODE_LABEL[m]).join(", ")}`,
+    "Registration, fixtures, brackets, groups and standings",
+    "A public tournament page anyone can follow",
+    `${limitLabel(limits.maxManagers)} co-managers`,
+    limits.canHostAsOrg
+      ? "Host under your club or organization's name"
+      : "Personal hosting",
+    limits.canBrand ? "Your own branding on the page" : "Gamelyd branding",
+    limits.showsAttribution
+      ? "Public pages carry a small Gamelyd credit"
+      : "No Gamelyd credit on your pages",
   ];
 }
 
+function priceLabel(limits: PlanLimits): string {
+  if (limits.priceMinor === 0) return "Free";
+  return formatMoney(limits.priceMinor / 100, limits.currency);
+}
+
 export default async function PricingPage() {
-  const oneOff = await getOneOff();
+  const plans = await getPlans();
+  const sold = PLAN_ORDER.filter((plan) => plans[plan].sold);
 
   return (
     <SiteLayout>
       <PageHeader
-        title="Free to play. Free to run."
-        description="Creating a tournament and joining one are always free. If you organise at scale, a plan or a one-off payment lifts the limits. Players are never charged."
+        title="Free to run. Free to play."
+        description="Gamelyd does not charge for the software. Create your tournament, run every format, invite as many players as you need. Paying is only for taking our name off it."
       />
 
       <section className="mx-auto max-w-page px-page py-12">
-        <div className="grid gap-5 lg:grid-cols-3">
-          {ORDER.map((plan) => {
-            const l = PLANS[plan];
-            const featured = plan === "CLUB";
+        <div className="grid gap-5 md:grid-cols-2">
+          {sold.map((plan: Plan) => {
+            const limits = plans[plan];
+            const featured = plan === "FREE";
             return (
               <div
                 key={plan}
-                className={`flex flex-col rounded-2xl border bg-primary-panel p-6 ${
+                className={`flex flex-col rounded-2xl border bg-primary-panel p-6 sm:p-8 ${
                   featured ? "border-primary" : "border-white/10"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="font-display text-2xl text-white">
-                    {l.label}
+                    {limits.label}
                   </h2>
                   {featured ? (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-primary">
-                      Most popular
+                    <span className="inline-flex items-center justify-center leading-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-primary">
+                      Start here
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-sm text-body">{l.blurb}</p>
+                <p className="mt-1 min-h-10 text-sm text-body">{limits.blurb}</p>
 
-                {/*
-                 * The paid tiers are quoted, not listed. "Contact us" in the
-                 * price slot read like a broken price, so say Custom and put
-                 * the ask in the button where it belongs.
-                 */}
                 <p className="mt-5 font-display text-4xl leading-none text-secondary">
-                  {plan === "FREE" ? "Free" : "Custom"}
+                  {priceLabel(limits)}
+                  {limits.priceMinor > 0 ? (
+                    <span className="font-sans text-base text-body">
+                      {INTERVAL_LABEL[limits.interval]}
+                    </span>
+                  ) : null}
                 </p>
                 <p className="mt-1.5 text-xs text-body">
-                  {plan === "FREE"
-                    ? "No card, no catch."
-                    : "Monthly, quoted for your club. Billed to the organiser, never to players."}
+                  {limits.priceMinor === 0
+                    ? "No card, no trial, no feature held back."
+                    : "Billed to the organiser. Players are never charged."}
                 </p>
 
                 <ul className="mt-6 flex flex-1 flex-col gap-2.5 border-t border-white/10 pt-6 text-sm text-body">
-                  {featureLines(plan).map((line) => (
+                  {featureLines(limits).map((line) => (
                     <li key={line} className="flex gap-2.5">
                       <span className="mt-0.5 text-primary">✓</span>
                       <span>{line}</span>
@@ -90,22 +109,16 @@ export default async function PricingPage() {
                 </ul>
 
                 <div className="mt-6">
-                  {plan === "FREE" ? (
+                  {limits.priceMinor === 0 ? (
                     <Link href="/tournament/new">
-                      <span className="block rounded-lg border border-primary py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary">
+                      <span className="block rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dark">
                         Create a tournament
                       </span>
                     </Link>
                   ) : (
-                    <Link href="/contact-us?topic=upgrade">
-                      <span
-                        className={`block rounded-lg py-2.5 text-center text-sm font-semibold transition-colors ${
-                          featured
-                            ? "bg-primary text-on-primary hover:bg-primary-dark"
-                            : "border border-primary text-primary hover:bg-primary hover:text-on-primary"
-                        }`}
-                      >
-                        Get a quote
+                    <Link href="/contact-us?topic=club">
+                      <span className="block rounded-lg border border-primary py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary">
+                        Start a {limits.label} plan
                       </span>
                     </Link>
                   )}
@@ -115,35 +128,13 @@ export default async function PricingPage() {
           })}
         </div>
 
-        {oneOff.enabled && oneOff.priceMinor > 0 ? (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-primary-panel p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="max-w-xl">
-                <h2 className="font-display text-xl text-white">
-                  Just one big tournament?
-                </h2>
-                <p className="mt-1 text-sm text-body">
-                  Pay once to create a single event above the free limits, with
-                  no subscription. You choose the option right in the create
-                  form, and only pay if your event needs it.
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-display text-3xl leading-none text-secondary">
-                  {formatMoney(oneOff.priceMinor / 100, oneOff.currency)}
-                </p>
-                <p className="text-xs text-body">per tournament</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         <p className="mt-8 text-center text-sm text-body">
-          Not sure which fits?{" "}
+          Running something bigger than {plans.FREE.maxTeams} teams?{" "}
           <Link href="/contact-us" className="text-primary hover:underline">
             Talk to us
-          </Link>
-          . Existing tournaments always keep working, even if a plan lapses.
+          </Link>{" "}
+          and we will lift the ceiling for your event. Existing tournaments
+          always keep working, even if a plan lapses.
         </p>
       </section>
     </SiteLayout>

@@ -191,7 +191,7 @@ export function Earnings() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${status.chip}`}
+                      className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${status.chip}`}
                     >
                       {status.label}
                     </span>
@@ -214,7 +214,7 @@ export function Earnings() {
           {(Object.keys(STATUS) as PayoutStatus[]).map((key) => (
             <div key={key} className="flex flex-wrap items-baseline gap-2">
               <dt
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS[key].chip}`}
+                className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS[key].chip}`}
               >
                 {STATUS[key].label}
               </dt>

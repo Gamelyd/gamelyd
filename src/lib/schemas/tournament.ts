@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import {
   knockoutFormatSchema,
   paymentSchema,
@@ -46,15 +47,15 @@ export type AdvanceGroupStageInput = z.infer<
 >;
 
 export const groupQualifierSchema = z.object({
-  GroupName: z.string().min(1),
-  TeamName: z.string().min(1),
+  GroupName: z.string().min(1).max(LIMITS.groupName),
+  TeamName: z.string().min(1).max(LIMITS.teamName),
   Reason: z.string().trim().min(3).max(280),
   Seed: z.number().int().min(1).max(8),
 });
 export type GroupQualifier = z.infer<typeof groupQualifierSchema>;
 
 export const setGroupQualifiersInputSchema = z.object({
-  Qualifiers: z.array(groupQualifierSchema).default([]),
+  Qualifiers: z.array(groupQualifierSchema).max(64).default([]),
 });
 export type SetGroupQualifiersInput = z.infer<
   typeof setGroupQualifiersInputSchema
@@ -65,11 +66,12 @@ export const setGroupsInputSchema = z.object({
   Groups: z
     .array(
       z.object({
-        GroupName: z.string().min(1),
-        TeamNames: z.array(z.string()).default([]),
+        GroupName: z.string().min(1).max(LIMITS.groupName),
+        TeamNames: z.array(z.string().max(LIMITS.teamName)).max(256).default([]),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(32),
 });
 export type SetGroupsInput = z.infer<typeof setGroupsInputSchema>;
 
@@ -256,19 +258,19 @@ export const saveTournamentInputSchema = z.object({
   TournamentSize: z.coerce.number().int().positive(),
   Team: teamSizeSchema,
   Shuffle: shuffleSchema,
-  Date: z.string().min(1),
-  Note: z.string().min(1),
-  Description: z.string().optional().default(""),
-  TimeZone: z.string().optional().default(""),
-  Link: z.string().optional().default(""),
-  Platform: z.string().optional().default(""),
+  Date: z.string().min(1).max(LIMITS.dateString),
+  Note: z.string().min(1).max(LIMITS.note),
+  Description: z.string().max(LIMITS.description).optional().default(""),
+  TimeZone: z.string().max(LIMITS.timezone).optional().default(""),
+  Link: z.string().max(LIMITS.url).optional().default(""),
+  Platform: z.string().max(LIMITS.platformName).optional().default(""),
   Amount: z.coerce.number().default(0),
   RegistrationAmount: z.coerce.number().default(0),
   Prizes: z.array(prizePositionSchema).optional().default([]),
-  RefNumber: z.string().optional().default(""),
-  PaymentChannel: z.string().optional().default(""),
+  RefNumber: z.string().max(LIMITS.reference).optional().default(""),
+  PaymentChannel: z.string().max(LIMITS.reference).optional().default(""),
   PointSystem: pointSystemSchema.optional(),
-  OrgId: z.string().optional().default(""),
+  OrgId: z.string().max(LIMITS.id).optional().default(""),
   ReturnLeg: z.boolean().optional().default(false),
   AdvancePerGroup: z.coerce.number().int().min(1).max(8).optional().default(2),
   GroupCount: z.coerce.number().int().min(0).max(8).optional().default(0),
@@ -281,11 +283,11 @@ export const saveTournamentInputSchema = z.object({
   BrKillPoints: z.coerce.number().min(0).max(50).optional().default(1),
   BrFirstBloodPoints: z.coerce.number().min(0).max(50).optional().default(0),
   BrPlacementPoints: z.array(z.coerce.number()).optional(),
-  RegistrationDeadline: z.string().optional().default(""),
+  RegistrationDeadline: z.string().max(LIMITS.dateString).optional().default(""),
   CheckInRequired: z.boolean().optional().default(false),
-  CheckInOpens: z.string().optional().default(""),
-  CheckInCloses: z.string().optional().default(""),
-  FirstMatchAt: z.string().optional().default(""),
+  CheckInOpens: z.string().max(LIMITS.dateString).optional().default(""),
+  CheckInCloses: z.string().max(LIMITS.dateString).optional().default(""),
+  FirstMatchAt: z.string().max(LIMITS.dateString).optional().default(""),
   MatchIntervalMinutes: z.coerce
     .number()
     .int()
@@ -331,10 +333,10 @@ export const editTournamentInputSchema = z
     Team: teamSizeSchema.optional(),
     RosterCount: z.coerce.number().int().min(1).max(32).optional(),
     Name: z.string().min(2).max(100).optional(),
-    Date: z.string().min(1).optional(),
-    Note: z.string().min(1).optional(),
-    Description: z.string().optional(),
-    TimeZone: z.string().optional(),
+    Date: z.string().min(1).max(LIMITS.dateString).optional(),
+    Note: z.string().min(1).max(LIMITS.note).optional(),
+    Description: z.string().max(LIMITS.description).optional(),
+    TimeZone: z.string().max(LIMITS.timezone).optional(),
     ReturnLeg: z.boolean().optional(),
     AdvancePerGroup: z.coerce.number().int().min(1).max(8).optional(),
     GroupCount: z.coerce.number().int().min(0).max(8).optional(),
@@ -348,11 +350,11 @@ export const editTournamentInputSchema = z
     BrKillPoints: z.coerce.number().min(0).max(50).optional(),
     BrFirstBloodPoints: z.coerce.number().min(0).max(50).optional(),
     BrPlacementPoints: z.array(z.coerce.number()).optional(),
-    RegistrationDeadline: z.string().optional(),
+    RegistrationDeadline: z.string().max(LIMITS.dateString).optional(),
     CheckInRequired: z.boolean().optional(),
-    CheckInOpens: z.string().optional(),
-    CheckInCloses: z.string().optional(),
-    FirstMatchAt: z.string().optional(),
+    CheckInOpens: z.string().max(LIMITS.dateString).optional(),
+    CheckInCloses: z.string().max(LIMITS.dateString).optional(),
+    FirstMatchAt: z.string().max(LIMITS.dateString).optional(),
     MatchIntervalMinutes: z.coerce
       .number()
       .int()

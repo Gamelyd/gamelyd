@@ -27,6 +27,7 @@ import { kindUses, teamSizeFromRoster } from "@/lib/catalog";
 import { rosterSize } from "@/lib/schemas/common";
 import { eventCity, venuesOf } from "@/lib/venue";
 import { PlaceEditor, type VenueDraft } from "@/components/tournament/VenueEditor";
+import { LIMITS } from "@/lib/limits";
 
 export function EditTournamentSettings({
   tournament,
@@ -479,6 +480,7 @@ export function EditTournamentSettings({
             <>
               <Input
                 label={busyField === "name" ? "Name (saving…)" : "Name"}
+                maxLength={LIMITS.tournamentName}
                 value={name}
                 disabled={locked}
                 onChange={(e) => setName(e.target.value)}
@@ -506,6 +508,7 @@ export function EditTournamentSettings({
                 disabled={locked}
                 onChange={(e) => setNote(e.target.value)}
                 onBlur={saveNote}
+                maxLength={LIMITS.note}
               />
 
               {kindUses([], tournament.CatalogKind).usesVenue ? (

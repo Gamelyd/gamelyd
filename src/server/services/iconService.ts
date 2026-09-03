@@ -7,6 +7,7 @@ import { ServiceError } from "./userService";
 import { asRecord, readString } from "../legacy";
 import {
   FALLBACKS,
+  PLAYER_ICONS,
   catalogToAppIcon,
   catalogUrl,
   pickStableIcon,
@@ -87,6 +88,30 @@ export async function listAppIcons(
     includeArchived: false,
   });
   return items.map(catalogToAppIcon);
+}
+
+/**
+ * A player token for a brand-new account, picked at random.
+ *
+ * New users used to be stored with an empty icon, so every screen that falls
+ * back to `FALLBACKS.player` (the leaderboards, team registration) showed the
+ * same headset for all of them. Choosing here means the account owns a real
+ * icon from the moment it exists, and every screen varies without having to
+ * know how to derive one.
+ *
+ * Signing up must not fail because the catalogue is empty or unreachable, so
+ * this falls back to the bundled set and finally to the single default.
+ */
+export async function randomPlayerIcon(): Promise<string> {
+  let pool: AppIcon[] = PLAYER_ICONS;
+  try {
+    const fromCatalog = await listAppIcons("player");
+    if (fromCatalog.length > 0) pool = fromCatalog;
+  } catch {
+    // Keep the bundled set.
+  }
+  if (pool.length === 0) return FALLBACKS.player;
+  return pool[Math.floor(Math.random() * pool.length)]?.url ?? FALLBACKS.player;
 }
 
 export async function playerIconForUser(userId: string): Promise<string> {

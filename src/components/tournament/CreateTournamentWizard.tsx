@@ -38,8 +38,13 @@ import type {
   TournamentType,
 } from "@/lib/schemas/common";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
-import { PLANS, type Plan, type PlanLimits } from "@/lib/plans";
-import { myPlanLimitsAction } from "@/server/actions/tournamentActions";
+import type { Plan, PlanLimits } from "@/lib/plans";
+import {
+  myPlanLimitsAction,
+  myTournamentTemplatesAction,
+} from "@/server/actions/tournamentActions";
+import { TemplatePicker } from "./TemplatePicker";
+import type { TournamentTemplate } from "@/lib/tournamentTemplates";
 import { startOneOffTournamentCheckoutAction } from "@/server/actions/paymentActions";
 import { Loader } from "@/components/ui/Loader";
 import {
@@ -53,6 +58,7 @@ import { PlaceEditor, type VenueDraft } from "@/components/tournament/VenueEdito
 import { PageTour } from "@/components/help/PageTour";
 import { CREATE_TOURS } from "@/components/help/tours";
 import { helpTarget } from "@/lib/help";
+import { LIMITS } from "@/lib/limits";
 
 type Step = "game" | "format" | "rules" | "brief";
 
@@ -133,6 +139,9 @@ export function CreateTournamentWizard() {
   const [winners, setWinners] = useState(1);
   const [prizeAmounts, setPrizeAmounts] = useState<string[]>(["", "", ""]);
   const [mode, setMode] = useState<TournamentMode>("MULTIPLAYER");
+  const [templates, setTemplates] = useState<TournamentTemplate[]>([]);
+  /** Which template filled the form, so the picker can show what is applied. */
+  const [templateId, setTemplateId] = useState("");
   const [rosterCount, setRosterCount] = useState(1);
   const [shuffle, setShuffle] = useState<Shuffle>("AUTOMATIC");
   const [returnLeg, setReturnLeg] = useState(false);
@@ -166,6 +175,7 @@ export function CreateTournamentWizard() {
     limits: PlanLimits;
     activeCount: number;
     oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+    oneOffLimits: PlanLimits;
     sponsorRequiresOrg: boolean;
   } | null>(null);
   const [venues, setVenues] = useState<VenueDraft[]>([]);
@@ -175,6 +185,11 @@ export function CreateTournamentWizard() {
   useEffect(() => {
     void myPlanLimitsAction(orgId).then((result) => {
       if (result.ok) setPlanInfo(result.data);
+    });
+    // Templates are filtered against the same plan, so they reload with it: a
+    // club plan may offer shortcuts a personal one cannot run.
+    void myTournamentTemplatesAction(orgId).then((result) => {
+      if (result.ok) setTemplates(result.data);
     });
   }, [orgId]);
 
@@ -214,6 +229,21 @@ export function CreateTournamentWizard() {
     RegistrationAmount: 0,
   });
 
+  const applyTemplate = (template: TournamentTemplate) => {
+    setMode(template.mode);
+    setDetails((prev) => ({ ...prev, TournamentSize: template.size }));
+    setRosterCount(template.rosterCount);
+    setReturnLeg(template.returnLeg);
+    setGroupCount(template.groupCount);
+    setAdvancePerGroup(template.advancePerGroup);
+    setKnockoutFormat(template.knockoutFormat);
+    setThirdPlace(template.thirdPlace);
+    setPointsWin(template.pointsWin);
+    setPointsDraw(template.pointsDraw);
+    setTemplateId(template.id);
+  };
+
+
   // Null while the plan is still loading, so nothing is wrongly shown as locked.
   const maxTeams = planInfo ? planInfo.limits.maxTeams : null;
   const overTeamCap =
@@ -238,7 +268,7 @@ export function CreateTournamentWizard() {
   // unlocked (anything beyond it still needs a real upgrade).
   const oneOffAvailable = Boolean(planInfo?.oneOff.enabled);
   const oneOffLimits =
-    planInfo && oneOffAvailable ? PLANS[planInfo.oneOff.tier] : null;
+    planInfo && oneOffAvailable ? planInfo.oneOffLimits : null;
   const oneOffCoversTeams =
     oneOffLimits !== null &&
     (oneOffLimits.maxTeams === null ||
@@ -646,6 +676,12 @@ export function CreateTournamentWizard() {
           {step === "format" ? (
             <div className="flex flex-col gap-8">
               <SectionTitle kicker="Loadout" title="How do they compete?" />
+              <TemplatePicker
+                templates={templates}
+                activeId={templateId}
+                onApply={applyTemplate}
+                onClear={() => setTemplateId("")}
+              />
               {((selectedGame?.formats ?? []).length > 0) ? (
                 <div {...helpTarget("create-pitch-format")}>
                   <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
@@ -666,6 +702,7 @@ export function CreateTournamentWizard() {
                         onClick={() => {
                           setFormatId(row.id);
                           setRosterCount(row.roster);
+                          setTemplateId("");
                         }}
                       />
                     ))}
@@ -698,7 +735,10 @@ export function CreateTournamentWizard() {
                     }
                     disabledLabel="Upgrade"
                     glyph={<ModeGlyph kind={item.glyph} />}
-                    onClick={() => setMode(item.value)}
+                    onClick={() => {
+                      setMode(item.value);
+                      setTemplateId("");
+                    }}
                   />
                 ))}
               </div>
@@ -1100,6 +1140,7 @@ export function CreateTournamentWizard() {
               <div {...helpTarget("create-identity")}>
               <Input
                 label="Tournament name"
+                maxLength={LIMITS.tournamentName}
                 value={details.Name}
                 onChange={(e) =>
                   setDetails({ ...details, Name: e.target.value })
@@ -1130,7 +1171,10 @@ export function CreateTournamentWizard() {
                   }
                   value={details.TournamentSize}
                   onChange={(n) =>
-                    setDetails({ ...details, TournamentSize: n })
+                    {
+                      setDetails({ ...details, TournamentSize: n });
+                      setTemplateId("");
+                    }
                   }
                   min={2}
                   max={
@@ -1283,6 +1327,7 @@ export function CreateTournamentWizard() {
                     setDetails({ ...details, Description: e.target.value })
                   }
                   placeholder="One or two lines about the event."
+                  maxLength={LIMITS.description}
                 />
                 <p className="mt-1.5 text-xs text-body">
                   Plain text. This is the preview shown when your event link is
@@ -1345,6 +1390,7 @@ export function CreateTournamentWizard() {
                     onChange={(e) =>
                       setDetails({ ...details, Note: e.target.value })
                     }
+                    maxLength={LIMITS.note}
                     required
                   />
                 )}
@@ -1589,7 +1635,7 @@ function ChoiceTile({
           {title}
         </span>
         {badge ? (
-          <span className="rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
+          <span className="inline-flex items-center justify-center leading-none rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
             {badge}
           </span>
         ) : null}

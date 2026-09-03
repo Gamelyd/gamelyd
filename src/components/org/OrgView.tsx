@@ -28,6 +28,8 @@ import type { OrgRole } from "@/lib/schemas/common";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { RatingPanel } from "@/components/rating/RatingPanel";
+import { LIMITS } from "@/lib/limits";
+import { Tag } from "@/components/ui/Tag";
 
 export function OrgView({
   org,
@@ -178,9 +180,9 @@ export function OrgView({
                   <p className="truncate text-xs text-body">@{m.user_name}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-surface-2 px-2 py-1 text-xs text-primary">
+                  <Tag tone="neutral" size="sm" className="text-primary">
                     {m.role}
-                  </span>
+                  </Tag>
                   {canManage && m.user_id !== user?.user_id && (
                     <button
                       onClick={() => setRemoveTarget(m)}
@@ -264,6 +266,7 @@ function EditOrgModal({
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Input
           label="Name"
+          maxLength={LIMITS.firstName}
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
@@ -276,6 +279,7 @@ function EditOrgModal({
         />
         <Input
           label="Website"
+          maxLength={LIMITS.url}
           value={form.website}
           onChange={(e) => setForm({ ...form, website: e.target.value })}
         />
@@ -284,6 +288,7 @@ function EditOrgModal({
           rows={4}
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
+          maxLength={LIMITS.comment}
         />
         <Button type="submit" loading={loading} fullWidth>
           Save changes
@@ -332,6 +337,7 @@ function InviteModal({
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Input
           label="Username or email"
+          maxLength={LIMITS.email}
           value={usernameOrEmail}
           onChange={(e) => setUsernameOrEmail(e.target.value)}
           required

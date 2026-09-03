@@ -4,9 +4,23 @@ import { settings } from "@/server/db";
 import { ServiceError } from "@/server/services/userService";
 import { PLATFORM_FEE_BPS } from "@/lib/fees";
 import { parseCurrency } from "@/lib/currency";
-import { planSchema, type Plan } from "@/lib/plans";
+import {
+  DEFAULT_PLANS,
+  normalizePlan,
+  planConfigSchema,
+  resolvePlanConfig,
+  type Plan,
+  type PlanConfig,
+  type PlanLimits,
+} from "@/lib/plans";
 import type { Currency } from "@/lib/schemas/common";
 import type { RatingTarget } from "@/lib/schemas/rating";
+import {
+  DEFAULT_TEMPLATES,
+  resolveTemplates,
+  templateListSchema,
+  type TournamentTemplate,
+} from "@/lib/tournamentTemplates";
 
 /**
  * The fee is read on almost every money-related render, so it is cached in
@@ -91,7 +105,7 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     oneOffPriceMinor:
       typeof doc?.oneOffPriceMinor === "number" ? doc.oneOffPriceMinor : 0,
     oneOffCurrency: parseCurrency(doc?.oneOffCurrency ?? "EUR"),
-    oneOffTier: normalizePlan(doc?.oneOffTier),
+    oneOffTier: normalizePlan(doc?.oneOffTier ?? "CLUB"),
     // Default true: sponsored is organization-only unless an admin opens it up.
     sponsorRequiresOrg: doc?.sponsorRequiresOrg !== false,
     // Ratings are on by default; an admin can switch each surface off.
@@ -171,13 +185,6 @@ export async function setSponsorRequiresOrg(
     { upsert: true },
   );
   return getPlatformSettings();
-}
-
-function normalizePlan(value: unknown): Plan {
-  const parsed = planSchema.safeParse(
-    typeof value === "string" ? value.toUpperCase() : "",
-  );
-  return parsed.success ? parsed.data : "CLUB";
 }
 
 export interface OneOffConfig {
@@ -275,4 +282,131 @@ export async function getEnabledEventTypes(): Promise<{
       ? { paid: typesCache.paid, sponsored: typesCache.sponsored }
       : { paid: false, sponsored: false };
   }
+}
+
+/* ------------------------------ Plan limits ------------------------------ */
+
+/**
+ * Tier limits are read on every create-page render and on every gate check, so
+ * they are cached in process for the same short window as the fee. A change
+ * applies immediately on the instance that made it and within the TTL
+ * elsewhere. Nothing here runs retroactively, so a stale read can only ever
+ * affect whether a NEW tournament is allowed, never one already running.
+ */
+let plansCache: { value: PlanConfig; at: number } | null = null;
+
+export async function getPlans(): Promise<PlanConfig> {
+  if (plansCache && Date.now() - plansCache.at < TTL_MS) return plansCache.value;
+  try {
+    const doc = await (await settings()).findOne({ key: "platform" });
+    const { config: value, ok } = resolvePlanConfig(doc?.plans);
+    if (!ok) console.error("[settings] plan config invalid, using defaults");
+    plansCache = { value, at: Date.now() };
+    return value;
+  } catch (error) {
+    console.error("[settings] plan read failed:", error);
+    return plansCache?.value ?? DEFAULT_PLANS;
+  }
+}
+
+export async function getPlanLimits(plan: Plan): Promise<PlanLimits> {
+  const config = await getPlans();
+  return config[plan] ?? config.FREE;
+}
+
+export async function setPlanLimits(
+  plan: Plan,
+  limits: PlanLimits,
+  adminUid: string,
+): Promise<PlanConfig> {
+  const current = await getPlans();
+  const next = planConfigSchema.parse({ ...current, [plan]: limits });
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        plans: next,
+        updated_at: new Date().toISOString(),
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  plansCache = { value: next, at: Date.now() };
+  return next;
+}
+
+/** Drops every saved override and goes back to the values shipped in code. */
+export async function resetPlanLimits(adminUid: string): Promise<PlanConfig> {
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        plans: DEFAULT_PLANS,
+        updated_at: new Date().toISOString(),
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  plansCache = { value: DEFAULT_PLANS, at: Date.now() };
+  return DEFAULT_PLANS;
+}
+
+/* ---------------------------- Setup templates ---------------------------- */
+
+/**
+ * Cached like the plan config: read on every create-page render, and a stale
+ * read only ever affects which shortcuts are offered, never an existing event.
+ */
+let templatesCache: { value: TournamentTemplate[]; at: number } | null = null;
+
+export async function getTemplates(): Promise<TournamentTemplate[]> {
+  if (templatesCache && Date.now() - templatesCache.at < TTL_MS) {
+    return templatesCache.value;
+  }
+  try {
+    const doc = await (await settings()).findOne({ key: "platform" });
+    const { templates, ok } = resolveTemplates(doc?.templates);
+    if (!ok) console.error("[settings] templates invalid, using defaults");
+    templatesCache = { value: templates, at: Date.now() };
+    return templates;
+  } catch (error) {
+    console.error("[settings] template read failed:", error);
+    return templatesCache?.value ?? DEFAULT_TEMPLATES;
+  }
+}
+
+export async function setTemplates(
+  input: TournamentTemplate[],
+  adminUid: string,
+): Promise<TournamentTemplate[]> {
+  const next = templateListSchema.parse(input);
+  const ids = new Set(next.map((template) => template.id));
+  if (ids.size !== next.length) {
+    throw new ServiceError("Two templates share the same id");
+  }
+  await (await settings()).updateOne(
+    { key: "platform" },
+    {
+      $set: {
+        templates: next,
+        updated_at: new Date().toISOString(),
+        updated_by: adminUid,
+      },
+      $setOnInsert: { _id: new ObjectId(), key: "platform" },
+    },
+    { upsert: true },
+  );
+  templatesCache = { value: next, at: Date.now() };
+  return next;
+}
+
+/** Drops every saved template and goes back to the ones shipped in code. */
+export async function resetTemplates(
+  adminUid: string,
+): Promise<TournamentTemplate[]> {
+  return setTemplates(DEFAULT_TEMPLATES, adminUid);
 }

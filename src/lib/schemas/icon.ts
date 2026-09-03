@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 
 export const iconKindSchema = z.enum(["tournament", "team", "player"]);
 export type IconKind = z.infer<typeof iconKindSchema>;
@@ -32,7 +33,7 @@ export const createIconInputSchema = z.object({
       "Use a site path or a full image URL",
     ),
   kind: iconKindSchema,
-  gameIds: z.array(z.string()).optional().default([]),
+  gameIds: z.array(z.string().max(LIMITS.id)).max(200).optional().default([]),
 });
 export type CreateIconInput = z.infer<typeof createIconInputSchema>;
 
@@ -52,14 +53,14 @@ export const updateIconInputSchema = z.object({
     )
     .optional(),
   kind: iconKindSchema.optional(),
-  gameIds: z.array(z.string()).optional(),
+  gameIds: z.array(z.string().max(LIMITS.id)).max(200).optional(),
 });
 export type UpdateIconInput = z.infer<typeof updateIconInputSchema>;
 
 export const listIconsInputSchema = z.object({
   kind: iconKindSchema.optional(),
-  gameId: z.string().optional(),
-  search: z.string().optional(),
+  gameId: z.string().max(LIMITS.id).optional(),
+  search: z.string().max(LIMITS.searchQuery).optional(),
   includeArchived: z.boolean().optional().default(false),
 });
 export type ListIconsInput = z.infer<typeof listIconsInputSchema>;

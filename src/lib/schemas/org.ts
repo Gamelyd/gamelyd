@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import { planSchema } from "@/lib/plans";
 import { orgRoleSchema, orgInviteStatusSchema } from "./common";
 
@@ -91,7 +92,7 @@ export const updateOrgInputSchema = z.object({
 export type UpdateOrgInput = z.infer<typeof updateOrgInputSchema>;
 
 export const inviteMemberInputSchema = z.object({
-  usernameOrEmail: z.string().min(1),
+  usernameOrEmail: z.string().min(1).max(LIMITS.email),
   role: orgRoleSchema.default("MEMBER"),
 });
 export type InviteMemberInput = z.infer<typeof inviteMemberInputSchema>;

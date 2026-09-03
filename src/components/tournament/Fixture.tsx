@@ -23,7 +23,9 @@ import {
   PlayerNameList,
   VerifiedName,
 } from "@/components/ui/VerifiedName";
-import { leagueMatchdayLabel } from "@/lib/leagueStandings";
+import { roundLabel } from "@/lib/roundLabel";
+
+export { roundLabel };
 import { isKnockoutBye } from "@/lib/knockoutSeed";
 import {
   lastPlayedInTie,
@@ -294,7 +296,7 @@ function MpFixture({
       {autoBye ? (
         <div className="flex items-center justify-between gap-3">
           <TeamRow team={t1} showScore={false} />
-          <span className="shrink-0 rounded-full bg-primary/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+          <span className="inline-flex items-center justify-center leading-none shrink-0 rounded-full bg-primary/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
             Auto qualified
           </span>
         </div>
@@ -856,16 +858,3 @@ function BrFixture({
   );
 }
 
-export function roundLabel(
-  matchCount: number,
-  stage: number,
-  mode?: string,
-): string {
-  if (mode === "BATTLEROYALE") return `LOBBY ${stage}`;
-  if (mode === "LEAGUE") return leagueMatchdayLabel(stage);
-  if (matchCount < 2) return "FINALS";
-  if (matchCount < 3) return "SEMI FINALS";
-  if (matchCount < 5) return "QUARTER FINALS";
-  if (matchCount < 9) return "ROUND OF SIXTEEN";
-  return `ROUND ${stage}`;
-}

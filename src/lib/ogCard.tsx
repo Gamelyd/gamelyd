@@ -1,3 +1,9 @@
+/*
+ * Satori renders these cards, not the browser, so next/image has no role
+ * here and a raw <img> is correct. The disable sits at file level because a
+ * JSX comment inside an ImageResponse tree breaks the route.
+ */
+/* eslint-disable @next/next/no-img-element */
 import { ds } from "@/lib/designSystem";
 
 /** Markup for Next.js ImageResponse cards. Every node must use display:flex. */
@@ -20,46 +26,91 @@ export function DefaultOgMarkup({
         background: ds.bgPrimary,
         color: "white",
         flexDirection: "column",
-        justifyContent: "center",
-        padding: 80,
+        justifyContent: "space-between",
+        padding: 72,
       }}
     >
+      {/* Wordmark, so a card lifted into a feed still says who it is from. */}
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            width: 14,
+            height: 14,
+            borderRadius: 7,
+            background: ds.primary,
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            marginLeft: 14,
+            fontSize: 26,
+            fontWeight: 700,
+            letterSpacing: 6,
+            textTransform: "uppercase",
+            color: "white",
+          }}
+        >
+          Gamelyd
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            color: ds.primary,
+            fontSize: 26,
+            letterSpacing: 7,
+            textTransform: "uppercase",
+          }}
+        >
+          {kicker}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            fontSize: 68,
+            fontWeight: 700,
+            lineHeight: 1.08,
+            marginTop: 18,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            color: ds.textMuted,
+            fontSize: 28,
+            marginTop: 22,
+          }}
+        >
+          {subtitle}
+        </div>
+      </div>
+
       <div
         style={{
           display: "flex",
-          color: ds.primary,
-          fontSize: 28,
-          letterSpacing: 8,
-          textTransform: "uppercase",
+          width: 220,
+          height: 6,
+          borderRadius: 3,
+          background: ds.primary,
         }}
-      >
-        {kicker}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          fontSize: 64,
-          fontWeight: 700,
-          lineHeight: 1.1,
-          marginTop: 20,
-        }}
-      >
-        {title}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          color: ds.textMuted,
-          fontSize: 28,
-          marginTop: 24,
-        }}
-      >
-        {subtitle}
-      </div>
+      />
     </div>
   );
 }
 
+/*
+ * Crests are small square art, so this card centres one on a panel rather
+ * than stretching it across half the canvas.
+ *
+ * Never put a JSX comment inside these trees. A comment node makes the
+ * ImageResponse route return a non-Response and the card 500s.
+ */
 export function EntityOgMarkup({
   image,
   kicker,
@@ -79,43 +130,71 @@ export function EntityOgMarkup({
         height: "100%",
         background: ds.bgPrimary,
         color: "white",
+        alignItems: "center",
+        padding: 72,
       }}
     >
       <div
         style={{
           display: "flex",
-          width: 520,
-          height: 630,
-          background: ds.bgPrimary,
+          width: 300,
+          height: 300,
+          flexShrink: 0,
           alignItems: "center",
           justifyContent: "center",
+          borderRadius: 24,
+          background: ds.bgSecondary,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image}
           alt=""
-          width={520}
-          height={630}
-          style={{ objectFit: "contain" }}
+          width={220}
+          height={220}
+          style={{ objectFit: "contain", borderRadius: 16 }}
         />
       </div>
+
       <div
         style={{
           display: "flex",
           flex: 1,
           flexDirection: "column",
           justifyContent: "center",
-          padding: 56,
+          marginLeft: 56,
         }}
       >
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              background: ds.primary,
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              marginLeft: 12,
+              fontSize: 22,
+              fontWeight: 700,
+              letterSpacing: 5,
+              textTransform: "uppercase",
+            }}
+          >
+            Gamelyd
+          </div>
+        </div>
         <div
           style={{
             display: "flex",
             color: ds.primary,
-            fontSize: 24,
-            letterSpacing: 4,
+            fontSize: 26,
+            letterSpacing: 5,
             textTransform: "uppercase",
+            marginTop: 34,
           }}
         >
           {kicker}
@@ -123,9 +202,9 @@ export function EntityOgMarkup({
         <div
           style={{
             display: "flex",
-            fontSize: 52,
-            lineHeight: 1.1,
-            marginTop: 16,
+            fontSize: 60,
+            lineHeight: 1.06,
+            marginTop: 14,
             fontWeight: 700,
           }}
         >
@@ -136,8 +215,8 @@ export function EntityOgMarkup({
             style={{
               display: "flex",
               color: ds.textMuted,
-              fontSize: 24,
-              marginTop: 24,
+              fontSize: 26,
+              marginTop: 20,
             }}
           >
             {subtitle}

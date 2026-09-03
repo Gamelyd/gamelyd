@@ -9,7 +9,7 @@ const NOMINATIM = "https://nominatim.openstreetmap.org";
 /** Nominatim asks every caller to identify itself and rate-limits anonymous use. */
 const HEADERS = {
   Accept: "application/json",
-  "User-Agent": "Gamelyd/1.0 (https://www.gamelyd.co)",
+  "User-Agent": "Gamelyd/1.0 (https://www.gamelyd.com)",
 };
 
 interface NominatimRow {

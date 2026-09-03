@@ -60,10 +60,17 @@ import { resolveSavedTeamRegistration } from "@/server/services/savedTeamService
 import { rosterSize } from "@/lib/schemas/common";
 import {
   activeTournamentCount,
+  limitsForHost,
+  limitsForPlan,
   planForHost,
 } from "@/server/services/planService";
-import { PLANS, type Plan, type PlanLimits } from "@/lib/plans";
 import {
+  usableTemplates,
+  type TournamentTemplate,
+} from "@/lib/tournamentTemplates";
+import type { Plan, PlanLimits } from "@/lib/plans";
+import {
+  getTemplates,
   getOneOff,
   getSponsorRequiresOrg,
 } from "@/server/services/settingsService";
@@ -632,6 +639,8 @@ export async function myPlanLimitsAction(
     limits: PlanLimits;
     activeCount: number;
     oneOff: { enabled: boolean; price: number; currency: string; tier: Plan };
+    /** Live limits of the one-off tier, so the form can show what it unlocks. */
+    oneOffLimits: PlanLimits;
     sponsorRequiresOrg: boolean;
   }>
 > {
@@ -645,7 +654,7 @@ export async function myPlanLimitsAction(
     ]);
     return ok({
       plan,
-      limits: PLANS[plan],
+      limits: await limitsForPlan(plan),
       activeCount: await activeTournamentCount(claims.uid),
       oneOff: {
         enabled: oneOff.enabled,
@@ -653,11 +662,36 @@ export async function myPlanLimitsAction(
         currency: oneOff.currency,
         tier: oneOff.tier,
       },
+      oneOffLimits: await limitsForPlan(oneOff.tier),
       sponsorRequiresOrg,
     });
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Could not load your plan");
+  }
+}
+
+
+/**
+ * The setup templates a signed-in host can actually use: enabled, inside their
+ * plan's ceiling, and internally consistent. Filtering here rather than in the
+ * form means a host is never shown a shortcut that would fail on submit.
+ */
+export async function myTournamentTemplatesAction(
+  orgId = "",
+): Promise<ActionResult<TournamentTemplate[]>> {
+  const claims = await getSessionClaims();
+  if (!claims) return fail("You must be signed in");
+  try {
+    const [templates, limits] = await Promise.all([
+      getTemplates(),
+      limitsForHost(claims.uid, orgId || undefined),
+    ]);
+    return ok(usableTemplates(templates, limits));
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not load templates");
   }
 }

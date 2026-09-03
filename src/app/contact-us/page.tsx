@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { submitContactAction } from "@/server/actions/contactActions";
 import { Reveal } from "@/components/ui/Reveal";
+import { LIMITS } from "@/lib/limits";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ Name: "", Email: "", Message: "" });
@@ -45,6 +46,7 @@ export default function ContactPage() {
         >
           <Input
             label="Name"
+            maxLength={LIMITS.firstName}
             value={form.Name}
             onChange={(e) => setForm({ ...form, Name: e.target.value })}
             required
@@ -52,6 +54,7 @@ export default function ContactPage() {
           <Input
             type="email"
             label="Email"
+            maxLength={LIMITS.email}
             value={form.Email}
             onChange={(e) => setForm({ ...form, Email: e.target.value })}
             required
@@ -61,6 +64,7 @@ export default function ContactPage() {
             rows={5}
             value={form.Message}
             onChange={(e) => setForm({ ...form, Message: e.target.value })}
+            maxLength={LIMITS.message}
             required
           />
           <Button type="submit" loading={loading}>
@@ -79,7 +83,7 @@ export default function ContactPage() {
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
               Website
             </h3>
-            <p className="mt-1">www.gamelyd.co</p>
+            <p className="mt-1">www.gamelyd.com</p>
           </div>
           <div>
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">

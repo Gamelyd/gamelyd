@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/TableSelection";
 import type { User } from "@/lib/schemas/user";
 import type { BulkUserOp } from "@/lib/schemas/admin";
-import { PLANS, type Plan } from "@/lib/plans";
+import { DEFAULT_PLANS, PLAN_ORDER, type Plan } from "@/lib/plans";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import type { Paginated } from "@/lib/result";
+import { displayName } from "@/lib/displayName";
 import {
   adminBulkUserAction,
   adminListUsersAction,
@@ -29,7 +30,7 @@ import {
   adminToggleDeleteUserAction,
 } from "@/server/actions/adminActions";
 
-const PLAN_OPTIONS: Plan[] = ["FREE", "CLUB", "LEAGUE"];
+const PLAN_OPTIONS: Plan[] = [...PLAN_ORDER];
 
 interface PendingAction {
   id: string;
@@ -177,7 +178,7 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3 text-white">
                     <VerifiedName
-                      name={`${u.first_name} ${u.last_name}`.trim()}
+                      name={displayName(u)}
                       verified={u.verified}
                     />
                     <span className="block text-xs text-body">
@@ -188,18 +189,18 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 text-body">{u.email}</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
                         u.plan === "FREE"
                           ? "bg-surface-2 text-body"
                           : "bg-win-deep text-white"
                       }`}
                     >
-                      {PLANS[u.plan].label}
+                      {DEFAULT_PLANS[u.plan].label}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
                         isAdmin
                           ? "bg-primary/15 text-primary"
                           : "bg-surface-2 text-body"
@@ -235,7 +236,7 @@ export default function AdminUsersPage() {
                         },
                         ...PLAN_OPTIONS.filter((p) => p !== u.plan).map(
                           (p) => ({
-                            label: `Move to ${PLANS[p].label} plan`,
+                            label: `Move to ${DEFAULT_PLANS[p].label} plan`,
                             onSelect: () =>
                               void run(u.user_id, () =>
                                 adminSetPlanAction("user", u.user_id, p),

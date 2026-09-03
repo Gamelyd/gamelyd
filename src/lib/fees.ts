@@ -1,6 +1,14 @@
 import type { Currency } from "@/lib/schemas/common";
 
-/** Locked onto each tournament at create so later rate changes do not rewrite old pots. */
+/**
+ * Only reaches a charge if paid events are switched back on; today
+ * `saveTournament` coerces every event to FREE or SPONSORED, and sponsored
+ * prizes are display-only. Kept at the original rate so the constant means what
+ * it always meant if that path is ever revived.
+ *
+ * Locked onto each tournament at create so later rate changes do not rewrite
+ * old pots.
+ */
 export const PLATFORM_FEE_BPS = 1000;
 
 export type Processor = "STRIPE" | "PAYSTACK";

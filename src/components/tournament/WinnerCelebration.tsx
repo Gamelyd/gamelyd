@@ -7,6 +7,7 @@ import type { Podium } from "@/lib/podium";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { DownloadViewButton } from "./DownloadViewButton";
 
 const CONFETTI_COLORS = ["#f6c945", "#2dd4bf", "#ffffff", "#f472b6", "#a78bfa"];
 const CONFETTI = Array.from({ length: 46 }, (_, i) => ({
@@ -28,11 +29,13 @@ const PODIUM_META = {
 
 export function WinnerCelebration({
   podium,
+  tournamentId,
   tournamentName,
   gameName,
   onClose,
 }: {
   podium: Podium;
+  tournamentId: string;
   tournamentName: string;
   gameName: string;
   onClose: () => void;
@@ -135,12 +138,19 @@ export function WinnerCelebration({
               <Button variant="outline" onClick={() => setFocused(true)}>
                 Champion view
               </Button>
+              <DownloadViewButton
+                tournamentId={tournamentId}
+                tournamentName={tournamentName}
+                view="champions"
+                label="Download"
+              />
               <Button onClick={onClose}>Enter tournament</Button>
             </div>
           </div>
         ) : (
           <ChampionCard
             team={first}
+            tournamentId={tournamentId}
             tournamentName={tournamentName}
             gameName={gameName}
             onClose={onClose}
@@ -155,12 +165,14 @@ export function WinnerCelebration({
 
 function ChampionCard({
   team,
+  tournamentId,
   tournamentName,
   gameName,
   onClose,
   onBack,
 }: {
   team: Teams;
+  tournamentId: string;
   tournamentName: string;
   gameName: string;
   onClose: () => void;
@@ -207,6 +219,12 @@ function ChampionCard({
             Back to standings
           </Button>
         ) : null}
+        <DownloadViewButton
+          tournamentId={tournamentId}
+          tournamentName={tournamentName}
+          view="champions"
+          label="Download"
+        />
         <Button onClick={onClose}>View tournament</Button>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
 import { TextArea } from "@/components/ui/TextArea";
 import { useToast } from "@/components/ui/Toast";
+import { LIMITS } from "@/lib/limits";
 import {
   addTournamentAnnouncementAction,
   removeTournamentAnnouncementAction,
@@ -25,7 +26,7 @@ export function LatestAnnouncementBanner({
       className="w-full border-b border-primary/25 bg-primary/10 text-left transition-colors hover:bg-primary/15"
     >
       <span className="mx-auto flex max-w-6xl items-start gap-3 px-page py-3">
-        <span className="mt-0.5 shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+        <span className="inline-flex items-center justify-center leading-none mt-0.5 shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
           New
         </span>
         <span className="min-w-0 flex-1">
@@ -118,10 +119,10 @@ export function TournamentAnnouncements({
             onChange={(e) => setBody(e.target.value)}
             placeholder="Write an update for everyone in this event"
             rows={4}
-            maxLength={2000}
+            maxLength={LIMITS.announcement}
           />
           <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-body">{body.trim().length}/2000</span>
+            <span />
             <Button
               type="button"
               loading={posting}

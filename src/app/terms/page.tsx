@@ -59,18 +59,26 @@ function buildSections(): LegalSection[] {
     ],
   },
   {
-    heading: "Running tournaments: free, plans, and one-off",
+    heading: "Running tournaments is free",
     body: [
-      "Creating and joining tournaments is free. Larger events (bigger lobbies, leagues, groups, or several at once) need a paid plan or a one-off payment, charged to the organiser. Players are never charged a plan or a one-off.",
-      "A plan is a subscription that lifts these limits while it is active. A one-off payment lets you create a single larger event without subscribing. Both are fees for running competitions.",
-      "If a plan lapses, tournaments already created keep working. You simply cannot create new ones above the free limits until you renew or pay a one-off.",
+      "Creating, running and joining tournaments is free. Every format, every organiser tool and as many tournaments as you like are included at no charge, and we do not ask for a card to start.",
+      "There is a ceiling on how many teams one tournament can hold, so a single event cannot become unreasonably expensive for us to run. It is a technical limit, not a paywall. Contact us if your event needs to be bigger and we will lift it.",
+      "Public tournament pages on the free plan carry a small Gamelyd credit.",
     ],
   },
   {
-    heading: "How we charge",
+    heading: "Paid plans",
     body: [
-      "Plan and one-off payments are handled by our payment provider. We never take card numbers on our forms; the payment company handles the card page.",
-      "A payment is only confirmed after the payment company tells us the charge succeeded. If checkout is cancelled or fails, nothing is charged and the plan or one-off does not take effect.",
+      "A paid plan is optional and changes nothing about how a tournament runs. It covers presentation: your own branding on the tournament page and the removal of the Gamelyd credit. Limits and prices are shown on the pricing page.",
+      "A plan is billed to the organiser. Players are never charged for a plan, and never need one to register, play, or see results.",
+      "If a plan lapses, tournaments already created keep working. The Gamelyd credit returns to your public pages until it is renewed.",
+    ],
+  },
+  {
+    heading: "Entry fees and prize money",
+    body: [
+      "Gamelyd does not currently collect entry fees and does not process payments between players and organisers. If we introduce this, it will be announced and these terms will be updated before it applies to anyone.",
+      "A tournament may advertise prizes. Those amounts are supplied and displayed on behalf of the host: Gamelyd does not hold, transfer, or guarantee prize money, and the host awards it directly. Any dispute about a prize is between the players and the host who advertised it.",
     ],
   },
   {

@@ -1,12 +1,18 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import { winnerSchema } from "./common";
 
+/*
+ * Shared by the submitted roster and by rosters read back out of Mongo, so the
+ * cap is deliberately generous: big enough that no stored value is rejected,
+ * small enough that a hand-made request cannot post a megabyte per player.
+ */
 function playerString() {
   return z.preprocess((value) => {
     if (typeof value !== "string") return "";
     if (value === "$undefined") return "";
     return value;
-  }, z.string());
+  }, z.string().max(LIMITS.iconRef));
 }
 
 export const playerSchema = z.object({
@@ -73,7 +79,7 @@ export type Draw = z.infer<typeof drawSchema>;
 /* ----------------------------- Inputs ----------------------------- */
 
 export const newDrawInputSchema = z.object({
-  TournamentId: z.string().min(1),
+  TournamentId: z.string().min(1).max(LIMITS.id),
 });
 export type NewDrawInput = z.infer<typeof newDrawInputSchema>;
 
@@ -83,23 +89,23 @@ export const addWinnerInputSchema = z.object({
 export type AddWinnerInput = z.infer<typeof addWinnerInputSchema>;
 
 export const addTimeInputSchema = z.object({
-  Time: z.string().min(1),
-  Date: z.string().min(1),
+  Time: z.string().min(1).max(LIMITS.dateString),
+  Date: z.string().min(1).max(LIMITS.dateString),
 });
 export type AddTimeInput = z.infer<typeof addTimeInputSchema>;
 
 export const addScoreInputSchema = z.object({
   Team1: z.coerce.number(),
   Team2: z.coerce.number(),
-  Winner: z.string(),
-  TournamentId: z.string(),
-  WinnerTeam: z.string().optional().default(""),
-  IsFinal: z.string().optional().default(""),
+  Winner: z.string().max(LIMITS.teamName),
+  TournamentId: z.string().max(LIMITS.id),
+  WinnerTeam: z.string().max(LIMITS.teamName).optional().default(""),
+  IsFinal: z.string().max(16).optional().default(""),
 });
 export type AddScoreInput = z.infer<typeof addScoreInputSchema>;
 
 export const addLinkInputSchema = z.object({
-  Link: z.string().min(1),
+  Link: z.string().min(1).max(LIMITS.url),
 });
 export type AddLinkInput = z.infer<typeof addLinkInputSchema>;
 
@@ -116,9 +122,9 @@ export const setDrawVenueInputSchema = z.object({
 export type SetDrawVenueInput = z.infer<typeof setDrawVenueInputSchema>;
 
 export const updateBrDrawInputSchema = z.object({
-  Players: z.array(brTeamsSchema),
-  Link: z.string().optional().default(""),
-  Date: z.string().optional().default(""),
-  Time: z.string().optional().default(""),
+  Players: z.array(brTeamsSchema).max(256),
+  Link: z.string().max(LIMITS.url).optional().default(""),
+  Date: z.string().max(LIMITS.dateString).optional().default(""),
+  Time: z.string().max(LIMITS.dateString).optional().default(""),
 });
 export type UpdateBrDrawInput = z.infer<typeof updateBrDrawInputSchema>;

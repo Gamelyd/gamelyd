@@ -6,7 +6,7 @@ export function publicAppUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (explicit) return explicit;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "https://www.gamelyd.co";
+  return "https://www.gamelyd.com";
 }
 
 export function absoluteImageUrl(src: string): string {

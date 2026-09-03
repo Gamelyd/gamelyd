@@ -426,7 +426,7 @@ export default function AdminGamesPage() {
                   </div>
                 )}
                 <span
-                  className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  className={`inline-flex items-center justify-center leading-none absolute right-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
                     game.active
                       ? "bg-win-deep text-white"
                       : "bg-surface-3 text-body"

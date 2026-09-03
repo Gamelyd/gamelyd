@@ -12,6 +12,7 @@ import {
 } from "../auth/jwt";
 import { getSessionClaims } from "../auth/session";
 import { serializeUser } from "../serialize";
+import { randomPlayerIcon } from "./iconService";
 import { sendEmail } from "../email/mailer";
 import {
   forgotPasswordEmail,
@@ -124,8 +125,12 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
 
   const emailTaken = await col.countDocuments({ email: input.email });
   if (emailTaken > 0) throw new ServiceError("Email already exists");
-  const phoneTaken = await col.countDocuments({ phone: input.phone });
-  if (phoneTaken > 0) throw new ServiceError("Phone number already exists");
+  // Phone is optional now, and an empty string is not a duplicate: without this
+  // guard the second account ever created would collide with the first.
+  if (input.phone) {
+    const phoneTaken = await col.countDocuments({ phone: input.phone });
+    if (phoneTaken > 0) throw new ServiceError("Phone number already exists");
+  }
   const nameTaken = await col.countDocuments({ user_name: input.user_name });
   if (nameTaken > 0) throw new ServiceError("Username already exists");
 
@@ -166,11 +171,11 @@ export async function createUser(input: SignupInput): Promise<AuthResult> {
     facebook: "",
     country: "",
     location: "",
-    icon: "",
+    icon: await randomPlayerIcon(),
   };
 
   await col.insertOne(doc);
-  void sendEmail(input.email, registerEmail(input.first_name));
+  void sendEmail(input.email, registerEmail(input.first_name || input.user_name));
 
   return { user: { ...serializeUser(doc), token }, token, refreshToken };
 }

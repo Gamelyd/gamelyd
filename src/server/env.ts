@@ -31,11 +31,11 @@ export const env = {
   },
   get smtp() {
     return {
-      host: optional("SMTP_HOST", "gamelyd.co"),
+      host: optional("SMTP_HOST", "gamelyd.com"),
       port: Number(optional("SMTP_PORT", "587")),
-      user: optional("SMTP_USER", "no-reply@gamelyd.co"),
+      user: optional("SMTP_USER", "no-reply@gamelyd.com"),
       pass: optional("SMTP_PASS", ""),
-      from: optional("MAIL_FROM", "no-reply@gamelyd.co"),
+      from: optional("MAIL_FROM", "no-reply@gamelyd.com"),
       adminEmail: optional("ADMIN_EMAIL", "madumcbobby@yahoo.com"),
     };
   },

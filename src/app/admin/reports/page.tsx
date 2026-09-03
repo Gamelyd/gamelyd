@@ -234,7 +234,7 @@ export default function AdminReportsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
                         r.IsCompleted
                           ? "bg-win-deep text-white"
                           : "bg-yellow/15 text-yellow"

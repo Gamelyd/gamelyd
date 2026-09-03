@@ -1,7 +1,7 @@
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
-import { Tag, paymentFrame } from "@/components/ui/Tag";
+import { PaymentTag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import { formatMoney } from "@/lib/currency";
@@ -51,7 +51,7 @@ export function TournamentDisplay({ tournament }: { tournament: Tournament }) {
             and clears toward the foot, leaving the artwork readable. */}
         <div className="absolute inset-0 z-1 bg-linear-to-b from-black/75 via-black/30 to-black/10" />
         <div className="absolute left-3 top-3 z-2 flex flex-wrap gap-1.5">
-          <Tag payment={tournament.Payment} className="rounded-md" />
+          <PaymentTag payment={tournament.Payment} className="rounded-md" />
           {tournament.TournamentType === "PRIVATE" ? (
             <span className="inline-block rounded-md bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
               Invite only

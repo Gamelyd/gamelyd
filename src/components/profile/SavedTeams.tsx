@@ -14,6 +14,7 @@ import { useIcons } from "@/hooks/useIcons";
 import { useAuth } from "@/context/AuthContext";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import type { SavedTeam, SavedTeamInvite } from "@/lib/schemas/savedTeam";
+import { LIMITS } from "@/lib/limits";
 import {
   createSavedTeamAction,
   deleteSavedTeamAction,
@@ -354,6 +355,7 @@ export function SavedTeams() {
         <form onSubmit={save} className="flex flex-col gap-4">
           <Input
             label="Team name"
+            maxLength={LIMITS.teamName}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -418,6 +420,7 @@ export function SavedTeams() {
           </p>
           <Input
             label="Username or email"
+            maxLength={LIMITS.email}
             value={inviteHandle}
             onChange={(e) => setInviteHandle(e.target.value)}
             required

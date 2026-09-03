@@ -35,7 +35,7 @@ import type { Game, ScoreLabel, CatalogFormat } from "@/lib/schemas/game";
 import type { CatalogKind } from "@/lib/schemas/catalogKind";
 import type { IconAsset } from "@/lib/schemas/icon";
 import { catalogUrl } from "@/lib/icons";
-import { planSchema, type Plan } from "@/lib/plans";
+import { normalizePlan, type Plan } from "@/lib/plans";
 import type { Platform } from "@/lib/schemas/platform";
 import type {
   Payment,
@@ -98,10 +98,9 @@ export function serializeUser(doc: UserDoc): User {
   };
 }
 
-/** Unknown or missing tiers fall back to FREE rather than throwing. */
+/** Retired tiers map onto a current one; anything unknown falls back to FREE. */
 function parsePlan(value: string): Plan {
-  const parsed = planSchema.safeParse(value.toUpperCase());
-  return parsed.success ? parsed.data : "FREE";
+  return normalizePlan(value);
 }
 
 export function serializeTournament(doc: TournamentDoc): Tournament {
@@ -193,11 +192,7 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
     Platform: readString(raw, ["Platform", "platform"]),
     Winner: serializeTeam(raw.Winner ?? raw.winner) ?? undefined,
     Stage: readNumber(raw, ["Stage", "stage"]),
-    Groups: Array.isArray(raw.Groups)
-      ? (raw.Groups as Tournament["Groups"])
-      : Array.isArray(raw.groups)
-        ? (raw.groups as Tournament["Groups"])
-        : [],
+    Groups: serializeGroups(raw),
     PointSystem: (raw.PointSystem as Tournament["PointSystem"]) ??
       (raw.pointsystem as Tournament["PointSystem"]) ?? {
         Win: 3,
@@ -402,6 +397,32 @@ function serializePlayer(raw: unknown): Player {
     Icon: catalogUrl(readString(p, ["Icon", "icon"])),
     Verified: readBool(p, ["Verified", "verified"]),
   };
+}
+
+/**
+ * Groups were the one field handed to the UI exactly as Mongo stored them,
+ * while every field around them goes through the legacy-key readers. A row
+ * written with `groupName`/`teams`, or with no name at all, therefore arrived
+ * as `{ GroupName: undefined }` and took the tournament page down the moment
+ * anything read it.
+ *
+ * Normalising here fixes it for every consumer at once -- the board, the
+ * standings, the draw service and the downloadable images all read `GroupName`.
+ */
+function serializeGroups(raw: Record<string, unknown>): Tournament["Groups"] {
+  const rows = readArray(raw, ["Groups", "groups"]);
+  return rows.map((row, index) => {
+    const group = asRecord(row);
+    const name = readString(group, ["GroupName", "groupname", "Name", "name"]);
+    return {
+      // A group with no stored name still needs one: it is the key draws are
+      // matched on, so an empty string would silently detach its fixtures.
+      GroupName: name || `Group ${index + 1}`,
+      Teams: readArray(group, ["Teams", "teams"])
+        .map(serializeTeam)
+        .filter((team): team is Teams => Boolean(team)),
+    };
+  });
 }
 
 function serializeTeam(raw: unknown): Teams | undefined {

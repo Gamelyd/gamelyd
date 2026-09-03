@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { TOURNAMENT_REPORT_REASONS } from "@/lib/schemas/misc";
 import { reportTournamentAction } from "@/server/actions/contactActions";
+import { LIMITS } from "@/lib/limits";
 
 /**
  * Lets a player raise an issue about an event straight from its page, so the
@@ -85,6 +86,7 @@ export function ReportTournament({
             rows={5}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Give us the detail we would need to check this, such as which match or which team."
+            maxLength={LIMITS.message}
             required
           />
           <div className="flex justify-end gap-3">

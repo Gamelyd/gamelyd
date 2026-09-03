@@ -8,7 +8,9 @@ import { Loader } from "@/components/ui/Loader";
 import { useToast } from "@/components/ui/Toast";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
 import { Select } from "@/components/ui/Select";
-import type { Plan } from "@/lib/plans";
+import { PLAN_ORDER, type Plan } from "@/lib/plans";
+import { PlanEditor } from "@/components/admin/PlanEditor";
+import { TemplateEditor } from "@/components/admin/TemplateEditor";
 import { splitEntry, sponsorDeposit } from "@/lib/fees";
 import {
   adminGetPlatformSettingsAction,
@@ -170,6 +172,10 @@ export default function AdminSettingsPage() {
         </p>
       </div>
 
+      <PlanEditor />
+
+      <TemplateEditor />
+
       <div className="mb-6 max-w-2xl rounded-2xl border border-surface-2 bg-surface p-5">
         <h2 className="font-semibold text-white">Tournament types</h2>
         <p className="mt-1 text-sm text-body">
@@ -292,10 +298,10 @@ export default function AdminSettingsPage() {
           <Select
             label="Unlocks the"
             value={oneOff.tier}
-            options={[
-              { value: "CLUB", label: "Club limits" },
-              { value: "LEAGUE", label: "League limits" },
-            ]}
+            options={PLAN_ORDER.map((plan) => ({
+              value: plan,
+              label: `${plan} limits`,
+            }))}
             onChange={(e) =>
               setOneOff((o) => ({ ...o, tier: e.target.value as Plan }))
             }
@@ -425,7 +431,7 @@ function TypeToggle({
       </div>
       <div className="flex items-center gap-3">
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+          className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
             enabled ? "bg-win-deep text-white" : "bg-yellow/15 text-yellow"
           }`}
         >

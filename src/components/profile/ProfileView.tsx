@@ -24,7 +24,7 @@ import { RatingPanel } from "@/components/rating/RatingPanel";
 import { IconPicker } from "@/components/ui/IconPicker";
 import { useIcons } from "@/hooks/useIcons";
 import { FALLBACKS, playerIconFor } from "@/lib/icons";
-import { PLANS } from "@/lib/plans";
+import { DEFAULT_PLANS } from "@/lib/plans";
 import {
   TournamentCard,
   EmptyTournaments,
@@ -33,6 +33,7 @@ import { SavedTeams } from "@/components/profile/SavedTeams";
 import { PageTour } from "@/components/help/PageTour";
 import { PROFILE_TOUR } from "@/components/help/tours";
 import { helpTarget } from "@/lib/help";
+import { LIMITS } from "@/lib/limits";
 
 /**
  * One page for a player, whether it is yours or someone else's. Visitors see
@@ -192,7 +193,7 @@ export function ProfileView({
                 <p className="text-sm text-body">
                   Your plan:{" "}
                   <span className="font-semibold text-white">
-                    {PLANS[display.plan].label}
+                    {DEFAULT_PLANS[display.plan].label}
                   </span>
                   {display.plan === "FREE"
                     ? ". Free to run tournaments."
@@ -455,28 +456,33 @@ function EditProfileCard({
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           label="First name"
+          maxLength={LIMITS.firstName}
           value={form.first_name}
           onChange={(e) => setForm({ ...form, first_name: e.target.value })}
         />
         <Input
           label="Last name"
+          maxLength={LIMITS.lastName}
           value={form.last_name}
           onChange={(e) => setForm({ ...form, last_name: e.target.value })}
         />
       </div>
       <Input
         label="Username"
+        maxLength={LIMITS.userName}
         value={form.user_name}
         onChange={(e) => setForm({ ...form, user_name: e.target.value })}
       />
       <Input
         label="Email"
+        maxLength={LIMITS.email}
         value={profile.email}
         disabled
         readOnly
       />
       <Input
         label="Phone"
+        maxLength={LIMITS.phone}
         value={form.phone}
         disabled={locked}
         readOnly={locked}
@@ -497,11 +503,13 @@ function EditProfileCard({
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           label="Country"
+          maxLength={LIMITS.country}
           value={form.country}
           onChange={(e) => setForm({ ...form, country: e.target.value })}
         />
         <Input
           label="Location"
+          maxLength={LIMITS.location}
           value={form.location}
           onChange={(e) => setForm({ ...form, location: e.target.value })}
         />
@@ -553,6 +561,7 @@ function ChangePasswordCard({ onSaved }: { onSaved: () => void }) {
       </div>
       <PasswordInput
         label="Current password"
+        maxLength={LIMITS.password}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         autoComplete="current-password"
@@ -561,6 +570,7 @@ function ChangePasswordCard({ onSaved }: { onSaved: () => void }) {
       <div className="flex flex-col gap-2">
         <PasswordInput
           label="New password"
+          maxLength={LIMITS.password}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           autoComplete="new-password"
@@ -626,6 +636,7 @@ function RequestContactChangeCard({ profile }: { profile: User }) {
       </div>
       <Input
         label="New email (optional)"
+        maxLength={LIMITS.email}
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -633,12 +644,14 @@ function RequestContactChangeCard({ profile }: { profile: User }) {
       />
       <Input
         label="New phone (optional)"
+        maxLength={LIMITS.phone}
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder={profile.phone || "Include the country code"}
       />
       <Input
         label="Anything we should know? (optional)"
+        maxLength={LIMITS.comment}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Why the change is needed"

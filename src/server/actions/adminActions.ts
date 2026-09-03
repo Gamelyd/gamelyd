@@ -57,9 +57,15 @@ import { getDrawsByTournament } from "@/server/services/drawService";
 import type { Tournament } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import { guardAdmin } from "@/server/auth/admin";
-import { setPlan } from "@/server/services/planService";
+import { limitsForPlan, setPlan } from "@/server/services/planService";
 import {
+  getPlans,
+  getTemplates,
+  resetTemplates,
+  setTemplates,
+  resetPlanLimits,
   setOneOff,
+  setPlanLimits,
   setSponsorRequiresOrg,
   setRatingEnabled,
 } from "@/server/services/settingsService";
@@ -68,7 +74,17 @@ import {
   ratingTargetSchema,
   type RatingTarget,
 } from "@/lib/schemas/rating";
-import { PLANS, planSchema, type Plan } from "@/lib/plans";
+import {
+  templateListSchema,
+  type TournamentTemplate,
+} from "@/lib/tournamentTemplates";
+import {
+  planLimitsSchema,
+  planSchema,
+  type Plan,
+  type PlanConfig,
+  type PlanLimits,
+} from "@/lib/plans";
 import {
   completeReport,
   deleteReport,
@@ -721,10 +737,8 @@ export async function adminSetPlanAction(
   if (!parsed.success) return fail("Unknown plan");
   try {
     await setPlan({ kind, id }, parsed.data);
-    return ok(
-      { ok: true } as const,
-      `Moved to the ${PLANS[parsed.data].label} plan`,
-    );
+    const limits = await limitsForPlan(parsed.data);
+    return ok({ ok: true } as const, `Moved to the ${limits.label} plan`);
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
@@ -802,5 +816,111 @@ export async function adminSetSponsorPolicyAction(
     if (error instanceof ServiceError) return fail(error.message);
     console.error(error);
     return fail("Could not save that");
+  }
+}
+
+
+/* --------------------------- Plan configuration --------------------------- */
+
+/**
+ * The tier limits, prices and branding flags behind the admin desk's plan
+ * editor. These are the live values every gate reads, so a change here takes
+ * effect without a deploy.
+ */
+export async function adminGetPlansAction(): Promise<ActionResult<PlanConfig>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    return ok(await getPlans());
+  } catch (error) {
+    console.error(error);
+    return fail("Could not load plans");
+  }
+}
+
+export async function adminSetPlanLimitsAction(
+  plan: Plan,
+  input: unknown,
+): Promise<ActionResult<PlanConfig>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  const target = planSchema.safeParse(plan);
+  if (!target.success) return fail("Unknown plan");
+  const parsed = parseInput(planLimitsSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    const next = await setPlanLimits(
+      target.data,
+      parsed.data as PlanLimits,
+      admin.uid,
+    );
+    return ok(next, `${parsed.data.label} plan updated`);
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not update that plan");
+  }
+}
+
+/** Drops every override and goes back to the values shipped in code. */
+export async function adminResetPlansAction(): Promise<
+  ActionResult<PlanConfig>
+> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  try {
+    return ok(await resetPlanLimits(admin.uid), "Plans reset to defaults");
+  } catch (error) {
+    console.error(error);
+    return fail("Could not reset plans");
+  }
+}
+
+
+/* ---------------------------- Setup templates ---------------------------- */
+
+/**
+ * The ready-made setups offered in the create wizard. Saved as one list rather
+ * than row-by-row: the editor works on the whole set, and a single write keeps
+ * ordering and id-uniqueness decidable in one place.
+ */
+export async function adminGetTemplatesAction(): Promise<
+  ActionResult<TournamentTemplate[]>
+> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    return ok(await getTemplates());
+  } catch (error) {
+    console.error(error);
+    return fail("Could not load templates");
+  }
+}
+
+export async function adminSetTemplatesAction(
+  input: unknown,
+): Promise<ActionResult<TournamentTemplate[]>> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  const parsed = parseInput(templateListSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    const next = await setTemplates(parsed.data, admin.uid);
+    return ok(next, "Templates saved");
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not save templates");
+  }
+}
+
+export async function adminResetTemplatesAction(): Promise<
+  ActionResult<TournamentTemplate[]>
+> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  try {
+    return ok(await resetTemplates(admin.uid), "Templates reset to defaults");
+  } catch (error) {
+    console.error(error);
+    return fail("Could not reset templates");
   }
 }

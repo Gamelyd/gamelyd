@@ -14,6 +14,7 @@ import { IconPicker } from "@/components/ui/IconPicker";
 import { FALLBACKS } from "@/lib/icons";
 import { useIcons } from "@/hooks/useIcons";
 import type { CreateOrgInput } from "@/lib/schemas/org";
+import { LIMITS } from "@/lib/limits";
 
 const empty: CreateOrgInput = {
   name: "",
@@ -70,6 +71,7 @@ export default function CreateOrgPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <Input
             label="Organization name"
+            maxLength={LIMITS.orgName}
             value={form.name}
             onChange={(e) => update("name", e.target.value)}
             required
@@ -86,26 +88,31 @@ export default function CreateOrgPage() {
             rows={4}
             value={form.description}
             onChange={(e) => update("description", e.target.value)}
+            maxLength={LIMITS.comment}
           />
           <div className="grid gap-5 sm:grid-cols-2">
             <Input
               label="Website"
+              maxLength={LIMITS.url}
               placeholder="https://..."
               value={form.website}
               onChange={(e) => update("website", e.target.value)}
             />
             <Input
               label="Twitter"
+              maxLength={LIMITS.socialHandle}
               value={form.twitter}
               onChange={(e) => update("twitter", e.target.value)}
             />
             <Input
               label="Instagram"
+              maxLength={LIMITS.socialHandle}
               value={form.instagram}
               onChange={(e) => update("instagram", e.target.value)}
             />
             <Input
               label="LinkedIn"
+              maxLength={LIMITS.socialHandle}
               value={form.linkedin}
               onChange={(e) => update("linkedin", e.target.value)}
             />

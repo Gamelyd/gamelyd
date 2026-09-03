@@ -10,7 +10,7 @@
  *
  * Production, after deploy:
  *   ADMIN_EMAIL=you@site.com ADMIN_PASSWORD='secret' npm run catalog:upload -- \
- *     --base https://www.gamelyd.co
+ *     --base https://www.gamelyd.com
  *
  * Options:
  *   --dir PATH     Folder of game subfolders (default: ~/Documents/game images)

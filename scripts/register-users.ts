@@ -162,7 +162,7 @@ async function main(): Promise<void> {
     const now = new Date().toISOString();
     const tIcon = readString(tournament, ["icon", "Icon", "TournamentIcon"]);
     const tDate = readString(tournament, ["Date", "date"]);
-    const defaultIcon = tIcon || "https://gamelyd.co/default-avatar.png";
+    const defaultIcon = tIcon || "https://gamelyd.com/default-avatar.png";
 
     const docs: Document[] = [];
     let cursor = 0;

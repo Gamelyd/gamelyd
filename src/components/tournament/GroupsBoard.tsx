@@ -6,6 +6,7 @@ import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Player } from "@/lib/schemas/draw";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
+import { groupBadge } from "@/lib/groupBadge";
 
 type GroupTeam = {
   key: string;
@@ -22,12 +23,6 @@ type LocalGroup = {
 
 export type GroupArrangement = { GroupName: string; TeamNames: string[] };
 
-function groupBadge(name: string, index: number): string {
-  const stripped = name.replace(/group/i, "").trim();
-  if (stripped) return stripped.slice(0, 2).toUpperCase();
-  return String.fromCharCode(65 + (index % 26));
-}
-
 function buildLocalGroups(
   groups: TournamentGroup[],
   participants: RegisterTournament[],
@@ -36,7 +31,7 @@ function buildLocalGroups(
   return groups.map((group, gi) => ({
     GroupName: group.GroupName || `Group ${gi + 1}`,
     badge: groupBadge(group.GroupName, gi),
-    teams: group.Teams.map((t, ti) => {
+    teams: (group.Teams ?? []).map((t, ti) => {
       const reg = byName.get(t.TeamName);
       return {
         key: reg?.RegisterTournamentId || reg?._id || `${t.TeamName}-${ti}`,

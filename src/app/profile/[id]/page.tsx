@@ -9,6 +9,7 @@ import {
 } from "@/server/actions/tournamentActions";
 import { getUserById } from "@/server/services/userService";
 import { pageMeta, profileShareDescription } from "@/lib/seo";
+import { displayName } from "@/lib/displayName";
 
 const TABS = ["overview", "teams", "organizations", "settings"] as const;
 type ProfileTab = (typeof TABS)[number];
@@ -22,7 +23,7 @@ export async function generateMetadata({
   const user = await getUserById(id);
   if (!user) return pageMeta({ title: "Player", path: `/profile/${id}` });
 
-  const name = `${user.first_name} ${user.last_name}`.trim() || user.user_name;
+  const name = displayName(user);
   return pageMeta({
     title: name,
     description: profileShareDescription(user),

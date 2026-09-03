@@ -283,7 +283,7 @@ export default function AdminPayoutsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[row.status]}`}
+                        className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[row.status]}`}
                       >
                         {row.status}
                       </span>

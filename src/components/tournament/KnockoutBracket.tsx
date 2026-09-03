@@ -280,7 +280,7 @@ function RoundLabel({ text }: { text?: string }) {
   return (
     <div className="mb-2 flex h-5 items-center justify-center">
       {text ? (
-        <span className="truncate rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary sm:text-[10px]">
+        <span className="inline-block leading-none truncate rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary sm:text-[10px]">
           {text}
         </span>
       ) : null}
@@ -489,7 +489,7 @@ function Trophy({ champion }: { champion?: Teams }) {
           </svg>
         </span>
         {champion ? (
-          <span className="max-w-24 truncate rounded-full bg-yellow/15 px-2 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-yellow sm:text-xs">
+          <span className="inline-block leading-none max-w-24 truncate rounded-full bg-yellow/15 px-2 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-yellow sm:text-xs">
             {champion.TeamName}
           </span>
         ) : (

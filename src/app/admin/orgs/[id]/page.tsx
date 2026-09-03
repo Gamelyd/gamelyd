@@ -21,6 +21,7 @@ import { IconPicker } from "@/components/ui/IconPicker";
 import { Loader } from "@/components/ui/Loader";
 import { useIcons } from "@/hooks/useIcons";
 import { VerifiedName } from "@/components/ui/VerifiedName";
+import { displayName } from "@/lib/displayName";
 
 export default function AdminOrgDetailPage() {
   const params = useParams<{ id: string }>();
@@ -233,7 +234,7 @@ export default function AdminOrgDetailPage() {
               <tr key={m.user_id} className="border-t border-surface-2">
                 <td className="px-4 py-3 text-white">
                   <VerifiedName
-                    name={`${m.first_name} ${m.last_name}`.trim()}
+                    name={displayName(m)}
                     verified={m.verified}
                   />
                   <span className="block text-xs text-body">

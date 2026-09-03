@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://www.gamelyd.co",
+    process.env.NEXT_PUBLIC_APP_URL || "https://www.gamelyd.com",
   ),
   title: defaultTitle,
   description,

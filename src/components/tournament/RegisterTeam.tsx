@@ -21,6 +21,7 @@ import type { Payment, TeamSize } from "@/lib/schemas/common";
 import { rosterSize } from "@/lib/schemas/common";
 import type { SavedTeam } from "@/lib/schemas/savedTeam";
 import { mySavedTeamsAction } from "@/server/actions/savedTeamActions";
+import { LIMITS } from "@/lib/limits";
 
 function playerFromUser(u: {
   user_name?: string;
@@ -217,6 +218,7 @@ export function RegisterTeam({
 
       <Input
         label="Team name"
+        maxLength={LIMITS.teamName}
         value={chosenTeam ? chosenTeam.name : teamName}
         onChange={(e) => setTeamName(e.target.value)}
         disabled={Boolean(chosenTeam)}
@@ -263,6 +265,7 @@ export function RegisterTeam({
       {usesInGameName ? (
         <Input
           label="Your in-game username"
+          maxLength={LIMITS.userName}
           value={gameUserName}
           onChange={(e) => setGameUserName(e.target.value)}
         />

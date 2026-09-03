@@ -9,7 +9,7 @@ import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import { Button } from "@/components/ui/Button";
-import { Tag } from "@/components/ui/Tag";
+import { PaymentTag, Tag } from "@/components/ui/Tag";
 import { VerifiedName } from "@/components/ui/VerifiedName";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
@@ -31,6 +31,12 @@ import { HostInvitePanel } from "./HostInvitePanel";
 import { LeagueTable } from "./LeagueTable";
 import { BrTable } from "./BrTable";
 import { ShareTournamentButton } from "./ShareTournamentButton";
+import { DownloadViewButton } from "./DownloadViewButton";
+import {
+  exportPlan,
+  viewForTeamsPanel,
+  type ExportView,
+} from "@/lib/exportViews";
 import {
   LatestAnnouncementBanner,
   TournamentAnnouncements,
@@ -472,6 +478,27 @@ export function TournamentView({
     );
   }, [draws, participants, tournament.PointSystem, tournament.TournamentMode]);
 
+  // Which downloads exist, and how many images each needs.
+  const exportViews = useMemo(
+    () => exportPlan(tournament, draws, participants),
+    [tournament, draws, participants],
+  );
+  const exportable = useMemo(
+    () => new Set(Object.keys(exportViews) as ExportView[]),
+    [exportViews],
+  );
+
+  const downloadButton = (view: ExportView, className = "") =>
+    exportViews[view] ? (
+      <DownloadViewButton
+        tournamentId={tournament.TournamentId}
+        tournamentName={tournament.Name}
+        view={view}
+        pages={exportViews[view]}
+        className={className}
+      />
+    ) : null;
+
   const hydratedDraws = useMemo(
     () => draws.map((d) => hydrateDrawIcons(d, teamIcons)),
     [draws, teamIcons],
@@ -793,6 +820,7 @@ export function TournamentView({
       {celebrate && podium?.first.TeamName?.trim() ? (
         <WinnerCelebration
           podium={podium}
+          tournamentId={tournament.TournamentId}
           tournamentName={tournament.Name}
           gameName={tournament.GameName}
           onClose={() => setCelebrate(false)}
@@ -812,25 +840,25 @@ export function TournamentView({
         <div className="relative z-1 mx-auto flex min-h-56 max-w-6xl flex-col justify-end px-page py-8 sm:min-h-80 sm:py-14 md:min-h-96 md:py-16">
           <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
-                <Tag payment={tournament.Payment} className="rounded-md" />
+                <PaymentTag payment={tournament.Payment} className="rounded-md" />
                 {tournament.TournamentType === "PRIVATE" ? (
-                  <span className="rounded-full border border-white/20 bg-black/50 px-3 py-1 text-xs text-white">
+                  <Tag tone="outline" size="md" uppercase={false}>
                     Invite only
-                  </span>
+                  </Tag>
                 ) : null}
-                <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
+                <Tag tone="outline" size="md" className="border-primary/25">
                   {tournament.TournamentMode}
-                </span>
+                </Tag>
                 {(tournament.CatalogKind || GAMES_KIND) !== GAMES_KIND ? (
-                  <span className="rounded-full border border-primary/25 bg-black/50 px-3 py-1 text-xs text-white">
+                  <Tag tone="outline" size="md" uppercase={false} className="border-primary/25">
                     {kindPublicLabel(tournament.CatalogKind)}
-                  </span>
+                  </Tag>
                 ) : null}
                 {champion?.TeamName?.trim() ? (
                   <button
                     type="button"
                     onClick={() => setCelebrate(true)}
-                    className="rounded-full border border-yellow/40 bg-yellow/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-yellow hover:bg-yellow/25"
+                    className="inline-flex items-center justify-center leading-none rounded-full border border-yellow/40 bg-yellow/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-yellow hover:bg-yellow/25"
                   >
                     Champion · {champion.TeamName}
                   </button>
@@ -997,7 +1025,7 @@ export function TournamentView({
           className="w-full border-b border-yellow/40 bg-yellow/15 text-left transition-colors hover:bg-yellow/25"
         >
           <span className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-page py-3.5">
-            <span className="shrink-0 rounded-full bg-yellow/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
+            <span className="inline-flex items-center justify-center leading-none shrink-0 rounded-full bg-yellow/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow">
               Captain
             </span>
             <span className="min-w-0 flex-1">
@@ -1027,7 +1055,7 @@ export function TournamentView({
           className="block w-full border-b border-primary/40 bg-primary/15 text-left transition-colors hover:bg-primary/20"
         >
           <span className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-page py-3.5">
-            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-primary">
+            <span className="inline-flex items-center justify-center leading-none shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-primary">
               Action needed
             </span>
             <span className="min-w-0 flex-1">
@@ -1110,20 +1138,34 @@ export function TournamentView({
         )}
 
         {tab === "table" && tournament.TournamentMode === "LEAGUE" && (
-          <LeagueTable
-            standings={standings}
-            scoreLabel={tournament.ScoreLabel}
-            allowDraw={tournament.AllowDraw !== false}
-          />
+          <div className="flex flex-col gap-4">
+            {exportable.has("standings") ? (
+              <div className="flex justify-end">
+                {downloadButton("standings")}
+              </div>
+            ) : null}
+            <LeagueTable
+              standings={standings}
+              scoreLabel={tournament.ScoreLabel}
+              allowDraw={tournament.AllowDraw !== false}
+            />
+          </div>
         )}
         {tab === "table" && tournament.TournamentMode === "BATTLEROYALE" && (
-          <BrTable
-            standings={computeBrStandings(draws, {
-              PlacementPoints: tournament.BrPlacementPoints,
-              KillPoints: tournament.BrKillPoints,
-              FirstBloodPoints: tournament.BrFirstBloodPoints,
-            })}
-          />
+          <div className="flex flex-col gap-4">
+            {exportable.has("standings") ? (
+              <div className="flex justify-end">
+                {downloadButton("standings")}
+              </div>
+            ) : null}
+            <BrTable
+              standings={computeBrStandings(draws, {
+                PlacementPoints: tournament.BrPlacementPoints,
+                KillPoints: tournament.BrKillPoints,
+                FirstBloodPoints: tournament.BrFirstBloodPoints,
+              })}
+            />
+          </div>
         )}
 
         {tab === "teams" &&
@@ -1289,6 +1331,11 @@ export function TournamentView({
             if (!(isKnockout || isGroups)) {
               return (
                 <div className="space-y-8">
+                  {exportable.has("teams") ? (
+                    <div className="flex justify-end">
+                      {downloadButton("teams")}
+                    </div>
+                  ) : null}
                   {invitePanels}
                   {teamsContent}
                 </div>
@@ -1305,21 +1352,33 @@ export function TournamentView({
                         ? "Groups"
                         : "Teams"}
                   </h2>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      setTeamsPanel(
-                        teamsPanel === "bracket" ? "teams" : "bracket",
-                      )
-                    }
-                  >
-                    {teamsPanel === "bracket"
-                      ? isGroups
-                        ? "View groups"
-                        : "View teams"
-                      : "View knockout"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {(() => {
+                      // Whatever this panel is actually showing right now.
+                      const view = viewForTeamsPanel({
+                        panel: teamsPanel,
+                        isGroups,
+                        groupsCreated,
+                        available: (v) => Boolean(exportViews[v]),
+                      });
+                      return view ? downloadButton(view) : null;
+                    })()}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setTeamsPanel(
+                          teamsPanel === "bracket" ? "teams" : "bracket",
+                        )
+                      }
+                    >
+                      {teamsPanel === "bracket"
+                        ? isGroups
+                          ? "View groups"
+                          : "View teams"
+                        : "View knockout"}
+                    </Button>
+                  </div>
                 </div>
                 {teamsPanel === "teams" ? (
                   <div className="space-y-8">

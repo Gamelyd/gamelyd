@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import {
   notificationKindSchema,
   orgInviteStatusSchema,
@@ -45,8 +46,8 @@ export const notificationSchema = z.object({
 export type Notification = z.infer<typeof notificationSchema>;
 
 export const createNotificationInputSchema = z.object({
-  UserID: z.string().min(1),
-  Message: z.string().min(1),
+  UserID: z.string().min(1).max(LIMITS.id),
+  Message: z.string().min(1).max(LIMITS.message),
 });
 export type CreateNotificationInput = z.infer<
   typeof createNotificationInputSchema
@@ -68,9 +69,9 @@ export const contactUsSchema = z.object({
 export type ContactUs = z.infer<typeof contactUsSchema>;
 
 export const contactUsInputSchema = z.object({
-  Email: z.string().email(),
-  Name: z.string().min(1),
-  Message: z.string().min(1),
+  Email: z.string().email().max(LIMITS.email),
+  Name: z.string().min(1).max(LIMITS.firstName),
+  Message: z.string().min(1).max(LIMITS.message),
 });
 export type ContactUsInput = z.infer<typeof contactUsInputSchema>;
 
@@ -121,23 +122,23 @@ export const reportAbuseSchema = z.object({
 export type ReportAbuse = z.infer<typeof reportAbuseSchema>;
 
 export const reportAbuseInputSchema = z.object({
-  Email: z.string().email(),
-  Name: z.string().min(1),
-  Message: z.string().min(1),
-  For: z.string().min(1),
-  UserID: z.string().optional().default(""),
+  Email: z.string().email().max(LIMITS.email),
+  Name: z.string().min(1).max(LIMITS.firstName),
+  Message: z.string().min(1).max(LIMITS.message),
+  For: z.string().min(1).max(LIMITS.reason),
+  UserID: z.string().max(LIMITS.id).optional().default(""),
   Kind: reportKindSchema.optional().default("OTHER"),
-  TournamentId: z.string().optional().default(""),
-  TournamentName: z.string().optional().default(""),
-  Reason: z.string().max(80).optional().default(""),
-  RequestedEmail: z.string().optional().default(""),
-  RequestedPhone: z.string().optional().default(""),
+  TournamentId: z.string().max(LIMITS.id).optional().default(""),
+  TournamentName: z.string().max(LIMITS.tournamentName).optional().default(""),
+  Reason: z.string().max(LIMITS.reason).optional().default(""),
+  RequestedEmail: z.string().max(LIMITS.email).optional().default(""),
+  RequestedPhone: z.string().max(LIMITS.phone).optional().default(""),
 });
 export type ReportAbuseInput = z.infer<typeof reportAbuseInputSchema>;
 
 /** A player raising an issue about a tournament they can see. */
 export const reportTournamentInputSchema = z.object({
-  TournamentId: z.string().min(1),
+  TournamentId: z.string().min(1).max(LIMITS.id),
   Reason: z.string().min(1, "Pick what this is about").max(80),
   Message: z
     .string()
@@ -150,7 +151,7 @@ export type ReportTournamentInput = z.infer<typeof reportTournamentInputSchema>;
 /** A verified user asking us to change contact details they cannot self-edit. */
 export const requestContactChangeInputSchema = z
   .object({
-    Email: z.string().trim().email().optional().or(z.literal("")),
+    Email: z.string().trim().email().max(LIMITS.email).optional().or(z.literal("")),
     Phone: z.string().trim().max(40).optional(),
     Message: z.string().trim().max(1000).optional().default(""),
   })

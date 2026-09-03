@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import { currencySchema, type Currency } from "./common";
 import { registerTournamentInputSchema } from "./register";
 
@@ -86,7 +87,7 @@ export type BankOption = z.infer<typeof bankOptionSchema>;
 /** Paystack currencies: the captain supplies bank details we resolve. */
 export const connectBankAccountInputSchema = z.object({
   currency: currencySchema,
-  bank_code: z.string().min(1, "Pick your bank"),
+  bank_code: z.string().min(1, "Pick your bank").max(LIMITS.id),
   account_number: z
     .string()
     .trim()
@@ -138,7 +139,7 @@ export const startEntryCheckoutInputSchema = z.object({
   TeamName: registerTournamentInputSchema.shape.TeamName,
   Icon: registerTournamentInputSchema.shape.Icon,
   /** When set, the roster is resolved from the captain's saved team instead. */
-  SavedTeamId: z.string().optional().default(""),
+  SavedTeamId: z.string().max(LIMITS.id).optional().default(""),
 });
 export type StartEntryCheckoutInput = z.infer<
   typeof startEntryCheckoutInputSchema

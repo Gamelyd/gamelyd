@@ -12,7 +12,7 @@ function layout(body: string): string {
       </div>
       <div style="padding:28px">${body}</div>
       <div style="padding:20px 28px;border-top:1px solid #2a3540;font-size:12px;color:#7d838a">
-        <p style="margin:0">contact@gamelyd.com &middot; www.gamelyd.co</p>
+        <p style="margin:0">contact@gamelyd.com &middot; www.gamelyd.com</p>
       </div>
     </div>
   </div>`;

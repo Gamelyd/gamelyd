@@ -141,7 +141,7 @@ export default function AdminPlatformsPage() {
                   <td className="px-4 py-3 text-white">{platform.name}</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex items-center justify-center leading-none rounded-full px-2 py-0.5 text-xs font-semibold ${
                         platform.active
                           ? "bg-win-deep text-white"
                           : "bg-surface-3 text-body"

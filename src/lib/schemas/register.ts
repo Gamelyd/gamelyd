@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LIMITS } from "@/lib/limits";
 import { playerSchema } from "./draw";
 
 export const registerTournamentSchema = z.object({
@@ -25,17 +26,17 @@ export type RegisterTournament = z.infer<typeof registerTournamentSchema>;
 
 export const registerTournamentInputSchema = z.object({
   Players: z.array(playerSchema).min(1).max(32),
-  TeamName: z.string().min(1),
-  Icon: z.string().min(1),
-  RefNumber: z.string().optional().default(""),
-  PaymentChannel: z.string().optional().default(""),
+  TeamName: z.string().min(1).max(LIMITS.teamName),
+  Icon: z.string().min(1).max(LIMITS.iconRef),
+  RefNumber: z.string().max(LIMITS.reference).optional().default(""),
+  PaymentChannel: z.string().max(LIMITS.reference).optional().default(""),
   Amount: z.coerce.number().optional().default(0),
   /**
    * Enter a roster saved on the captain's profile. The server resolves the
    * players from the saved team, so the whole roster joins at once instead of
    * each teammate needing a separate invite.
    */
-  SavedTeamId: z.string().optional().default(""),
+  SavedTeamId: z.string().max(LIMITS.id).optional().default(""),
 });
 export type RegisterTournamentInput = z.infer<
   typeof registerTournamentInputSchema

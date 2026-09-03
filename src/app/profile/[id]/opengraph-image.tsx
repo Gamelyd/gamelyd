@@ -4,6 +4,7 @@ import { playerIconForUser } from "@/server/services/iconService";
 import { ogIconSrc } from "@/server/ogIcon";
 import { profileShareDescription } from "@/lib/seo";
 import { DefaultOgMarkup, EntityOgMarkup } from "@/lib/ogCard";
+import { displayName } from "@/lib/displayName";
 
 export const runtime = "nodejs";
 export const alt = "Player profile";
@@ -21,7 +22,7 @@ export default async function Image({
     return new ImageResponse(<DefaultOgMarkup title="Player" />, size);
   }
 
-  const name = `${user.first_name} ${user.last_name}`.trim();
+  const name = displayName(user);
   return new ImageResponse(
     (
       <EntityOgMarkup

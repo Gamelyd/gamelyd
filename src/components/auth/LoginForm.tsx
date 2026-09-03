@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { loginAction } from "@/server/actions/authActions";
+import { LIMITS } from "@/lib/limits";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,6 +51,7 @@ export function LoginForm({ onFlip }: { onFlip: () => void }) {
       <Input
         type="email"
         label="Email"
+        maxLength={LIMITS.email}
         placeholder="you@example.com"
         value={email}
         onChange={(e) => {
@@ -61,6 +63,7 @@ export function LoginForm({ onFlip }: { onFlip: () => void }) {
       />
       <PasswordInput
         label="Password"
+        maxLength={LIMITS.password}
         placeholder="••••••••"
         value={password}
         onChange={(e) => {

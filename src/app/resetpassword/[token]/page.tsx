@@ -9,6 +9,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { useToast } from "@/components/ui/Toast";
 import { resetPasswordAction } from "@/server/actions/authActions";
 import { isStrongPassword } from "@/lib/password";
+import { LIMITS } from "@/lib/limits";
 
 export default function ResetPasswordPage({
   params,
@@ -50,6 +51,7 @@ export default function ResetPasswordPage({
           <div className="flex flex-col gap-2">
             <PasswordInput
               label="New password"
+              maxLength={LIMITS.password}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
@@ -59,6 +61,7 @@ export default function ResetPasswordPage({
           </div>
           <PasswordInput
             label="Confirm password"
+            maxLength={LIMITS.password}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             error={

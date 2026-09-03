@@ -2,7 +2,7 @@ import Image from "next/image";
 import { CatalogImage } from "@/components/ui/CatalogImage";
 import Link from "next/link";
 import type { Tournament } from "@/lib/schemas/tournament";
-import { Tag, paymentFrame } from "@/components/ui/Tag";
+import { PaymentTag, paymentFrame } from "@/components/ui/Tag";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import {
   BROWSE_STATUS_LABEL,
@@ -70,7 +70,7 @@ export function TournamentCard({
             {BROWSE_STATUS_LABEL[phase]}
           </span>
         ) : null}
-        <Tag payment={tournament.Payment} className="rounded-md" />
+        <PaymentTag payment={tournament.Payment} className="rounded-md" />
       </div>
 
       {tournament.OrgId && tournament.OrgName && (
