@@ -64,7 +64,7 @@ export function NumberInput({
             const raw = e.target.value.replace(/[^\d]/g, "");
             onChange(raw === "" ? (min ?? 0) : clamp(Number(raw)));
           }}
-          className="w-full min-w-0 border-x border-primary/15 bg-transparent px-2 py-3 text-center text-sm text-white outline-none"
+          className="w-full min-w-0 border-x border-primary/15 bg-transparent px-2 py-3 text-center text-base sm:text-sm text-white outline-none"
         />
         <button
           type="button"

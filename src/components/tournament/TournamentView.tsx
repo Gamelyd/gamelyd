@@ -153,12 +153,6 @@ function drawIdsForTeam(
   return ids;
 }
 
-/**
- * Hidden for now. The qualifier preview is built and working -- flip this to
- * true to show the button again.
- */
-const SHOW_QUALIFIER_PREVIEW: boolean = false;
-
 export function TournamentView({
   tournament,
   initialParticipants,
@@ -1278,7 +1272,6 @@ export function TournamentView({
             );
 
             const canPreview =
-              SHOW_QUALIFIER_PREVIEW &&
               isGroups &&
               knockoutDraws.length === 0 &&
               qualifierPreview.size > 0;

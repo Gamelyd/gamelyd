@@ -156,7 +156,7 @@ export function PhoneInput({
           value={national}
           placeholder={placeholder}
           onChange={(e) => emit(country, e.target.value)}
-          className="w-full rounded-r-lg bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-body/50"
+          className="w-full rounded-r-lg bg-transparent px-4 py-3 text-base text-white outline-none placeholder:text-body/50 sm:text-sm"
         />
 
         {open && (
@@ -169,7 +169,7 @@ export function PhoneInput({
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Search country"
-                className="w-full rounded-md bg-input px-3 py-2 text-sm text-white outline-none placeholder:text-body/50"
+                className="w-full rounded-md bg-input px-3 py-2 text-base text-white outline-none placeholder:text-body/50 sm:text-sm"
               />
             </div>
             <ul className="max-h-60 overflow-y-auto pb-1" role="listbox">

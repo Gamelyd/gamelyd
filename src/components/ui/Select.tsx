@@ -92,7 +92,7 @@ export function Select({
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => !disabled && setOpen((v) => !v)}
-          className={`flex w-full items-center justify-between gap-2 rounded-lg border bg-input px-4 py-3 text-left text-sm outline-none transition-colors ${
+          className={`flex w-full items-center justify-between gap-2 rounded-lg border bg-input px-4 py-3 text-left text-base sm:text-sm outline-none transition-colors ${
             error
               ? "border-lose"
               : open
@@ -132,7 +132,7 @@ export function Select({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search"
-                  className="w-full rounded-md bg-input px-3 py-2 text-sm text-white outline-none placeholder:text-body/50"
+                  className="w-full rounded-md bg-input px-3 py-2 text-base sm:text-sm text-white outline-none placeholder:text-body/50"
                 />
               </div>
             ) : null}

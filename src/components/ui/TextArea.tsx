@@ -35,7 +35,7 @@ export function TextArea({
       )}
       <textarea
         {...rest}
-        className={`w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-body/50 focus:border-primary ${error ? "border-lose" : ""} ${className}`}
+        className={`w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-base sm:text-sm text-white outline-none transition-colors placeholder:text-body/50 focus:border-primary ${error ? "border-lose" : ""} ${className}`}
       />
       <span className="mt-1 flex items-start justify-between gap-3">
         {error ? (
