@@ -585,47 +585,6 @@ export function TournamentView({
     );
   };
 
-  // Deferred scroll: in groups the target may be inside a collapsed panel we
-  // open first, so the jump waits for that panel to render.
-  const wantScrollToMine = useRef(false);
-  const scrollToMineNow = () => {
-    document
-      .querySelector('[data-mine="true"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-  useEffect(() => {
-    if (!wantScrollToMine.current) return;
-    const el = document.querySelector('[data-mine="true"]');
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      wantScrollToMine.current = false;
-    }
-  });
-
-  const jumpToMyFixtures = () => {
-    if (isGroups) {
-      // Use each section's real index (not a filtered one) so the default-open
-      // check matches what is actually rendered.
-      const mineNames: string[] = [];
-      let anyClosed = false;
-      groupFixtureSections.forEach(([name, ds], index) => {
-        if (ds.some((d) => mineDrawIds.has(d.DrawId))) {
-          mineNames.push(name);
-          if (!fixtureGroupIsOpen(name, index)) anyClosed = true;
-        }
-      });
-      if (anyClosed) {
-        const openNow = groupFixtureSections
-          .filter(([name], index) => fixtureGroupIsOpen(name, index))
-          .map(([name]) => name);
-        setOpenFixtureGroups(Array.from(new Set([...openNow, ...mineNames])));
-        wantScrollToMine.current = true;
-        return;
-      }
-    }
-    scrollToMineNow();
-  };
-
   // Jump from a group's standings straight to that group's fixture panel.
   const pendingGroupScroll = useRef<string | null>(null);
   const findGroupPanel = (name: string) =>
@@ -1425,11 +1384,6 @@ export function TournamentView({
                 onClick={() => setShowUnplayed(true)}
               >
                 View unplayed matches
-              </Button>
-            ) : null}
-            {hasMyFixtures ? (
-              <Button type="button" variant="dark" onClick={jumpToMyFixtures}>
-                Jump to my fixtures
               </Button>
             ) : null}
           </div>
