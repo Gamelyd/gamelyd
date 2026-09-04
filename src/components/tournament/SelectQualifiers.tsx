@@ -183,9 +183,6 @@ export function SelectQualifiers({
 
   const hint = useMemo(() => {
     if (knockoutDrawn) return null;
-    if (!allGroupPlayed) {
-      return "Record every group result. If teams finish level on points, the organiser picks who goes through.";
-    }
     if (ties.length === 0) {
       return "No teams are level on points. The table decides who qualifies.";
     }
@@ -196,7 +193,6 @@ export function SelectQualifiers({
     }
     return "Teams finished level on points. Pick who goes through and add a public reason, only for these tied teams.";
   }, [
-    allGroupPlayed,
     canEdit,
     knockoutDrawn,
     savedComplete,

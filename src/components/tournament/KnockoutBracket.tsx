@@ -154,6 +154,7 @@ export function KnockoutBracket({
   isGroupMode = false,
   knockoutLive = false,
   qualifierReasons = [],
+  previewPairs,
 }: {
   rounds: Round[];
   groupNames?: string[];
@@ -162,6 +163,12 @@ export function KnockoutBracket({
   isGroupMode?: boolean;
   knockoutLive?: boolean;
   qualifierReasons?: GroupQualifier[];
+  /**
+   * Real team names to show in place of "Group A winner" labels, worked out on
+   * the page from the current tables. A look ahead only -- nothing is drawn or
+   * saved, and it is ignored once the knockout actually exists.
+   */
+  previewPairs?: [string, string | undefined][];
 }) {
   // Always build from the first knockout round, even if the caller
   // passes stages newest-first (fixtures do that).
@@ -178,11 +185,13 @@ export function KnockoutBracket({
   let leaves: MatchNode[] = [];
 
   if (isGroupMode && !knockoutLive) {
-    if (names.length > 0) {
-      leaves = groupPlaceholderPairs(names, advancePerGroup).map(([a, b]) =>
-        matchFromPair(a, b),
-      );
-    }
+    const pairs =
+      previewPairs && previewPairs.length > 0
+        ? previewPairs
+        : names.length > 0
+          ? groupPlaceholderPairs(names, advancePerGroup)
+          : [];
+    leaves = pairs.map(([a, b]) => matchFromPair(a, b));
   } else if (knockoutLive || rounds.length > 0) {
     leaves = firstRound.map(matchFromDraw);
   } else if (teamCount > 1) {

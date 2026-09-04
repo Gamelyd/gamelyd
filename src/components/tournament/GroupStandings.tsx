@@ -45,15 +45,17 @@ export function GroupStandings({
   const caption = manualSelection
     ? hasPicks
       ? "Highlighted teams qualify. A public reason is shown where the organiser broke a points tie."
-      : "Top of the table qualifies. If teams are level on points, the organiser picks who goes through."
+      : ""
     : `Top ${advancePerGroup} of each group qualify for the knockout stage.`;
 
   return (
     <div className="space-y-3 py-2">
-      <p className="text-center text-xs text-body">
-        {caption}{" "}
-        <span className="mx-1 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
-      </p>
+      {caption ? (
+        <p className="text-center text-xs text-body">
+          {caption}{" "}
+          <span className="mx-1 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
+        </p>
+      ) : null}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {sections.map((section) => (
           <GroupTable

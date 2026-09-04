@@ -62,8 +62,12 @@ import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { tournamentShareDescription } from "@/lib/tournamentShare";
 import {
   asDisqualifiedSet,
+  eligibleStandings,
   groupQualifiersComplete,
+  resolvedQualifyingNames,
 } from "@/lib/groupQualifiers";
+import { seedKnockoutPairs, type SeedEntry } from "@/lib/knockoutSeed";
+import { bestLosers, losersFromGroup, slotsToFill } from "@/lib/bestLosers";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import {
@@ -191,7 +195,10 @@ export function TournamentView({
   const [announcements, setAnnouncements] = useState(
     tournament.Announcements ?? [],
   );
-  const disqualifiedTeams = tournament.DisqualifiedTeams ?? [];
+  const disqualifiedTeams = useMemo(
+    () => tournament.DisqualifiedTeams ?? [],
+    [tournament.DisqualifiedTeams],
+  );
   const [started, setStarted] = useState(tournament.Start);
   const [pendingChange, setPendingChange] = useState(
     tournament.PendingSettingChange,
@@ -486,6 +493,7 @@ export function TournamentView({
     () => exportPlan(tournament, draws, participants),
     [tournament, draws, participants],
   );
+  const [previewQualifiers, setPreviewQualifiers] = useState(false);
   const [showUnplayed, setShowUnplayed] = useState(false);
   const [showMine, setShowMine] = useState(false);
 
@@ -622,6 +630,65 @@ export function TournamentView({
       ),
     }));
   }, [isGroups, groups, draws, tournament.PointSystem, tournament.TieBreaker]);
+
+  /**
+   * Who the bracket would hold if the groups ended now.
+   *
+   * Worked out here from the standings already on the page -- the same
+   * qualifying rules, seeding and best-loser fill the server uses when it draws
+   * for real, so the preview cannot promise a bracket the draw would not
+   * produce. Nothing is written; it only swaps the placeholder labels.
+   */
+  const qualifierPreview = useMemo<[string, string | undefined][]>(() => {
+    if (!isGroups || groupStandings.length === 0) return [];
+    const advance = tournament.AdvancePerGroup || 2;
+    const seeds: SeedEntry<string>[] = [];
+    const qualifiedByGroup = new Map<string, Set<string>>();
+    const out = asDisqualifiedSet(disqualifiedTeams);
+
+    for (const section of groupStandings) {
+      const names = resolvedQualifyingNames(
+        section.standings,
+        section.name,
+        advance,
+        qualifiers,
+        out,
+        tournament.OwnerCanSelectQualifiers,
+      );
+      names.forEach((name, index) =>
+        seeds.push({ value: name, group: section.name, position: index + 1 }),
+      );
+      qualifiedByGroup.set(section.name, new Set(names));
+    }
+    if (seeds.length < 2) return [];
+
+    if (tournament.FillWithBestLosers) {
+      const missing = slotsToFill(seeds.length);
+      const pool = groupStandings.flatMap((section) =>
+        losersFromGroup(
+          section.name,
+          eligibleStandings(section.standings, out),
+          qualifiedByGroup.get(section.name) ?? new Set(),
+        ),
+      );
+      for (const loser of bestLosers(pool, missing)) {
+        seeds.push({
+          value: loser.teamName,
+          group: loser.group,
+          position: loser.position,
+        });
+      }
+    }
+    return seedKnockoutPairs(seeds);
+  }, [
+    isGroups,
+    groupStandings,
+    qualifiers,
+    disqualifiedTeams,
+    tournament.AdvancePerGroup,
+    tournament.OwnerCanSelectQualifiers,
+    tournament.FillWithBestLosers,
+  ]);
 
   const groupDraws = useMemo(
     () => draws.filter(isGroupDraw),
@@ -1215,10 +1282,34 @@ export function TournamentView({
               </div>
             );
 
+            const canPreview =
+              isGroups &&
+              knockoutDraws.length === 0 &&
+              qualifierPreview.length > 0;
+
             const bracketContent = (
               <div className="space-y-5">
                 {canSelectQualifiers && qualifiers.length > 0 ? (
                   <QualifierList groups={groups} qualifiers={qualifiers} />
+                ) : null}
+                {canPreview ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPreviewQualifiers((on) => !on)}
+                    >
+                      {previewQualifiers
+                        ? "Show group placeholders"
+                        : "Fill with qualifying teams"}
+                    </Button>
+                    {previewQualifiers ? (
+                      <p className="text-center text-xs text-body">
+                        Based on the tables as they stand. Nothing is drawn yet,
+                        and results can still change this.
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
                 <KnockoutBracket
                   rounds={bracketRounds}
@@ -1228,6 +1319,9 @@ export function TournamentView({
                   isGroupMode={isGroups}
                   knockoutLive={knockoutDraws.length > 0}
                   qualifierReasons={qualifiers}
+                  previewPairs={
+                    previewQualifiers && canPreview ? qualifierPreview : undefined
+                  }
                 />
               </div>
             );
