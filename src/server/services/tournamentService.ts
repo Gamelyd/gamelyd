@@ -93,6 +93,7 @@ import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import { checkInWindowOpen, registrationDeadlinePassed } from "@/lib/tournamentWindow";
 import { FALLBACKS } from "@/lib/icons";
 import { playerIconForUser } from "@/server/services/iconService";
+import { isKnockoutDraw } from "@/lib/drawKind";
 import {
   isSeriousSettingPatch,
   settingChangeReady,
@@ -1417,6 +1418,20 @@ export async function canAdministerTournament(
   return hasOrgManageRole(t.OrgId, uid);
 }
 
+/**
+ * A platform admin, as opposed to the host or an org manager.
+ *
+ * Consent exists to stop a host quietly rewriting the rules on players who have
+ * already entered. An admin is stepping in from outside that relationship --
+ * usually to fix something a host has broken or abandoned -- so waiting on the
+ * same players to accept would leave the event stuck with nobody able to
+ * rescue it.
+ */
+export async function isPlatformAdmin(uid: string): Promise<boolean> {
+  const user = await getUserById(uid);
+  return user?.user_type === "ADMIN";
+}
+
 export async function canAdministerTournamentById(
   uid: string,
   tournamentId: string,
@@ -1945,9 +1960,9 @@ export async function updateTournament(
 }
 
 /**
- * Owner/admin: edit settings. After the event starts, rules that change how
- * it is played wait for every registered player to accept, then the owner
- * applies them.
+ * Owner/admin: edit settings. After the event starts, rules that change how it
+ * is played wait for every registered player to accept, then the owner applies
+ * them. A platform admin skips that and the change lands straight away.
  */
 export async function editTournamentSettings(
   actorUid: string,
@@ -1962,7 +1977,9 @@ export async function editTournamentSettings(
   }
 
   const current = serializeTournament(found);
-  if (current.Start && isSeriousSettingPatch(input)) {
+  // Admins change things outright; a host still has to ask the players.
+  const admin = await isPlatformAdmin(actorUid);
+  if (current.Start && isSeriousSettingPatch(input) && !admin) {
     const tournament = await proposeSettingChange(actorUid, found, current, input);
     return { tournament, proposed: true };
   }
@@ -2023,7 +2040,9 @@ export async function applySettingChange(
   const current = serializeTournament(found);
   const pending = current.PendingSettingChange;
   if (!pending) throw new ServiceError("There is no setting change to apply");
-  if (!settingChangeReady(pending)) {
+  // An admin can push a change through that players have not all accepted --
+  // otherwise a single unreachable player can freeze a tournament for good.
+  if (!settingChangeReady(pending) && !(await isPlatformAdmin(actorUid))) {
     throw new ServiceError(
       "Everyone in the tournament has to accept before you can apply this",
     );
@@ -2393,6 +2412,24 @@ async function validateSettingsInput(
   if (input.AdvancePerGroup !== undefined) {
     if (current.TournamentMode !== "GROUPS") {
       throw new ServiceError("Advance per group only applies to groups");
+    }
+    // The knockout is built from this number once, at the draw. Changing it
+    // afterwards cannot reshape a bracket people are already playing, so the
+    // setting would just sit there disagreeing with what everyone can see.
+    // `drawService` refuses to redraw for the same reason.
+    if (input.AdvancePerGroup !== current.AdvancePerGroup) {
+      // Same predicate the draw service uses, so "a knockout exists" means the
+      // same thing in both places rather than two filters drifting apart.
+      const existing = (
+        await (await draws())
+          .find(asDocFilter<DrawDoc>(byAnyTournamentId(ids)))
+          .toArray()
+      ).map(serializeDraw);
+      if (existing.some(isKnockoutDraw)) {
+        throw new ServiceError(
+          "The knockout stage has already been drawn, so how many advance per group can no longer change.",
+        );
+      }
     }
   }
   if (input.GroupCount !== undefined) {

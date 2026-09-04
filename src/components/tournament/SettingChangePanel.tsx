@@ -5,6 +5,7 @@ import type { PendingSettingChange, Tournament } from "@/lib/schemas/tournament"
 import { settingChangeReady } from "@/lib/settingChange";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/context/AuthContext";
 import {
   acceptSettingChangeAction,
   addTournamentAnnouncementAction,
@@ -26,8 +27,12 @@ export function SettingChangePanel({
   onUpdated: (tournament: Tournament) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [busy, setBusy] = useState<"accept" | "apply" | "cancel" | "announce" | "">("");
   const ready = settingChangeReady(change);
+  // An admin can push a change through without waiting, so a single player who
+  // never responds cannot freeze the tournament for good.
+  const canForce = user?.user_type === "ADMIN";
   const accepted = change.AcceptedUserIds.length;
   const required = change.RequiredUserIds.length;
   const isVoter = Boolean(
@@ -97,7 +102,7 @@ export function SettingChangePanel({
             <Button
               type="button"
               loading={busy === "apply"}
-              disabled={!ready || Boolean(busy)}
+              disabled={(!ready && !canForce) || Boolean(busy)}
               onClick={() =>
                 void run("apply", () => applySettingChangeAction(tournamentId))
               }
@@ -129,7 +134,9 @@ export function SettingChangePanel({
       </div>
       {canApply && !ready ? (
         <p className="mt-3 text-xs text-body">
-          Apply unlocks when every registered player accepts.
+          {canForce
+            ? "Not everyone has accepted. Applying now overrides them."
+            : "Apply unlocks when every registered player accepts."}
         </p>
       ) : null}
     </div>

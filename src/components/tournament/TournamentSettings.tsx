@@ -46,6 +46,8 @@ export function EditTournamentSettings({
 }) {
   const toast = useToast();
   const { user } = useAuth();
+  // Admins change a running tournament outright; a host has to ask the players.
+  const isAdmin = user?.user_type === "ADMIN";
   const isGroups = tournament.TournamentMode === "GROUPS";
   const isTable =
     isGroups || tournament.TournamentMode === "LEAGUE";
@@ -452,6 +454,12 @@ export function EditTournamentSettings({
       setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
     });
   };
+
+  const seriousMidEvent = Boolean(
+    started && pendingSave && isSeriousSettingPatch(pendingSave.patch),
+  );
+  const needsConsent = seriousMidEvent && !isAdmin;
+  const appliesOverPlayers = seriousMidEvent && isAdmin;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-surface-2 bg-surface p-5">
@@ -1068,19 +1076,25 @@ export function EditTournamentSettings({
       <Confirm
         open={Boolean(pendingSave)}
         title={
-          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+          needsConsent
             ? "Ask everyone to accept?"
-            : "Update this tournament?"
+            : appliesOverPlayers
+              ? "Change this mid-tournament?"
+              : "Update this tournament?"
         }
         message={
-          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+          needsConsent
             ? "This changes how the tournament runs. It will not apply until every registered player accepts. Then you can apply it."
-            : "Are you sure you want to update this?"
+            : appliesOverPlayers
+              ? "This changes how the tournament runs and applies straight away, without asking the players. Use it to fix an event, not to rewrite it mid-competition."
+              : "Are you sure you want to update this?"
         }
         confirmLabel={
-          started && pendingSave && isSeriousSettingPatch(pendingSave.patch)
+          needsConsent
             ? "Ask everyone"
-            : "Yes, update"
+            : appliesOverPlayers
+              ? "Apply now"
+              : "Yes, update"
         }
         confirmVariant="default"
         loading={Boolean(busyField)}
