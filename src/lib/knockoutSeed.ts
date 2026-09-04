@@ -38,6 +38,9 @@ export interface SeedEntry<T> {
 export function seedKnockoutPairs<T>(
   entries: SeedEntry<T>[],
 ): [T, T | undefined][] {
+  const classic = worldCupCross(entries);
+  if (classic) return classic;
+
   const seeds = [...entries].sort(
     (a, b) => a.position - b.position || a.group.localeCompare(b.group),
   );
@@ -54,34 +57,122 @@ export function seedKnockoutPairs<T>(
   // An odd number of qualifiers leaves one team without an opponent.
   if (lo === hi) pairs.push([seeds[lo], undefined]);
 
-  avoidSameGroup(pairs);
-  return pairs.map(([a, b]) => [a.value, b?.value]);
+  reduceClashes(pairs);
+
+  // Swapping opponents can leave the better-placed team listed second. Put the
+  // higher seed first so a tie reads "group winner v runner-up", not the
+  // reverse.
+  return pairs.map(([a, b]) => {
+    if (b && b.position < a.position) return [b.value, a.value];
+    return [a.value, b?.value];
+  });
 }
 
 /**
- * Straight seeding can still pair two teams from one group -- three groups with
- * two qualifiers each puts 1B against 2B. Swapping the opponents of two pairs
- * fixes it without disturbing who is seeded where.
+ * The classic World Cup shape: groups link up two at a time and the winner of
+ * one meets the runner-up of its partner -- A1 v B2, B1 v A2, C1 v D2, D1 v C2.
+ *
+ * An odd number of groups leaves one without a partner. Rather than give up on
+ * the shape, the last three rotate instead: C1 v D2, D1 v E2, E1 v C2. Every
+ * group still meets a different one, and the rest of the draw keeps its
+ * familiar two-by-two pairing.
+ *
+ * The version this replaced paired the leftover group with itself, which is how
+ * five groups produced "Group E winner v Group E runner-up".
+ *
+ * Only applies when every group sends exactly a winner and a runner-up. Three
+ * through, or best losers filling spare places, has no partner structure to
+ * follow and falls through to seeding.
  */
-function avoidSameGroup<T>(
+function worldCupCross<T>(
+  entries: SeedEntry<T>[],
+): [T, T | undefined][] | null {
+  const winners = entries.filter((e) => e.position === 1);
+  const runners = entries.filter((e) => e.position === 2);
+  if (entries.length !== winners.length + runners.length) return null;
+  if (winners.length < 2 || winners.length !== runners.length) return null;
+
+  const runnerOf = new Map(runners.map((r) => [r.group, r]));
+  if (runnerOf.size !== runners.length) return null;
+  if (!winners.every((w) => runnerOf.has(w.group))) return null;
+
+  const order = [...winners].sort((a, b) => a.group.localeCompare(b.group));
+  const pairs: [T, T | undefined][] = [];
+  const runnerFor = (entry: SeedEntry<T>) => runnerOf.get(entry.group)!.value;
+
+  // With an odd count, hold back the last three for the rotation below.
+  const paired = order.length % 2 === 0 ? order.length : order.length - 3;
+  for (let i = 0; i + 1 < paired; i += 2) {
+    pairs.push([order[i].value, runnerFor(order[i + 1])]);
+    pairs.push([order[i + 1].value, runnerFor(order[i])]);
+  }
+
+  if (order.length % 2 !== 0) {
+    // Three groups in a ring: each winner takes the next group's runner-up.
+    const ring = order.slice(-3);
+    for (let i = 0; i < ring.length; i += 1) {
+      pairs.push([ring[i].value, runnerFor(ring[(i + 1) % ring.length])]);
+    }
+  }
+  return pairs;
+}
+
+/**
+ * How bad a tie is. Two teams from one group is the worse fault -- they have
+ * just played each other -- but two teams that finished in the same place is
+ * also wrong: a runner-up should meet a group winner or a best loser, not
+ * another runner-up.
+ */
+function clashCost<T>(a: SeedEntry<T>, b: SeedEntry<T> | undefined): number {
+  if (!b) return 0;
+  return (a.group === b.group ? 2 : 0) + (a.position === b.position ? 1 : 0);
+}
+
+/**
+ * Straight seeding leaves clashes that do not have to be there.
+ *
+ * Six groups with the top two through plus four best thirds seeds out as
+ * 2A v 2D and 2B v 2C -- two pairs of runners-up -- yet a pairing with no
+ * clash at all exists. Swapping opponents between two ties fixes it without
+ * disturbing the strong-against-weak shape, so this keeps looking for a swap
+ * that lowers the total until none does.
+ */
+function reduceClashes<T>(
   pairs: [SeedEntry<T>, SeedEntry<T> | undefined][],
 ): void {
-  const clashes = (a: SeedEntry<T>, b?: SeedEntry<T>) =>
-    Boolean(b) && a.group === b!.group;
+  const total = () =>
+    pairs.reduce((sum, [a, b]) => sum + clashCost(a, b), 0);
 
-  for (let i = 0; i < pairs.length; i += 1) {
-    if (!clashes(pairs[i][0], pairs[i][1])) continue;
-    for (let j = 0; j < pairs.length; j += 1) {
-      if (j === i) continue;
-      const [ai, bi] = pairs[i];
-      const [aj, bj] = pairs[j];
-      // Swapping is only worth it if it leaves neither pair clashing.
-      if (!clashes(ai, bj) && !clashes(aj, bi)) {
-        pairs[i] = [ai, bj];
-        pairs[j] = [aj, bi];
-        break;
+  // Bounded so a pathological set cannot spin: each pass must strictly improve,
+  // and the score is a small integer, so this ends long before the limit.
+  for (let pass = 0; pass < 200 && total() > 0; pass += 1) {
+    let improved = false;
+
+    for (let i = 0; i < pairs.length && !improved; i += 1) {
+      for (let j = i + 1; j < pairs.length && !improved; j += 1) {
+        const [ai, bi] = pairs[i];
+        const [aj, bj] = pairs[j];
+        const before = clashCost(ai, bi) + clashCost(aj, bj);
+        if (before === 0) continue;
+
+        // Trade opponents.
+        if (clashCost(ai, bj) + clashCost(aj, bi) < before) {
+          pairs[i] = [ai, bj];
+          pairs[j] = [aj, bi];
+          improved = true;
+          break;
+        }
+        // Or move a seeded team across, which reaches pairings a straight
+        // opponent trade cannot.
+        if (bj && clashCost(bj, bi) + clashCost(aj, ai) < before) {
+          pairs[i] = [bj, bi];
+          pairs[j] = [aj, ai];
+          improved = true;
+        }
       }
     }
+
+    if (!improved) return;
   }
 }
 
