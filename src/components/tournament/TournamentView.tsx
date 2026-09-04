@@ -55,19 +55,17 @@ import { WinnerCelebration } from "./WinnerCelebration";
 import { resolvePodium } from "@/lib/podium";
 import { isCaptain as isTeamCaptain } from "@/lib/captain";
 import { runsOrg } from "@/lib/orgRoles";
-import { computeLeagueStandings } from "@/lib/leagueStandings";
+import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import { setTournamentGroupsAction } from "@/server/actions/tournamentActions";
 import { hydrateDrawIcons, iconMapFromTeams } from "@/lib/teamIcons";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { tournamentShareDescription } from "@/lib/tournamentShare";
 import {
   asDisqualifiedSet,
-  eligibleStandings,
   groupQualifiersComplete,
   resolvedQualifyingNames,
 } from "@/lib/groupQualifiers";
-import { seedKnockoutPairs, type SeedEntry } from "@/lib/knockoutSeed";
-import { bestLosers, losersFromGroup, slotsToFill } from "@/lib/bestLosers";
+import { placeName } from "@/lib/knockoutSeed";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import {
@@ -154,6 +152,12 @@ function drawIdsForTeam(
   }
   return ids;
 }
+
+/**
+ * Hidden for now. The qualifier preview is built and working -- flip this to
+ * true to show the button again.
+ */
+const SHOW_QUALIFIER_PREVIEW: boolean = false;
 
 export function TournamentView({
   tournament,
@@ -632,21 +636,25 @@ export function TournamentView({
   }, [isGroups, groups, draws, tournament.PointSystem, tournament.TieBreaker]);
 
   /**
-   * Who the bracket would hold if the groups ended now.
+   * Which team currently holds each placeholder place, keyed by the label the
+   * bracket uses for it ("Group A winner").
    *
-   * Worked out here from the standings already on the page -- the same
-   * qualifying rules, seeding and best-loser fill the server uses when it draws
-   * for real, so the preview cannot promise a bracket the draw would not
-   * produce. Nothing is written; it only swaps the placeholder labels.
+   * The bracket keeps its full shape and these only fill the slots, so a place
+   * nobody holds yet stays a placeholder. Qualifying order comes from the same
+   * helper the server uses at draw time, including the host's tie-break picks
+   * and any disqualifications, so the preview cannot show a team through that
+   * the real draw would leave out.
    */
-  const qualifierPreview = useMemo<[string, string | undefined][]>(() => {
-    if (!isGroups || groupStandings.length === 0) return [];
+  const qualifierPreview = useMemo(() => {
+    const filled = new Map<string, Teams>();
+    if (!isGroups || groupStandings.length === 0) return filled;
     const advance = tournament.AdvancePerGroup || 2;
-    const seeds: SeedEntry<string>[] = [];
-    const qualifiedByGroup = new Map<string, Set<string>>();
     const out = asDisqualifiedSet(disqualifiedTeams);
 
     for (const section of groupStandings) {
+      // The bracket trims group names before it builds its labels, so the keys
+      // have to be trimmed too or every lookup quietly misses.
+      const label = section.name.trim();
       const names = resolvedQualifyingNames(
         section.standings,
         section.name,
@@ -655,39 +663,26 @@ export function TournamentView({
         out,
         tournament.OwnerCanSelectQualifiers,
       );
-      names.forEach((name, index) =>
-        seeds.push({ value: name, group: section.name, position: index + 1 }),
-      );
-      qualifiedByGroup.set(section.name, new Set(names));
-    }
-    if (seeds.length < 2) return [];
-
-    if (tournament.FillWithBestLosers) {
-      const missing = slotsToFill(seeds.length);
-      const pool = groupStandings.flatMap((section) =>
-        losersFromGroup(
-          section.name,
-          eligibleStandings(section.standings, out),
-          qualifiedByGroup.get(section.name) ?? new Set(),
-        ),
-      );
-      for (const loser of bestLosers(pool, missing)) {
-        seeds.push({
-          value: loser.teamName,
-          group: loser.group,
-          position: loser.position,
+      names.forEach((name, index) => {
+        const row = section.standings.find((s) => s.TeamName === name);
+        if (!row) return;
+        const team = standingToTeam(row);
+        filled.set(`${label} ${placeName(index + 1)}`, {
+          ...team,
+          // Group rows often carry no crest; the registrations do.
+          Icon: team.Icon || teamIcons.get(name.trim().toLowerCase()) || "",
         });
-      }
+      });
     }
-    return seedKnockoutPairs(seeds);
+    return filled;
   }, [
     isGroups,
     groupStandings,
     qualifiers,
     disqualifiedTeams,
+    teamIcons,
     tournament.AdvancePerGroup,
     tournament.OwnerCanSelectQualifiers,
-    tournament.FillWithBestLosers,
   ]);
 
   const groupDraws = useMemo(
@@ -1283,9 +1278,10 @@ export function TournamentView({
             );
 
             const canPreview =
+              SHOW_QUALIFIER_PREVIEW &&
               isGroups &&
               knockoutDraws.length === 0 &&
-              qualifierPreview.length > 0;
+              qualifierPreview.size > 0;
 
             const bracketContent = (
               <div className="space-y-5">
@@ -1319,7 +1315,7 @@ export function TournamentView({
                   isGroupMode={isGroups}
                   knockoutLive={knockoutDraws.length > 0}
                   qualifierReasons={qualifiers}
-                  previewPairs={
+                  previewTeams={
                     previewQualifiers && canPreview ? qualifierPreview : undefined
                   }
                 />

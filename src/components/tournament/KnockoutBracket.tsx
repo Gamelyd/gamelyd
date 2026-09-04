@@ -93,13 +93,26 @@ function matchFromDraw(draw: Draw): MatchNode {
 function matchFromPair(
   a: string | undefined,
   b: string | undefined,
+  teams?: Map<string, Teams>,
 ): MatchNode {
   return {
     draw: null,
-    team1: emptySlot(a),
-    team2: emptySlot(b),
+    team1: slotForLabel(a, teams),
+    team2: slotForLabel(b, teams),
     bye: !b,
   };
+}
+
+/**
+ * A placeholder slot, filled in with the team currently holding that place if
+ * one is known. Carrying the whole team rather than its name is what puts the
+ * crest on the row -- `TeamRow` reads the image off `slot.team`, so a slot with
+ * only a label renders without one.
+ */
+function slotForLabel(label?: string, teams?: Map<string, Teams>): Slot {
+  const team = label ? teams?.get(label) : undefined;
+  if (!team) return emptySlot(label);
+  return { team, label, score: 0, played: false, won: false };
 }
 
 /** Reduce a half of the bracket column by column. No extra empty outer slots. */
@@ -154,7 +167,7 @@ export function KnockoutBracket({
   isGroupMode = false,
   knockoutLive = false,
   qualifierReasons = [],
-  previewPairs,
+  previewTeams,
 }: {
   rounds: Round[];
   groupNames?: string[];
@@ -164,11 +177,14 @@ export function KnockoutBracket({
   knockoutLive?: boolean;
   qualifierReasons?: GroupQualifier[];
   /**
-   * Real team names to show in place of "Group A winner" labels, worked out on
-   * the page from the current tables. A look ahead only -- nothing is drawn or
-   * saved, and it is ignored once the knockout actually exists.
+   * Teams to drop into the placeholder slots, keyed by the label they replace
+   * ("Group A winner"). Worked out on the page from the current tables.
+   *
+   * The bracket keeps its full shape either way -- this only fills slots, so a
+   * placeholder with nobody in it yet stays a placeholder. A look ahead only:
+   * nothing is drawn or saved, and it is ignored once the knockout exists.
    */
-  previewPairs?: [string, string | undefined][];
+  previewTeams?: Map<string, Teams>;
 }) {
   // Always build from the first knockout round, even if the caller
   // passes stages newest-first (fixtures do that).
@@ -185,13 +201,11 @@ export function KnockoutBracket({
   let leaves: MatchNode[] = [];
 
   if (isGroupMode && !knockoutLive) {
-    const pairs =
-      previewPairs && previewPairs.length > 0
-        ? previewPairs
-        : names.length > 0
-          ? groupPlaceholderPairs(names, advancePerGroup)
-          : [];
-    leaves = pairs.map(([a, b]) => matchFromPair(a, b));
+    if (names.length > 0) {
+      leaves = groupPlaceholderPairs(names, advancePerGroup).map(([a, b]) =>
+        matchFromPair(a, b, previewTeams),
+      );
+    }
   } else if (knockoutLive || rounds.length > 0) {
     leaves = firstRound.map(matchFromDraw);
   } else if (teamCount > 1) {
