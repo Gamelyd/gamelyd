@@ -134,7 +134,7 @@ export function PlaceSearch({
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
-            className="w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-sm text-white outline-none transition-colors focus:border-primary disabled:opacity-60"
+            className="w-full rounded-lg border border-primary/25 bg-input px-4 py-3 text-base text-white outline-none transition-colors focus:border-primary disabled:opacity-60 sm:text-sm"
           />
           {hint ? (
             <p className="mt-1.5 text-xs text-body">{hint}</p>

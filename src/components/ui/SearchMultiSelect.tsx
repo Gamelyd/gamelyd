@@ -86,7 +86,7 @@ export function SearchMultiSelect({
               }}
               onFocus={() => setOpen(true)}
               placeholder={selected.length === 0 ? placeholder : "Add another"}
-              className="min-w-24 flex-1 bg-transparent px-1 py-0.5 text-sm text-white outline-none placeholder:text-body/50"
+              className="min-w-24 flex-1 bg-transparent px-1 py-0.5 text-base sm:text-sm text-white outline-none placeholder:text-body/50"
             />
           ) : (
             <span className="px-1 py-0.5 text-xs text-body">
