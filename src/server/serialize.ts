@@ -233,6 +233,10 @@ export function serializeTournamentCompat(doc: TournamentDoc): Tournament {
       ["TieBreaker", "tiebreaker"],
       "GOAL_DIFF",
     ) || "GOAL_DIFF") as Tournament["TieBreaker"],
+    FillWithBestLosers: readBool(raw, [
+      "FillWithBestLosers",
+      "fillwithbestlosers",
+    ]),
     BrLobbyCount: readNumber(raw, ["BrLobbyCount", "brlobbycount"]) || 1,
     BrKillPoints: readNumber(raw, ["BrKillPoints", "brkillpoints"], 1),
     BrFirstBloodPoints: readNumber(raw, [

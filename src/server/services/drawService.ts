@@ -42,14 +42,21 @@ import type {
   SetDrawVenueInput,
   UpdateBrDrawInput,
 } from "@/lib/schemas/draw";
+import {
+  bestLosers,
+  losersFromGroup,
+  slotsToFill,
+} from "@/lib/bestLosers";
 import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import type { AdvanceGroupStageInput } from "@/lib/schemas/tournament";
 import {
   pairWithinHalves,
   seedKnockoutPairs,
+  type SeedEntry,
 } from "@/lib/knockoutSeed";
 import {
   asDisqualifiedSet,
+  eligibleStandings,
   groupQualifiersComplete,
   groupTieBreak,
   qualifiersForGroup,
@@ -674,14 +681,14 @@ export async function advanceGroupStage(
   const advancePerGroup =
     tournament.AdvancePerGroup || input.AdvancePerGroup || 2;
   const disqualified = asDisqualifiedSet(tournament.DisqualifiedTeams);
-  const byPosition = qualifiersFromGroups(
+  const qualifiers = qualifiersFromGroups(
     tournament,
     groupDraws,
     advancePerGroup,
     disqualified,
   );
 
-  const pairs = seedKnockoutPairs(byPosition);
+  const pairs = seedKnockoutPairs(qualifiers);
   if (pairs.length === 0) {
     throw new ServiceError("Not enough qualifiers to make a knockout stage");
   }
@@ -729,7 +736,7 @@ function qualifiersFromGroups(
   groupDraws: Draw[],
   advancePerGroup: number,
   disqualified: Set<string>,
-): Teams[][] {
+): SeedEntry<Teams>[] {
   const manual = tournament.OwnerCanSelectQualifiers;
   const sections = tournament.Groups.map((group) => {
     const standings = computeLeagueStandings(
@@ -759,7 +766,8 @@ function qualifiersFromGroups(
     }
   }
 
-  const byPosition: Teams[][] = [];
+  const entries: SeedEntry<Teams>[] = [];
+  const qualifiedByGroup = new Map<string, Set<string>>();
   for (const { group, standings } of sections) {
     const eligible = standings.filter((row) => !disqualified.has(row.TeamName));
     const tie = manual
@@ -782,10 +790,43 @@ function qualifiersFromGroups(
       if (!row) {
         throw new ServiceError(`${name} is not in ${group.GroupName}`);
       }
-      (byPosition[pos] ??= []).push(standingToTeam(row));
+      entries.push({
+        value: standingToTeam(row),
+        group: group.GroupName,
+        position: pos + 1,
+      });
     });
+    qualifiedByGroup.set(group.GroupName, new Set(names));
   }
-  return byPosition;
+
+  if (!tournament.FillWithBestLosers) return entries;
+
+  // The group stage rarely lands on a power of two. When the host has asked for
+  // a complete bracket, the places left over go to the best teams that missed
+  // out rather than becoming byes.
+  const missing = slotsToFill(entries.length);
+  if (missing === 0) return entries;
+
+  const pool = sections.flatMap(({ group, standings }) =>
+    losersFromGroup(
+      group.GroupName,
+      eligibleStandings(standings, disqualified),
+      qualifiedByGroup.get(group.GroupName) ?? new Set(),
+    ),
+  );
+  for (const loser of bestLosers(pool, missing)) {
+    const row = sections
+      .find((s) => s.group.GroupName === loser.group)
+      ?.standings.find((s) => s.TeamName === loser.teamName);
+    if (row) {
+      entries.push({
+        value: standingToTeam(row),
+        group: loser.group,
+        position: loser.position,
+      });
+    }
+  }
+  return entries;
 }
 
 /** Advances knockout-round winners into the next round. */

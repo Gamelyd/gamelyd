@@ -420,6 +420,11 @@ export async function saveTournament(
       input.TournamentMode === "LEAGUE" || input.TournamentMode === "GROUPS"
         ? input.TieBreaker || "GOAL_DIFF"
         : "GOAL_DIFF",
+    // Only a group stage produces spare places to fill.
+    FillWithBestLosers:
+      input.TournamentMode === "GROUPS"
+        ? Boolean(input.FillWithBestLosers)
+        : false,
     BrLobbyCount:
       input.TournamentMode === "BATTLEROYALE" ? input.BrLobbyCount || 1 : 1,
     BrKillPoints:
@@ -2227,6 +2232,10 @@ async function applyTournamentSettings(
   if (input.TieBreaker !== undefined) {
     set.TieBreaker = input.TieBreaker;
     set.tiebreaker = input.TieBreaker;
+  }
+  if (input.FillWithBestLosers !== undefined) {
+    set.FillWithBestLosers = input.FillWithBestLosers;
+    set.fillwithbestlosers = input.FillWithBestLosers;
   }
   if (input.BrLobbyCount !== undefined) {
     set.BrLobbyCount = input.BrLobbyCount;

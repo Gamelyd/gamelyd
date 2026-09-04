@@ -68,6 +68,13 @@ async function inlineIcons(model: ExportModel): Promise<ExportModel> {
     }
   } else if (model.kind === "tables") {
     for (const table of model.tables) for (const row of table.rows) collect(row.icon);
+  } else if (model.kind === "fixtures") {
+    for (const section of model.sections) {
+      for (const match of section.matches) {
+        collect(match.home.icon);
+        collect(match.away.icon);
+      }
+    }
   } else if (model.kind === "teams") {
     for (const team of model.teams) {
       collect(team.icon);
@@ -140,6 +147,19 @@ async function inlineIcons(model: ExportModel): Promise<ExportModel> {
   const swapRoster = (players: { name: string; icon: string }[]) =>
     players.map((player) => ({ ...player, icon: swap(player.icon) }));
 
+  if (model.kind === "fixtures") {
+    return {
+      kind: "fixtures",
+      sections: model.sections.map((section) => ({
+        ...section,
+        matches: section.matches.map((match) => ({
+          ...match,
+          home: { ...match.home, icon: swap(match.home.icon) },
+          away: { ...match.away, icon: swap(match.away.icon) },
+        })),
+      })),
+    };
+  }
   if (model.kind === "teams") {
     return {
       kind: "teams",

@@ -33,10 +33,13 @@ import { BrTable } from "./BrTable";
 import { ShareTournamentButton } from "./ShareTournamentButton";
 import { DownloadViewButton } from "./DownloadViewButton";
 import {
+  buildMyMatches,
+  buildUnplayed,
   exportPlan,
   viewForTeamsPanel,
   type ExportView,
 } from "@/lib/exportViews";
+import { MatchListModal } from "./MatchListModal";
 import {
   LatestAnnouncementBanner,
   TournamentAnnouncements,
@@ -483,6 +486,9 @@ export function TournamentView({
     () => exportPlan(tournament, draws, participants),
     [tournament, draws, participants],
   );
+  const [showUnplayed, setShowUnplayed] = useState(false);
+  const [showMine, setShowMine] = useState(false);
+
   const exportable = useMemo(
     () => new Set(Object.keys(exportViews) as ExportView[]),
     [exportViews],
@@ -502,6 +508,15 @@ export function TournamentView({
   const hydratedDraws = useMemo(
     () => draws.map((d) => hydrateDrawIcons(d, teamIcons)),
     [draws, teamIcons],
+  );
+
+  const unplayedSections = useMemo(
+    () => buildUnplayed(tournament, hydratedDraws),
+    [tournament, hydratedDraws],
+  );
+  const mySections = useMemo(
+    () => buildMyMatches(tournament, hydratedDraws, mineDrawIds),
+    [tournament, hydratedDraws, mineDrawIds],
   );
 
   const groupFixtureSections = useMemo(() => {
@@ -1392,13 +1407,59 @@ export function TournamentView({
             );
           })()}
 
-        {tab === "fixtures" && hasMyFixtures ? (
-          <div className="mb-6 flex justify-center">
-            <Button type="button" variant="outline" onClick={jumpToMyFixtures}>
-              See my fixtures
-            </Button>
+        {tab === "fixtures" ? (
+          <div className="mb-6 flex flex-wrap justify-center gap-3">
+            {hasMyFixtures ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowMine(true)}
+              >
+                See my matches
+              </Button>
+            ) : null}
+            {unplayedSections.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowUnplayed(true)}
+              >
+                View unplayed matches
+              </Button>
+            ) : null}
+            {hasMyFixtures ? (
+              <Button type="button" variant="dark" onClick={jumpToMyFixtures}>
+                Jump to my fixtures
+              </Button>
+            ) : null}
           </div>
         ) : null}
+
+        <MatchListModal
+          open={showUnplayed}
+          onClose={() => setShowUnplayed(false)}
+          title="Unplayed matches"
+          sections={unplayedSections}
+          empty="Every match has been played."
+          download={
+            exportViews.unplayed
+              ? {
+                  tournamentId: tournament.TournamentId,
+                  tournamentName: tournament.Name,
+                  view: "unplayed",
+                  pages: exportViews.unplayed,
+                }
+              : undefined
+          }
+        />
+
+        <MatchListModal
+          open={showMine}
+          onClose={() => setShowMine(false)}
+          title="My matches"
+          sections={mySections}
+          empty="You are not in any fixtures yet."
+        />
 
         {tab === "fixtures" &&
           (isGroups ? (

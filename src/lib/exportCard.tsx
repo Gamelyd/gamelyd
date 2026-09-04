@@ -245,6 +245,41 @@ function BracketColumn({
   );
 }
 
+/** One team on a fixture line, mirrored so the pair reads inward. */
+function FixtureSide({
+  side,
+  align,
+}: {
+  side: ExportSide;
+  align: "left" | "right";
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexGrow: 1,
+        justifyContent: align === "right" ? "flex-start" : "flex-end",
+        flexDirection: align === "right" ? "row" : "row-reverse",
+      }}
+    >
+      <Crest name={side.name} size={30} icon={side.icon} won={side.won} />
+      <div
+        style={{
+          display: "flex",
+          marginLeft: align === "right" ? 10 : 0,
+          marginRight: align === "right" ? 0 : 10,
+          fontSize: 19,
+          fontWeight: side.won ? 700 : 500,
+          color: side.won ? "white" : "rgba(255,255,255,0.75)",
+        }}
+      >
+        {fit(side.name, 20)}
+      </div>
+    </div>
+  );
+}
+
 function TrophyColumn({
   final,
   scale,
@@ -937,6 +972,82 @@ function Body({
             scale={scale}
             side="right"
           />
+        ))}
+      </div>
+    );
+  }
+
+  if (model.kind === "fixtures") {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          gap: 18,
+        }}
+      >
+        {model.sections.map((section) => (
+          <div
+            key={section.label}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              background: PANEL,
+              border: `1px solid ${LINE}`,
+              borderRadius: 14,
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                color: ds.secondary,
+                fontSize: 18,
+                fontWeight: 700,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              {section.label}
+            </div>
+            {section.matches.map((match, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderTop: index === 0 ? "none" : `1px solid ${LINE}`,
+                  paddingTop: 11,
+                  paddingBottom: 11,
+                }}
+              >
+                <FixtureSide side={match.home} align="left" />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    width: 190,
+                  }}
+                >
+                  <div style={{ display: "flex", fontSize: 15, color: MUTED }}>
+                    {match.played
+                      ? `${match.home.score} – ${match.away.score}`
+                      : "v"}
+                  </div>
+                  {match.when ? (
+                    <div style={{ display: "flex", fontSize: 14, color: MUTED }}>
+                      {match.when}
+                    </div>
+                  ) : null}
+                </div>
+                <FixtureSide side={match.away} align="right" />
+              </div>
+            ))}
+          </div>
         ))}
       </div>
     );

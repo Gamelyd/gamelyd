@@ -148,6 +148,7 @@ export function CreateTournamentWizard() {
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
   const [groupCount, setGroupCount] = useState(0);
   const [pickQualifiers, setPickQualifiers] = useState(false);
+  const [fillBestLosers, setFillBestLosers] = useState(false);
   const [pointsWin, setPointsWin] = useState(3);
   const [pointsDraw, setPointsDraw] = useState(1);
   const [knockoutFormat, setKnockoutFormat] =
@@ -458,6 +459,7 @@ export function CreateTournamentWizard() {
       AdvancePerGroup: mode === "GROUPS" ? advancePerGroup : 2,
       GroupCount: mode === "GROUPS" ? groupCount : 0,
       OwnerCanSelectQualifiers: mode === "GROUPS" ? pickQualifiers : false,
+      FillWithBestLosers: mode === "GROUPS" ? fillBestLosers : false,
       PointSystem:
         mode === "LEAGUE" || mode === "GROUPS"
           ? { Win: pointsWin, Draw: allowDraw ? pointsDraw : 0 }
@@ -847,6 +849,30 @@ export function CreateTournamentWizard() {
                         blurb="If teams finish level on points, you choose who goes through, with a public reason."
                         active={pickQualifiers}
                         onClick={() => setPickQualifiers(true)}
+                        delay={1}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                      Incomplete knockout
+                    </p>
+                    <p className="mb-3 text-sm text-body">
+                      A group stage rarely produces a clean 8 or 16. Decide what
+                      happens to the places left over.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ChoiceTile
+                        title="Leave byes"
+                        blurb="Teams with no opponent go straight through to the next round."
+                        active={!fillBestLosers}
+                        onClick={() => setFillBestLosers(false)}
+                      />
+                      <ChoiceTile
+                        title="Best losers fill in"
+                        blurb="The strongest teams that missed out take the spare places, like the World Cup's best third-placed sides."
+                        active={fillBestLosers}
+                        onClick={() => setFillBestLosers(true)}
                         delay={1}
                       />
                     </div>

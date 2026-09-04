@@ -8,6 +8,8 @@ import {
   paginateExport,
   exportPageCount,
   availableExportViews,
+  buildMyMatches,
+  buildUnplayed,
   viewForTeamsPanel,
   buildBracket,
   buildChampions,
@@ -243,7 +245,7 @@ describe("availableExportViews", () => {
       [draw({ Stage: 1, Team1: team("A"), Team2: team("B") })],
       [entry("A"), entry("B")],
     );
-    assert.deepEqual(views, ["bracket", "teams"]);
+    assert.deepEqual(views, ["bracket", "teams", "unplayed"]);
   });
 
   test("a groups tournament offers its group tables", () => {
@@ -334,6 +336,7 @@ describe("layoutExport", () => {
         home: { name: "A", score: 0, won: false, icon: "" },
         away: { name: "B", score: 0, won: false, icon: "" },
         played: false,
+        when: "",
       })),
     }));
     const out = layoutExport({ kind: "bracket", left: columns, right: [], final: null });
@@ -352,6 +355,7 @@ describe("layoutExport", () => {
           home: { name: `A${i}`, score: 0, won: false, icon: "" },
           away: { name: `B${i}`, score: 0, won: false, icon: "" },
           played: false,
+          when: "",
         },
       ],
     }));
@@ -373,6 +377,7 @@ describe("layoutExport", () => {
         home: { name: "A", score: 0, won: false, icon: "" },
         away: { name: "B", score: 0, won: false, icon: "" },
         played: false,
+        when: "",
       })),
     }));
     const pages = paginateExport({ kind: "bracket", left: deep, right: [], final: null });
@@ -498,6 +503,7 @@ describe("paginateExport never drops anything", () => {
         home: { name: "A", score: 0, won: false, icon: "" },
         away: { name: "B", score: 0, won: false, icon: "" },
         played: false,
+        when: "",
       })),
     }));
     const pages = paginateExport({ kind: "bracket", left: columns, right: [], final: null });
@@ -612,5 +618,71 @@ describe("viewForTeamsPanel", () => {
       }),
       null,
     );
+  });
+});
+
+describe("buildUnplayed", () => {
+  const played = draw({
+    Stage: 2, Team1: team("A"), Team2: team("B"),
+    Winner: "Team1", Played: true,
+  });
+  const pending = draw({ Stage: 1, Team1: team("A"), Team2: team("C") });
+
+  test("lists only what is still to play", () => {
+    const sections = buildUnplayed(tournament(), [played, pending]);
+    const names = sections.flatMap((s) => s.matches.map((m) => m.home.name));
+    assert.deepEqual(names, ["A"]);
+    assert.equal(sections[0].matches[0].away.name, "C");
+  });
+
+  test("is empty once everything has been played", () => {
+    assert.deepEqual(buildUnplayed(tournament(), [played]), []);
+  });
+
+  test("groups get their own heading", () => {
+    const sections = buildUnplayed(tournament({ TournamentMode: "GROUPS" }), [
+      draw({ Stage: 1, Group: "B", Team1: team("A"), Team2: team("B") }),
+      draw({ Stage: 1, Group: "A", Team1: team("C"), Team2: team("D") }),
+    ]);
+    assert.deepEqual(sections.map((s) => s.label), ["A", "B"]);
+  });
+
+  test("carries the kick-off when the host set one", () => {
+    const sections = buildUnplayed(tournament(), [
+      draw({ Stage: 1, Team1: team("A"), Team2: team("B"), Date: "2026-09-20", Time: "15:00" }),
+    ]);
+    assert.match(sections[0].matches[0].when, /Sep/);
+    assert.match(sections[0].matches[0].when, /15:00/);
+  });
+});
+
+describe("buildMyMatches", () => {
+  const mine = draw({
+    DrawId: "d1", Stage: 1, Team1: team("A"), Team2: team("B"),
+    Winner: "Team1", Played: true,
+  });
+  const upcoming = draw({ DrawId: "d2", Stage: 2, Team1: team("A"), Team2: team("C") });
+  const other = draw({ DrawId: "d3", Stage: 1, Team1: team("X"), Team2: team("Y") });
+
+  test("keeps played and unplayed, and only mine", () => {
+    const sections = buildMyMatches(
+      tournament(), [mine, upcoming, other], new Set(["d1", "d2"]),
+    );
+    const all = sections.flatMap((s) => s.matches);
+    assert.equal(all.length, 2);
+    assert.equal(all.filter((m) => m.played).length, 1);
+    assert.ok(!all.some((m) => m.home.name === "X"));
+  });
+
+  test("newest round first", () => {
+    // The match coming up matters more than the one already played.
+    const sections = buildMyMatches(
+      tournament(), [mine, upcoming], new Set(["d1", "d2"]),
+    );
+    assert.equal(sections[0].matches[0].away.name, "C", "stage 2 leads");
+  });
+
+  test("is empty when none are yours", () => {
+    assert.deepEqual(buildMyMatches(tournament(), [other], new Set()), []);
   });
 });

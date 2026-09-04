@@ -228,6 +228,9 @@ export const tournamentSchema = z.object({
   KnockoutFinalsSeries: z.boolean().default(false),
   ThirdPlace: z.boolean().default(false),
   TieBreaker: tieBreakerSchema.default("GOAL_DIFF"),
+  /** Top the knockout up with the best teams that missed out, so the bracket
+   *  is a clean power of two instead of half byes. */
+  FillWithBestLosers: z.boolean().default(false),
   BrLobbyCount: z.number().int().min(1).max(20).default(1),
   BrKillPoints: z.number().min(0).max(50).default(1),
   BrFirstBloodPoints: z.number().min(0).max(50).default(0),
@@ -279,6 +282,7 @@ export const saveTournamentInputSchema = z.object({
   KnockoutFinalsSeries: z.boolean().optional().default(false),
   ThirdPlace: z.boolean().optional().default(false),
   TieBreaker: tieBreakerSchema.optional().default("GOAL_DIFF"),
+  FillWithBestLosers: z.coerce.boolean().optional().default(false),
   BrLobbyCount: z.coerce.number().int().min(1).max(20).optional().default(1),
   BrKillPoints: z.coerce.number().min(0).max(50).optional().default(1),
   BrFirstBloodPoints: z.coerce.number().min(0).max(50).optional().default(0),
@@ -346,6 +350,7 @@ export const editTournamentInputSchema = z
     KnockoutFinalsSeries: z.boolean().optional(),
     ThirdPlace: z.boolean().optional(),
     TieBreaker: tieBreakerSchema.optional(),
+    FillWithBestLosers: z.coerce.boolean().optional(),
     BrLobbyCount: z.coerce.number().int().min(1).max(20).optional(),
     BrKillPoints: z.coerce.number().min(0).max(50).optional(),
     BrFirstBloodPoints: z.coerce.number().min(0).max(50).optional(),

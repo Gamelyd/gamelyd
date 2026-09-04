@@ -26,6 +26,7 @@ export const exportViewSchema = z.enum([
   "standings",
   "teams",
   "champions",
+  "unplayed",
 ]);
 export type ExportView = z.infer<typeof exportViewSchema>;
 
@@ -35,6 +36,7 @@ export const EXPORT_VIEW_LABEL: Record<ExportView, string> = {
   standings: "Standings",
   teams: "Teams",
   champions: "Champions",
+  unplayed: "Unplayed matches",
 };
 
 export interface ExportSide {
@@ -49,6 +51,8 @@ export interface ExportMatch {
   home: ExportSide;
   away: ExportSide;
   played: boolean;
+  /** When it is due, for fixture lists. Empty when the host has not set a time. */
+  when: string;
 }
 
 export interface ExportColumn {
@@ -111,6 +115,7 @@ export type ExportModel =
     }
   | { kind: "tables"; tables: ExportTable[] }
   | { kind: "teams"; teams: ExportTeam[] }
+  | { kind: "fixtures"; sections: ExportColumn[] }
   | { kind: "champions"; places: ExportPlace[] };
 
 const PLACE_LABEL: Record<number, string> = {
@@ -173,7 +178,24 @@ function matchOf(draw: Draw, icons: IconLookup): ExportMatch {
     home: sideOf(draw.Team1, draw.Team1Score, winner === "Team1", icons),
     away: sideOf(draw.Team2, draw.Team2Score, winner === "Team2", icons),
     played: draw.Played,
+    when: kickOff(draw),
   };
+}
+
+/** "Sat 20 Sep, 15:00" from whatever parts the host filled in. */
+export function kickOff(draw: { Date?: string; Time?: string }): string {
+  const date = (draw.Date ?? "").trim();
+  const time = (draw.Time ?? "").trim();
+  if (!date) return time;
+  const parsed = new Date(date);
+  const day = Number.isNaN(parsed.getTime())
+    ? date
+    : parsed.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+  return time ? `${day}, ${time}` : day;
 }
 
 /**
@@ -240,7 +262,14 @@ export function buildBracket(
   if (isFinal && left.length === 0 && right.length === 0 && final) {
     left.push({
       label: roundLabel(1, finalStage, tournament.TournamentMode),
-      matches: [{ home: final.home, away: final.away, played: final.played }],
+      matches: [
+        {
+          home: final.home,
+          away: final.away,
+          played: final.played,
+          when: "",
+        },
+      ],
     });
     return { left, right, final: { ...final, home: final.home, away: final.away } };
   }
@@ -396,6 +425,92 @@ function rosterOf(
     .filter((player) => player.name);
 }
 
+/**
+ * Everything still to be played, grouped the way the fixtures tab groups it.
+ *
+ * A host running an event on the day wants one list of what is left, not a
+ * scroll through rounds that are already finished.
+ */
+export function buildUnplayed(
+  tournament: Tournament,
+  draws: Draw[],
+  icons: IconLookup = () => "",
+): ExportColumn[] {
+  return sectionise(
+    tournament,
+    draws.filter((draw) => !draw.Played),
+    icons,
+    "widest",
+  );
+}
+
+/**
+ * One team's matches, played and still to come, under the same round headings
+ * the fixtures tab uses. Newest first, so what is happening now is at the top.
+ *
+ * `drawIds` is the set the page already computes for "see my fixtures", so both
+ * agree on what counts as yours -- team name or a player's user id.
+ */
+export function buildMyMatches(
+  tournament: Tournament,
+  draws: Draw[],
+  drawIds: Set<string>,
+  icons: IconLookup = () => "",
+): ExportColumn[] {
+  return sectionise(
+    tournament,
+    draws.filter((draw) => drawIds.has(draw.DrawId)),
+    icons,
+    "newest",
+  );
+}
+
+/**
+ * Groups fixtures into the sections the fixtures tab shows: one per group, then
+ * one per knockout round.
+ *
+ * `order` decides how the rounds run. A list of what is left reads widest-round
+ * first, the way a bracket does. A personal list reads newest first, because
+ * the match you care about is the one coming up.
+ */
+function sectionise(
+  tournament: Tournament,
+  draws: Draw[],
+  icons: IconLookup,
+  order: "widest" | "newest",
+): ExportColumn[] {
+  if (draws.length === 0) return [];
+
+  const groups = new Map<string, Draw[]>();
+  const rounds = new Map<number, Draw[]>();
+  for (const draw of draws) {
+    if (isGroupDraw(draw)) {
+      const name = draw.Group.trim() || "Group";
+      groups.set(name, [...(groups.get(name) ?? []), draw]);
+    } else {
+      rounds.set(draw.Stage, [...(rounds.get(draw.Stage) ?? []), draw]);
+    }
+  }
+
+  const sections: ExportColumn[] = [];
+  for (const [name, list] of [...groups.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0], undefined, { numeric: true }),
+  )) {
+    sections.push({ label: name, matches: list.map((d) => matchOf(d, icons)) });
+  }
+  const roundList = [...rounds.entries()].sort(
+    ([stageA, a], [stageB, b]) =>
+      order === "widest" ? b.length - a.length || stageA - stageB : stageB - stageA,
+  );
+  for (const [stage, list] of roundList) {
+    sections.push({
+      label: roundLabel(list.length, stage, tournament.TournamentMode),
+      matches: list.map((d) => matchOf(d, icons)),
+    });
+  }
+  return sections;
+}
+
 export function buildTeams(
   participants: RegisterTournament[],
   icons: IconLookup = () => "",
@@ -458,6 +573,10 @@ export function buildExportModel(
     case "teams": {
       const teams = buildTeams(participants, icons);
       return teams.length > 0 ? { kind: "teams", teams } : null;
+    }
+    case "unplayed": {
+      const sections = buildUnplayed(tournament, draws, icons);
+      return sections.length > 0 ? { kind: "fixtures", sections } : null;
     }
     case "champions": {
       const places = buildChampions(tournament, draws, participants, icons);
@@ -714,6 +833,26 @@ export function paginateExport(model: ExportModel): ExportPage[] {
     return pages.length > 0
       ? pages
       : [{ width: EXPORT_WIDTH, height: EXPORT_MIN_HEIGHT, model, scale: 1 }];
+  }
+
+  if (model.kind === "fixtures") {
+    const headerH = 46;
+    const rowH = 58;
+    const height = model.sections.reduce(
+      (total, section) =>
+        total + headerH + section.matches.length * rowH + BLOCK_GAP,
+      0,
+    );
+    // One long list rather than pages: a host scanning what is left wants it
+    // all in one picture.
+    return [
+      {
+        width: EXPORT_WIDTH,
+        height: canvasHeight(height),
+        model,
+        scale: 1,
+      },
+    ];
   }
 
   const roster = Math.max(

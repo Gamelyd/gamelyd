@@ -65,6 +65,7 @@ export function EditTournamentSettings({
   type BusyField =
     | ""
     | "shuffle"
+    | "bestLosers"
     | "type"
     | "size"
     | "roster"
@@ -111,6 +112,9 @@ export function EditTournamentSettings({
   );
   const [pickQualifiers, setPickQualifiers] = useState(
     tournament.OwnerCanSelectQualifiers,
+  );
+  const [fillBestLosers, setFillBestLosers] = useState(
+    tournament.FillWithBestLosers,
   );
   const [knockoutFormat, setKnockoutFormat] = useState(
     tournament.KnockoutFormat || "SINGLE",
@@ -176,6 +180,7 @@ export function EditTournamentSettings({
     setPointsWin(String(tournament.PointSystem?.Win ?? 3));
     setPointsDraw(String(tournament.PointSystem?.Draw ?? 1));
     setPickQualifiers(tournament.OwnerCanSelectQualifiers);
+    setFillBestLosers(tournament.FillWithBestLosers);
     setKnockoutFormat(tournament.KnockoutFormat || "SINGLE");
     setKnockoutFinalsSeries(tournament.KnockoutFinalsSeries);
     setThirdPlace(tournament.ThirdPlace);
@@ -280,6 +285,14 @@ export function EditTournamentSettings({
     setPickQualifiers(next);
     askToSave("qualifiers", { OwnerCanSelectQualifiers: next }, () =>
       setPickQualifiers(tournament.OwnerCanSelectQualifiers),
+    );
+  };
+
+  const changeFillLosers = (next: boolean) => {
+    if (next === tournament.FillWithBestLosers || locked) return;
+    setFillBestLosers(next);
+    askToSave("bestLosers", { FillWithBestLosers: next }, () =>
+      setFillBestLosers(tournament.FillWithBestLosers),
     );
   };
 
@@ -737,6 +750,23 @@ export function EditTournamentSettings({
               options={[
                 { label: "Table order decides", value: "false" },
                 { label: "Host picks if teams are level", value: "true" },
+              ]}
+            />
+          ) : null}
+
+          {showQualifiers ? (
+            <Select
+              label={
+                busyField === "bestLosers"
+                  ? "Spare knockout places (saving…)"
+                  : "Spare knockout places"
+              }
+              value={fillBestLosers ? "true" : "false"}
+              disabled={locked}
+              onChange={(e) => changeFillLosers(e.target.value === "true")}
+              options={[
+                { label: "Leave byes", value: "false" },
+                { label: "Best losers fill them", value: "true" },
               ]}
             />
           ) : null}

@@ -162,6 +162,8 @@ export interface TournamentDoc {
   KnockoutFinalsSeries?: boolean;
   ThirdPlace?: boolean;
   TieBreaker?: string;
+  /** Fill an incomplete knockout with the best non-qualifiers. */
+  FillWithBestLosers?: boolean;
   BrLobbyCount?: number;
   BrKillPoints?: number;
   BrFirstBloodPoints?: number;

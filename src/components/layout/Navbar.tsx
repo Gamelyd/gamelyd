@@ -105,7 +105,7 @@ export function Navbar() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-primary/20 bg-nav">
       <nav className="mx-auto flex max-w-page items-center justify-between px-page py-3">
-        <Link href="/" className="flex items-center">
+        <Link href="/" className="flex shrink-0 items-center">
           <Image
             src="/images/logos/logoWhite.png"
             alt="Gamelyd"
@@ -116,7 +116,7 @@ export function Navbar() {
           />
         </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden min-w-0 items-center gap-5 lg:flex xl:gap-8">
           {visibleLinks
             .filter((l) => !l.menuOnly)
             .map((l) => (
@@ -148,7 +148,7 @@ export function Navbar() {
           <HelpButton />
           {isAuthenticated ? <NotificationBell /> : null}
           {isAuthenticated && user ? (
-            <div className="relative hidden md:block" ref={userMenuRef}>
+            <div className="relative hidden lg:block" ref={userMenuRef}>
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
@@ -221,7 +221,7 @@ export function Navbar() {
               </div>
             </div>
           ) : (
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <Link href="/signup">
                 <Button>Sign In</Button>
               </Link>
@@ -229,7 +229,7 @@ export function Navbar() {
           )}
           <button
             type="button"
-            className="grid h-10 w-10 place-items-center rounded-lg text-white transition-colors hover:bg-white/5 hover:text-primary md:hidden"
+            className="grid h-10 w-10 place-items-center rounded-lg text-white transition-colors hover:bg-white/5 hover:text-primary lg:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -244,7 +244,7 @@ export function Navbar() {
       </nav>
 
       <div
-        className={`grid overflow-hidden transition-all duration-300 ease-out md:hidden ${
+        className={`grid overflow-hidden transition-all duration-300 ease-out lg:hidden ${
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         }`}
       >
