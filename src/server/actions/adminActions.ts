@@ -74,6 +74,8 @@ import {
   ratingTargetSchema,
   type RatingTarget,
 } from "@/lib/schemas/rating";
+import { substituteTeamInputSchema } from "@/lib/schemas/tournament";
+import { substituteTeam } from "@/server/services/tournamentService";
 import {
   templateListSchema,
   type TournamentTemplate,
@@ -922,5 +924,51 @@ export async function adminResetTemplatesAction(): Promise<
   } catch (error) {
     console.error(error);
     return fail("Could not reset templates");
+  }
+}
+
+
+/* ----------------------------- Substitutions ----------------------------- */
+
+/**
+ * Replace a team that has stopped responding, mid-tournament.
+ *
+ * Admin only, and deliberately so: it rewrites fixtures other people are
+ * already playing, which is not a decision a host should be able to take on
+ * their own opponents.
+ */
+export async function adminSubstituteTeamAction(
+  tournamentId: string,
+  input: unknown,
+): Promise<
+  ActionResult<{
+    outTeamName: string;
+    teamName: string;
+    swapped: number;
+    playedLeftAlone: number;
+  }>
+> {
+  const admin = await guardAdmin();
+  if (!admin) return fail("Admin access required");
+  const parsed = parseInput(substituteTeamInputSchema, input);
+  if (!parsed.ok) return fail(parsed.message, parsed.fieldErrors);
+  try {
+    const result = await substituteTeam(admin.uid, tournamentId, parsed.data);
+    const played = result.playedLeftAlone;
+    return ok(
+      {
+        outTeamName: result.outTeamName,
+        teamName: result.registration.TeamName,
+        swapped: result.swapped,
+        playedLeftAlone: played,
+      },
+      `${result.registration.TeamName} took over ${result.swapped} fixture${
+        result.swapped === 1 ? "" : "s"
+      }${played > 0 ? `. ${played} played match${played === 1 ? "" : "es"} kept the original team.` : ""}`,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
+    return fail("Could not substitute that team");
   }
 }

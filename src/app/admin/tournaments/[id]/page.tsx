@@ -22,6 +22,7 @@ import {
   adminToggleSuspendTournamentAction,
 } from "@/server/actions/adminActions";
 import { AddParticipants, upsertParticipant } from "@/components/tournament/AddParticipants";
+import { SubstituteTeam } from "@/components/admin/SubstituteTeam";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
 import { TournamentCoverPicker } from "@/components/tournament/TournamentCoverPicker";
 
@@ -293,8 +294,22 @@ export default function AdminTournamentManagePage() {
             setParticipants((prev) => upsertParticipant(prev, registration))
           }
         />
+      </div>
+
+      {tournament.Start ? (
         <div className="mt-6">
-          <DisqualifyTeams
+          <SubstituteTeam
+            tournamentId={tournament.TournamentId || id}
+            participants={participants}
+            teamSize={tournament.Team}
+            rosterCount={tournament.RosterCount}
+            onDone={() => setReload((r) => r + 1)}
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-6">
+        <DisqualifyTeams
             tournamentId={tournament.TournamentId || id}
             started={tournament.Start}
             participants={participants}
@@ -314,8 +329,7 @@ export default function AdminTournamentManagePage() {
                     ),
               );
             }}
-          />
-        </div>
+        />
       </div>
 
       <div className="mb-6 rounded-2xl border border-surface-2 bg-surface p-5">

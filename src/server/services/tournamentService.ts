@@ -45,6 +45,7 @@ import { createNotifications } from "./notificationService";
 import type {
   Tournament,
   PendingSettingChange,
+  SubstituteTeamInput,
 } from "@/lib/schemas/tournament";
 import { browseStatusClause, tournamentBrowsePhase } from "@/lib/tournamentStatus";
 import { catalogKindClause } from "@/lib/catalog";
@@ -94,6 +95,11 @@ import { checkInWindowOpen, registrationDeadlinePassed } from "@/lib/tournamentW
 import { FALLBACKS } from "@/lib/icons";
 import { playerIconForUser } from "@/server/services/iconService";
 import { isKnockoutDraw } from "@/lib/drawKind";
+import {
+  planSubstitution,
+  substituteInGroups,
+  substitutedDraw,
+} from "@/lib/substitute";
 import {
   isSeriousSettingPatch,
   settingChangeReady,
@@ -916,6 +922,8 @@ export async function registerForTournament(
     actorUid?: string;
     captainOnly?: boolean;
     skipInviteGate?: boolean;
+    /** Substitutions only: a replacement joins after the event has started. */
+    allowAfterStart?: boolean;
   },
 ): Promise<RegisterTournament> {
   const tournamentDoc = await findByAnyId(tournamentId);
@@ -928,7 +936,7 @@ export async function registerForTournament(
   if (tournament.IsSuspended) {
     throw new ServiceError("This tournament is suspended");
   }
-  if (tournament.Start) {
+  if (tournament.Start && !options?.allowAfterStart) {
     throw new ServiceError(
       "Registration is closed. This tournament has already started.",
     );
@@ -1700,6 +1708,153 @@ export async function disqualifyTeam(
 }
 
 /** Drop a registered team before the tournament starts. After start, use disqualify. */
+/**
+ * Admin: swap a team out of a started tournament and a replacement into its
+ * fixtures.
+ *
+ * Before the draw exists a team can simply be removed. Afterwards the fixtures
+ * point at it, so removing it would tear a hole in the bracket -- which is why
+ * `removeRegisteredTeam` refuses once a tournament has started and sends the
+ * host to disqualification instead. Disqualifying is right for a team that
+ * cheated; it is the wrong answer for one that simply never turned up and needs
+ * replacing.
+ *
+ * Every fixture stays exactly where it is. Matches already played keep the team
+ * that played them, because a result is a record of what happened. The
+ * replacement picks up from the next fixture onwards.
+ */
+export async function substituteTeam(
+  actorUid: string,
+  tournamentId: string,
+  input: SubstituteTeamInput,
+): Promise<{
+  registration: RegisterTournament;
+  outTeamName: string;
+  swapped: number;
+  playedLeftAlone: number;
+}> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  if (!(await isPlatformAdmin(actorUid))) {
+    throw new ServiceError("Only an admin can substitute a team");
+  }
+
+  const tournament = serializeTournament(found);
+  const outName = input.outTeamName.trim();
+  const ids = relatedIdsFromDoc(found);
+  const rCol = await registrations();
+
+  const outgoing = await rCol.findOne(
+    asDocFilter<RegisterTournamentDoc>({
+      $and: [byAnyTournamentId(ids), byTeamName(outName)],
+    }),
+  );
+  if (!outgoing) throw new ServiceError(`${outName} is not in this tournament`);
+
+  const uniqueIds: string[] = [...new Set(input.userIds)];
+  if (uniqueIds.length !== input.userIds.length) {
+    throw new ServiceError("Each player can only be added once");
+  }
+  const foundUsers = await Promise.all(uniqueIds.map((id) => getUserById(id)));
+  if (foundUsers.some((u) => !u)) {
+    throw new ServiceError("One or more users were not found");
+  }
+  const users = foundUsers.filter((u): u is NonNullable<typeof u> => Boolean(u));
+
+  // Everything that could fail is checked before the outgoing team is removed,
+  // so a rejected substitution never leaves the tournament a team short.
+  const others = await rCol
+    .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
+    .toArray();
+  const taken = new Set(
+    others
+      .filter((reg) => reg._id.toHexString() !== outgoing._id.toHexString())
+      .flatMap((reg) => (reg.Players ?? []).map((p) => p.User_id)),
+  );
+  const clash = users.find((u) => taken.has(u.user_id));
+  if (clash) {
+    throw new ServiceError(
+      `${clash.user_name || "That player"} is already in this tournament`,
+    );
+  }
+  const needed = rosterSize(tournament.Team, tournament.RosterCount);
+  if (users.length > needed) throw new ServiceError(rosterOverCapMessage(needed));
+
+  const players = await Promise.all(
+    users.map(async (u) => ({
+      UserName: u.user_name || u.first_name || "Player",
+      GameUserName: "",
+      User_id: u.user_id,
+      Email: u.email || "",
+      Icon: await playerIconForUser(u.user_id),
+      Verified: Boolean(u.verified),
+    })),
+  );
+
+  // Keeping the outgoing name by default means the bracket and any screenshot
+  // already shared still read the same.
+  const teamName = input.teamName?.trim() || outName;
+
+  await rCol.deleteOne({ _id: outgoing._id });
+  const registration = await registerForTournament(
+    tournamentId,
+    {
+      TeamName: teamName,
+      Icon: outgoing.Icon || FALLBACKS.team,
+      Players: players,
+      RefNumber: "",
+      PaymentChannel: "",
+      Amount: 0,
+    },
+    {
+      allowPartialRoster: true,
+      autoCheckIn: true,
+      waiveFee: true,
+      skipInviteGate: true,
+      allowAfterStart: true,
+    },
+  );
+
+  const dCol = await draws();
+  const all = (
+    await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+  ).map(serializeDraw);
+  const plan = planSubstitution(all, outName);
+  const inTeam: Teams = {
+    TeamName: registration.TeamName,
+    Players: registration.Players,
+    Icon: registration.Icon,
+    Points: 0,
+    GoalsScored: 0,
+    GoalsReceived: 0,
+    GoalsDifference: 0,
+  };
+
+  for (const swap of plan.swaps) {
+    const source = all.find((d) => d.DrawId === swap.drawId);
+    if (!source) continue;
+    await dCol.updateOne(
+      asDocFilter<DrawDoc>({ DrawId: swap.drawId }),
+      { $set: { ...substitutedDraw(source, swap.side, inTeam), Updated_at: new Date().toISOString() } } as never,
+    );
+  }
+
+  const groups = substituteInGroups(tournament.Groups ?? [], outName, inTeam);
+  await (await tournaments()).updateOne(
+    { _id: found._id },
+    {
+      $set: { Groups: groups, groups, Updated_at: new Date().toISOString() },
+    } as unknown as Parameters<Awaited<ReturnType<typeof tournaments>>["updateOne"]>[1],
+  );
+
+  return {
+    registration,
+    outTeamName: outName,
+    swapped: plan.swaps.length,
+    playedLeftAlone: plan.playedLeftAlone,
+  };
+}
+
 export async function removeRegisteredTeam(
   uid: string,
   tournamentId: string,

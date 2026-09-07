@@ -388,3 +388,18 @@ export const adminAddParticipantsInputSchema = z.object({
 export type AdminAddParticipantsInput = z.infer<
   typeof adminAddParticipantsInputSchema
 >;
+
+/**
+ * Swap a team out of a started tournament and a new one into its fixtures.
+ * The replacement is built from real accounts, so the incoming players get the
+ * event in their own list the way any other entry would.
+ */
+export const substituteTeamInputSchema = z.object({
+  outTeamName: z.string().min(1, "Pick the team to replace").max(LIMITS.teamName),
+  userIds: z.array(z.string().min(1)).min(1).max(32),
+  /** Defaults to the outgoing team's name, so the bracket keeps reading the same. */
+  teamName: z.string().max(LIMITS.teamName).optional().default(""),
+  /** Shown to players, since a substitution changes who they face. */
+  reason: z.string().max(LIMITS.reason).optional().default(""),
+});
+export type SubstituteTeamInput = z.infer<typeof substituteTeamInputSchema>;
