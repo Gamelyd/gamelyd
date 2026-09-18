@@ -46,7 +46,6 @@ import {
 } from "./TournamentAnnouncements";
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
-import { Modal } from "@/components/ui/Modal";
 import { Confirm } from "@/components/ui/Confirm";
 import { Markdown } from "@/components/ui/Markdown";
 import { formatMoney } from "@/lib/currency";
@@ -66,7 +65,7 @@ import {
   groupQualifiersComplete,
   resolvedQualifyingNames,
 } from "@/lib/groupQualifiers";
-import { placeName } from "@/lib/knockoutSeed";
+import { placeName, isKnockoutBye } from "@/lib/knockoutSeed";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import {
@@ -493,8 +492,6 @@ export function TournamentView({
     [tournament, draws, participants],
   );
   const [previewQualifiers, setPreviewQualifiers] = useState(false);
-  /** Series key of the bracket match open for editing, if any. */
-  const [bracketEditKey, setBracketEditKey] = useState<string | null>(null);
   const [showUnplayed, setShowUnplayed] = useState(false);
   const [showMine, setShowMine] = useState(false);
 
@@ -503,7 +500,7 @@ export function TournamentView({
     [exportViews],
   );
 
-  const downloadButton = (view: ExportView, className = "") =>
+  const downloadButton = (view: ExportView, className = "", compact = false) =>
     exportViews[view] ? (
       <DownloadViewButton
         tournamentId={tournament.TournamentId}
@@ -511,8 +508,35 @@ export function TournamentView({
         view={view}
         pages={exportViews[view]}
         className={className}
+        compact={compact}
       />
     ) : null;
+
+  // The match a host most likely wants to score next: the earliest unplayed one.
+  const nextToScore = useMemo(
+    () =>
+      [...draws]
+        .filter(
+          (d) => !d.Played && !isKnockoutBye(d) && (d.BRTeams ?? []).length === 0,
+        )
+        .sort((a, b) => a.Stage - b.Stage)[0] ?? null,
+    [draws],
+  );
+  const canUpdateScores = canManage && !isFinished && draws.length > 0;
+
+  /** Take the host to the fixtures, scrolled to the next match to score. */
+  const goUpdateScores = () => {
+    setTab("fixtures");
+    const id = nextToScore?.DrawId;
+    window.setTimeout(() => {
+      const target = id ? document.getElementById(`fixture-${id}`) : null;
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 80);
+  };
 
   const hydratedDraws = useMemo(
     () => draws.map((d) => hydrateDrawIcons(d, teamIcons)),
@@ -1108,7 +1132,9 @@ export function TournamentView({
 
       <div className="border-b border-surface-2 bg-nav">
         <div
-          className="mx-auto flex max-w-6xl flex-wrap gap-x-1 gap-y-0 px-page sm:flex-nowrap"
+          // One row that scrolls sideways on phones, rather than wrapping a
+          // lone tab onto a second line.
+          className="mx-auto flex max-w-6xl gap-x-1 overflow-x-auto px-page [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           {...helpTarget("tour-tabs")}
         >
           {tabs
@@ -1285,23 +1311,23 @@ export function TournamentView({
                   <QualifierList groups={groups} qualifiers={qualifiers} />
                 ) : null}
                 {canPreview ? (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPreviewQualifiers((on) => !on)}
-                    >
-                      {previewQualifiers
-                        ? "Show group placeholders"
-                        : "Fill with qualifying teams"}
-                    </Button>
-                    {previewQualifiers ? (
-                      <p className="text-center text-xs text-body">
-                        Based on the tables as they stand. Nothing is drawn yet,
-                        and results can still change this.
-                      </p>
-                    ) : null}
-                  </div>
+                  // A small switch rather than another big button.
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-surface-2 bg-surface px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                      checked={previewQualifiers}
+                      onChange={() => setPreviewQualifiers((on) => !on)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm text-white">
+                        Show who qualifies right now
+                      </span>
+                      <span className="block text-xs text-body">
+                        From the tables as they stand. Nothing is drawn yet.
+                      </span>
+                    </span>
+                  </label>
                 ) : null}
                 <KnockoutBracket
                   rounds={bracketRounds}
@@ -1314,43 +1340,7 @@ export function TournamentView({
                   previewTeams={
                     previewQualifiers && canPreview ? qualifierPreview : undefined
                   }
-                  onMatchClick={
-                    canManage && !isFinished
-                      ? (d) => setBracketEditKey(seriesKey(d))
-                      : undefined
-                  }
                 />
-                <Modal
-                  open={bracketEditKey !== null}
-                  onClose={() => setBracketEditKey(null)}
-                  title="Edit match"
-                >
-                  <div className="flex flex-col items-center gap-4">
-                    {(bracketEditKey
-                      ? seriesGamesById.get(bracketEditKey) ?? []
-                      : []
-                    ).map((d, _i, games) => (
-                      <Fixture
-                        key={d.DrawId || d._id}
-                        eventVenues={eventVenues}
-                        timeZoneLabel={tzLabel}
-                        draw={d}
-                        canManage={
-                          canManage &&
-                          !isFinished &&
-                          !isFixtureStageLocked(d, draws)
-                        }
-                        onUpdated={handleDrawUpdated}
-                        knockoutFormat={tournament.KnockoutFormat}
-                        seriesGames={games}
-                        hostPicksLevel={knockoutHostPicks(
-                          tournament.TournamentMode,
-                          d,
-                        )}
-                      />
-                    ))}
-                  </div>
-                </Modal>
               </div>
             );
 
@@ -1438,43 +1428,61 @@ export function TournamentView({
               );
             }
 
+            // Whatever this panel is actually showing right now.
+            const panelView = viewForTeamsPanel({
+              panel: teamsPanel,
+              isGroups,
+              groupsCreated,
+              available: (v) => Boolean(exportViews[v]),
+            });
+            const panels: { id: TeamsPanel; label: string }[] = [
+              { id: "teams", label: isGroups ? "Groups" : "Teams" },
+              { id: "bracket", label: "Knockout" },
+            ];
+
             return (
-              <div className="flex flex-col gap-6">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-display text-xl text-white">
-                    {teamsPanel === "bracket"
-                      ? "Knockout"
-                      : isGroups
-                        ? "Groups"
-                        : "Teams"}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {(() => {
-                      // Whatever this panel is actually showing right now.
-                      const view = viewForTeamsPanel({
-                        panel: teamsPanel,
-                        isGroups,
-                        groupsCreated,
-                        available: (v) => Boolean(exportViews[v]),
-                      });
-                      return view ? downloadButton(view) : null;
-                    })()}
+              <div className="flex flex-col gap-4 sm:gap-6">
+                {/* One switch and at most two small actions, so the row fits a
+                    phone without wrapping into a stack of big buttons. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div
+                    role="tablist"
+                    className="flex min-w-0 flex-1 rounded-xl border border-surface-2 bg-surface p-1 sm:flex-none"
+                  >
+                    {panels.map((panel) => (
+                      <button
+                        key={panel.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={teamsPanel === panel.id}
+                        onClick={() => setTeamsPanel(panel.id)}
+                        className={`flex-1 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
+                          teamsPanel === panel.id
+                            ? "bg-primary text-on-primary"
+                            : "text-body hover:text-white"
+                        }`}
+                      >
+                        {panel.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Phones: the switch and download share a row, and Update
+                      scores takes the full row under them. */}
+                  {canUpdateScores ? (
                     <Button
                       type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setTeamsPanel(
-                          teamsPanel === "bracket" ? "teams" : "bracket",
-                        )
-                      }
+                      className="order-last w-full px-4 sm:order-none sm:ml-auto sm:w-auto"
+                      onClick={goUpdateScores}
                     >
-                      {teamsPanel === "bracket"
-                        ? isGroups
-                          ? "View groups"
-                          : "View teams"
-                        : "View knockout"}
+                      <PencilGlyph />
+                      Update scores
                     </Button>
-                  </div>
+                  ) : null}
+                  {panelView ? (
+                    <div className={canUpdateScores ? "" : "sm:ml-auto"}>
+                      {downloadButton(panelView, "", true)}
+                    </div>
+                  ) : null}
                 </div>
                 {teamsPanel === "teams" ? (
                   <div className="space-y-8">
@@ -2190,4 +2198,21 @@ function Details({
   );
 }
 
-
+function PencilGlyph() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}

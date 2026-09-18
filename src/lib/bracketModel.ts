@@ -377,3 +377,78 @@ export function forkSegments(centres: number[], units: number): ForkSegment[] {
   out.push({ kind: "gap", grow: Math.max(0, units - at) });
   return out;
 }
+
+/** One round of a team's road to the final: which card, and which row of it. */
+export interface RouteStep {
+  index: number;
+  row: "team1" | "team2" | "single";
+  /** The team goes on from here: false where it was knocked out. */
+  continues: boolean;
+}
+
+export interface TeamRoute {
+  /** By column; undefined for rounds before the team entered this wing. */
+  steps: (RouteStep | undefined)[];
+  /** The column the team was knocked out in, or null if still going. */
+  outAt: number | null;
+}
+
+function sameTeam(slot: BracketSlot, name: string): boolean {
+  return slot.team?.TeamName?.trim().toLowerCase() === name;
+}
+
+/**
+ * A team's road through one wing, from its first match to the trophy -- or to
+ * the match it lost. Future rounds are followed by the bracket's shape (a card
+ * feeds card `floor(i / 2)` in the next round), so a team still in it shows
+ * the slots it would have to win through to reach the final.
+ */
+export function teamRoute(
+  cols: BracketNode[][],
+  teamName: string,
+): TeamRoute | null {
+  const name = teamName.trim().toLowerCase();
+  if (!name) return null;
+  const holds = (node: BracketNode | undefined) =>
+    Boolean(node && (sameTeam(node.team1, name) || sameTeam(node.team2, name)));
+
+  let start = -1;
+  let index = -1;
+  for (let k = 0; k < cols.length && start < 0; k++) {
+    const found = cols[k].findIndex(holds);
+    if (found >= 0) {
+      start = k;
+      index = found;
+    }
+  }
+  if (start < 0) return null;
+
+  const steps: (RouteStep | undefined)[] = [];
+  let from = -1;
+  for (let k = start; k < cols.length; k++) {
+    // Trust where the team actually is when a drawn round has it; otherwise
+    // follow the bracket's shape.
+    const found = cols[k].findIndex(holds);
+    if (found >= 0) index = found;
+    const node = cols[k][index];
+    if (!node) break;
+
+    const row: RouteStep["row"] = node.bye
+      ? "single"
+      : sameTeam(node.team2, name)
+        ? "team2"
+        : sameTeam(node.team1, name)
+          ? "team1"
+          : from % 2 === 1
+            ? "team2"
+            : "team1";
+    const lost =
+      (sameTeam(node.team1, name) && node.team2.won) ||
+      (sameTeam(node.team2, name) && node.team1.won);
+    steps[k] = { index, row, continues: !lost };
+    if (lost) return { steps, outAt: k };
+    from = index;
+    index = Math.floor(index / 2);
+  }
+  return { steps, outAt: null };
+}

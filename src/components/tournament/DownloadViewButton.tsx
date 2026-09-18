@@ -22,6 +22,7 @@ export function DownloadViewButton({
   label,
   pages = 1,
   className = "",
+  compact = false,
 }: {
   tournamentId: string;
   tournamentName: string;
@@ -30,6 +31,11 @@ export function DownloadViewButton({
   /** Images this view needs. Big tournaments span more than one. */
   pages?: number;
   className?: string;
+  /**
+   * One small button that saves every image in turn, icon-only on phones,
+   * instead of a labelled button per image.
+   */
+  compact?: boolean;
 }) {
   const toast = useToast();
   /** The page currently being made; 0 while idle. */
@@ -37,8 +43,8 @@ export function DownloadViewButton({
   const name = EXPORT_VIEW_LABEL[view];
   const total = Math.max(1, pages);
 
-  const save = async (page: number) => {
-    if (busy) return;
+  const save = async (page: number, force = false) => {
+    if (busy && !force) return;
     setBusy(page);
     const fileName = exportFileName(
       tournamentName,
@@ -73,6 +79,31 @@ export function DownloadViewButton({
   // A tournament too big for one picture gets a button per part rather than a
   // single one that quietly hands back the first slice.
   const parts = Array.from({ length: total }, (_, i) => i + 1);
+
+  if (compact) {
+    const saveAll = async () => {
+      if (busy) return;
+      for (const page of parts) await save(page, true);
+    };
+    const title =
+      total > 1 ? `Download ${name.toLowerCase()} (${total} images)` : `Download ${name.toLowerCase()}`;
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        title={title}
+        aria-label={title}
+        className={`px-3 sm:px-4 ${className}`}
+        loading={busy !== 0}
+        onClick={() => void saveAll()}
+      >
+        {busy ? null : <DownloadGlyph />}
+        <span className="hidden sm:inline">
+          {busy ? (total > 1 ? `Saving ${busy}/${total}…` : "Saving…") : "Download"}
+        </span>
+      </Button>
+    );
+  }
 
   return (
     <>

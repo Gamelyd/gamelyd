@@ -252,8 +252,10 @@ function MpFixture({
 
   return (
     <div
+      // "Update scores" on the bracket scrolls here.
+      id={draw.DrawId ? `fixture-${draw.DrawId}` : undefined}
       data-mine={mine ? "true" : undefined}
-      className={`relative w-full max-w-md rounded-2xl border p-3 sm:p-4 ${
+      className={`relative w-full max-w-md scroll-mt-28 rounded-2xl border p-3 sm:p-4 ${
         !played && !autoBye
           ? "border-primary/40 bg-primary/[0.05]"
           : "border-surface-2 bg-surface"

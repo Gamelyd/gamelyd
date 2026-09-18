@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { forkSegments, layoutWing } from "@/lib/bracketModel";
+import { forkSegments, layoutWing, teamRoute } from "@/lib/bracketModel";
 
 const cols = (...counts: number[]) => counts.map((n) => ({ length: n }));
 
@@ -39,5 +39,56 @@ describe("forkSegments", () => {
       else at += s.grow;
     }
     assert.deepEqual(arrows, [1, 2.5]);
+  });
+});
+
+describe("teamRoute", () => {
+  const slot = (name?: string, won = false) => ({
+    team: name ? ({ TeamName: name } as never) : undefined,
+    score: 0,
+    played: won,
+    won,
+  });
+  const node = (a?: string, b?: string, winner?: 1 | 2) => ({
+    draw: null,
+    team1: slot(a, winner === 1),
+    team2: slot(b, winner === 2),
+  });
+
+  test("a team still in follows the bracket's shape to the trophy", () => {
+    const cols = [
+      [node("A", "B", 1), node("C", "D"), node("E", "F"), node("G", "H")],
+      [node("A"), node()],
+      [node()],
+    ];
+    const route = teamRoute(cols, "a");
+    assert.equal(route?.outAt, null);
+    assert.deepEqual(
+      route?.steps.map((s) => s && [s.index, s.row, s.continues]),
+      [
+        [0, "team1", true],
+        [0, "team1", true],
+        [0, "team1", true],
+      ],
+    );
+  });
+
+  test("a team from the lower match takes the bottom row next round", () => {
+    const cols = [[node("A", "B"), node("C", "D", 2)], [node(undefined, "D")]];
+    const route = teamRoute(cols, "D");
+    assert.equal(route?.steps[0]?.row, "team2");
+    assert.equal(route?.steps[1]?.row, "team2");
+  });
+
+  test("a knocked-out team's road stops where it lost", () => {
+    const cols = [[node("A", "B", 1), node("C", "D")], [node("A")]];
+    const route = teamRoute(cols, "B");
+    assert.equal(route?.outAt, 0);
+    assert.equal(route?.steps[0]?.continues, false);
+    assert.equal(route?.steps[1], undefined);
+  });
+
+  test("a team not in this wing has no route", () => {
+    assert.equal(teamRoute([[node("A", "B")]], "Z"), null);
   });
 });
