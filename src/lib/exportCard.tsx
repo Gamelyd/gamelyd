@@ -4,6 +4,10 @@
  * inside an ImageResponse tree breaks the route.
  */
 /* eslint-disable @next/next/no-img-element */
+import {
+  cardSegments,
+  forkSegments,
+} from "@/lib/bracketModel";
 import { ds } from "@/lib/designSystem";
 import {
   BRACKET_COL_GAP,
@@ -37,7 +41,6 @@ import {
  */
 
 const MUTED = "#93a1ad";
-const FORK = "rgba(11,192,180,0.45)";
 const LINE = "rgba(255,255,255,0.10)";
 const PANEL = "rgba(255,255,255,0.04)";
 
@@ -143,6 +146,7 @@ function BracketColumn({
   side: "left" | "right";
 }) {
   const px = (value: number) => Math.max(1, Math.round(value * scale));
+  const { centres, units } = columnLayout(column);
   return (
     <div style={{ display: "flex", flexDirection: "column", width }}>
       <div
@@ -170,13 +174,33 @@ function BracketColumn({
           style={{
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-around",
             flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0,
           }}
         >
-          {column.matches.map((match, index) => (
+          {cardSegments(centres, units).map((seg, segIndex) => {
+            if (seg.kind === "gap") {
+              return (
+                <div
+                  key={segIndex}
+                  style={{ display: "flex", flexGrow: seg.grow, flexBasis: 0 }}
+                />
+              );
+            }
+            const match = column.matches[seg.index];
+            return (
             <div
-              key={index}
+              key={segIndex}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flexGrow: seg.grow,
+                flexBasis: 0,
+              }}
+            >
+            <div
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -186,61 +210,270 @@ function BracketColumn({
                 padding: px(6),
               }}
             >
-              <MatchSide side={match.home} scale={scale} wing={side} />
-              <div
-                style={{
-                  display: "flex",
-                  height: 1,
-                  marginTop: px(3),
-                  marginBottom: px(3),
-                  background: "rgba(11,192,180,0.12)",
-                }}
+              <MatchSide
+                side={match.home}
+                scale={scale}
+                wing={side}
+                lost={match.away.won}
               />
-              <MatchSide side={match.away} scale={scale} wing={side} />
-            </div>
-          ))}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            width: Math.round(BRACKET_FORK_W * scale),
-          }}
-        >
-            {column.matches.map((_, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  flexGrow: 1,
-                  paddingTop: px(12),
-                  paddingBottom: px(12),
-                }}
-              >
+              {match.bye ? (
                 <div
                   style={{
                     display: "flex",
-                    width: "100%",
-                    height: "100%",
-                    borderTop: `2px solid ${FORK}`,
-                    borderBottom: `2px solid ${FORK}`,
-                    ...(side === "right"
-                      ? {
-                          borderLeft: `2px solid ${FORK}`,
-                          borderTopLeftRadius: 4,
-                          borderBottomLeftRadius: 4,
-                        }
-                      : {
-                          borderRight: `2px solid ${FORK}`,
-                          borderTopRightRadius: 4,
-                          borderBottomRightRadius: 4,
-                        }),
+                    justifyContent: side === "right" ? "flex-end" : "flex-start",
+                    paddingLeft: px(8),
+                    paddingRight: px(8),
+                    paddingBottom: px(3),
+                    color: ds.primary,
+                    fontSize: px(13),
+                    fontWeight: 700,
+                    letterSpacing: Math.max(0, 1 * scale),
+                  }}
+                >
+                  AUTO QUALIFIED
+                </div>
+              ) : match.solo ? null : (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      height: 1,
+                      marginTop: px(DIVIDER_GAP),
+                      marginBottom: px(DIVIDER_GAP),
+                      background: "rgba(11,192,180,0.12)",
+                    }}
+                  />
+                  <MatchSide
+                    side={match.away}
+                    scale={scale}
+                    wing={side}
+                    lost={match.home.won}
+                  />
+                </>
+              )}
+            </div>
+            </div>
+            );
+          })}
+        </div>
+        <ForkColumn column={column} scale={scale} side={side} />
+      </div>
+    </div>
+  );
+}
+
+const FORK_DIM = "rgba(11,192,180,0.35)";
+/** The losing team's line: nearly gone, so the winner's reads at a glance. */
+const FORK_LOST = "rgba(11,192,180,0.10)";
+/** Height of one team row in a bracket card, and the gap either side of the divider. */
+const ROW_H = 38;
+const DIVIDER_GAP = 3;
+/** Width of the per-team lines column, inside `BRACKET_FORK_W`. */
+const STUB_W = 12;
+
+/** The column's card centres, or even spacing when a page slice has none. */
+function columnLayout(column: ExportColumn): { centres: number[]; units: number } {
+  if (column.centres && column.units) {
+    return { centres: column.centres, units: column.units };
+  }
+  return {
+    centres: column.matches.map((_, i) => i + 0.5),
+    units: column.matches.length,
+  };
+}
+
+/**
+ * A match whose winner is known, so its line into the next round lights up. A
+ * bye only counts once the team getting it is known.
+ */
+function decided(match: ExportColumn["matches"][number] | undefined): boolean {
+  if (!match) return false;
+  if (match.bye) return !match.home.empty;
+  return match.home.won || match.away.won;
+}
+
+/**
+ * The connectors between one round and the next, as on the page: each pair of
+ * matches gets a "]" from the centre of one card to the centre of the other,
+ * then one arrow from its midpoint into the match they feed. Placed from the
+ * shared layout so they meet the cards on uneven sides too. A match's arm
+ * lights up once it has a winner; the arrow once every feeding match does.
+ *
+ * Built from stacked rows: Satori will not stretch a nested column to fill
+ * its row, so a "]" drawn that way collapses to a dash.
+ */
+function ForkColumn({
+  column,
+  scale,
+  side,
+}: {
+  column: ExportColumn;
+  scale: number;
+  side: "left" | "right";
+}) {
+  const { centres, units } = columnLayout(column);
+  const line = (lit: boolean) => `2px solid ${lit ? ds.primary : FORK_DIM}`;
+  const line2 = (color: string) => `2px solid ${color}`;
+  const inward = side === "right" ? "borderLeft" : "borderRight";
+  const arrowW = Math.max(5, Math.round(8 * scale));
+  const arrowH = Math.max(7, Math.round(11 * scale));
+  const radius = (corner: "top" | "bottom") =>
+    corner === "top"
+      ? side === "right"
+        ? { borderTopLeftRadius: 4 }
+        : { borderTopRightRadius: 4 }
+      : side === "right"
+        ? { borderBottomLeftRadius: 4 }
+        : { borderBottomRightRadius: 4 };
+
+  const px = (value: number) => Math.max(1, Math.round(value * scale));
+  const stubW = px(STUB_W);
+  const teamTone = (won: boolean, otherWon: boolean) =>
+    won ? ds.primary : otherWon ? FORK_LOST : FORK_DIM;
+  // Row centres sit one row plus the divider apart.
+  const stubH = px(ROW_H) + 1 + 2 * px(DIVIDER_GAP);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexShrink: 0,
+        width: Math.round(BRACKET_FORK_W * scale),
+        flexDirection: side === "right" ? "row-reverse" : "row",
+      }}
+    >
+    {/* Two short lines out of each card, one per team, joining at the card's
+        centre. Only the winner's lights up. */}
+    <div style={{ display: "flex", flexDirection: "column", width: stubW, flexShrink: 0 }}>
+      {cardSegments(centres, units).map((seg, index) => {
+        if (seg.kind === "gap") {
+          return (
+            <div key={index} style={{ display: "flex", flexGrow: seg.grow, flexBasis: 0 }} />
+          );
+        }
+        const match = column.matches[seg.index];
+        const single = !match || match.bye || match.solo;
+        return (
+          <div
+            key={index}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              flexGrow: seg.grow,
+              flexBasis: 0,
+            }}
+          >
+            {single ? (
+              <div
+                style={{
+                  display: "flex",
+                  height: 0,
+                  borderTop: `2px solid ${decided(match) ? ds.primary : FORK_DIM}`,
+                }}
+              />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", height: stubH }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexGrow: 1,
+                    flexBasis: 0,
+                    borderTop: line2(teamTone(match.home.won, match.away.won)),
+                    [inward]: line2(teamTone(match.home.won, match.away.won)),
+                    ...radius("top"),
+                  }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    flexGrow: 1,
+                    flexBasis: 0,
+                    borderBottom: line2(teamTone(match.away.won, match.home.won)),
+                    [inward]: line2(teamTone(match.away.won, match.home.won)),
+                    ...radius("bottom"),
                   }}
                 />
               </div>
-            ))}
-        </div>
-      </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+      {forkSegments(centres, units).map((seg, index) => {
+        if (seg.kind === "gap") {
+          return (
+            <div
+              key={index}
+              style={{ display: "flex", flexGrow: seg.grow, flexBasis: 0 }}
+            />
+          );
+        }
+        if (seg.kind === "arm") {
+          const on = decided(column.matches[seg.match]);
+          return (
+            <div
+              key={index}
+              style={{
+                display: "flex",
+                flexGrow: seg.grow,
+                flexBasis: 0,
+                flexDirection: side === "right" ? "row-reverse" : "row",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  width: "50%",
+                  ...(seg.corner === "top"
+                    ? { borderTop: line(on) }
+                    : { borderBottom: line(on) }),
+                  [inward]: line(on),
+                  ...radius(seg.corner),
+                }}
+              />
+            </div>
+          );
+        }
+        const lit = seg.matches.every((m) => decided(column.matches[m]));
+        return (
+          // Zero net height, so it sits exactly on the midpoint.
+          <div
+            key={index}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              height: arrowH,
+              marginTop: -arrowH / 2,
+              marginBottom: -arrowH / 2,
+              flexDirection: side === "right" ? "row-reverse" : "row",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                width: seg.matches.length === 2 ? "50%" : "0%",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexGrow: 1,
+                height: 0,
+                borderTop: line(lit),
+              }}
+            />
+            <svg width={arrowW} height={arrowH} viewBox="0 0 6 8">
+              <path
+                d={side === "right" ? "M6 0 L0 4 L6 8 Z" : "M0 0 L6 4 L0 8 Z"}
+                fill={lit ? ds.primary : FORK_DIM}
+              />
+            </svg>
+          </div>
+        );
+      })}
+    </div>
     </div>
   );
 }
@@ -355,20 +588,19 @@ function TrophyColumn({
             {fit(champion.name, Math.max(8, Math.round(14 / Math.max(scale, 0.5))))}
           </div>
         ) : null}
-        {final ? (
+        {champion ? null : (
           <div
             style={{
               display: "flex",
-              marginTop: px(8),
-              fontSize: px(16),
-              color: MUTED,
+              marginTop: px(12),
+              fontSize: px(15),
+              letterSpacing: Math.max(0, 2 * scale),
+              color: "rgba(255,255,255,0.35)",
             }}
           >
-            {final.played
-              ? `${final.home.score} – ${final.away.score}`
-              : "To be played"}
+            TBD
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -386,10 +618,13 @@ function MatchSide({
   side,
   scale,
   wing,
+  lost = false,
 }: {
   side: ExportSide;
   scale: number;
   wing: "left" | "right";
+  /** The other side won: fade this one so the winner stands out. */
+  lost?: boolean;
 }) {
   const px = (value: number) => Math.max(1, Math.round(value * scale));
   const font = px(19);
@@ -408,12 +643,17 @@ function MatchSide({
     <div
       style={{
         display: "flex",
+        // Satori does not stretch rows reliably; without this a losing row
+        // shrinks to its content and the score sits against the name.
+        width: "100%",
+        // Fixed, so the team lines out of the card can hit each row's centre.
+        height: px(ROW_H),
+        flexShrink: 0,
+        opacity: lost ? 0.4 : 1,
         alignItems: "center",
         justifyContent: "space-between",
         borderRadius: px(8),
         background: side.won ? "rgba(11,192,180,0.12)" : "transparent",
-        paddingTop: px(5),
-        paddingBottom: px(5),
         flexDirection: wing === "right" ? "row-reverse" : "row",
       }}
     >
@@ -434,7 +674,20 @@ function MatchSide({
             flexDirection: wing === "right" ? "row-reverse" : "row",
           }}
         >
-          <Crest name={side.name} size={px(26)} icon={side.icon} won={side.won} />
+          {side.empty ? (
+            <div
+              style={{
+                display: "flex",
+                width: px(26),
+                height: px(26),
+                borderRadius: px(13),
+                border: "1px solid rgba(11,192,180,0.25)",
+                background: "rgba(0,0,0,0.25)",
+              }}
+            />
+          ) : (
+            <Crest name={side.name} size={px(26)} icon={side.icon} won={side.won} />
+          )}
           <div
             style={{
               display: "flex",
@@ -442,13 +695,20 @@ function MatchSide({
               marginRight: wing === "right" ? px(10) : 0,
               fontSize: font,
               fontWeight: side.won ? 700 : 500,
-              color: side.won ? "white" : "rgba(255,255,255,0.62)",
+              color: side.won
+                ? "white"
+                : side.placeholder
+                  ? "rgba(184,192,200,0.8)"
+                  : side.empty
+                    ? "rgba(255,255,255,0.35)"
+                    : "rgba(255,255,255,0.9)",
             }}
           >
             {fit(side.name, Math.max(8, Math.round(15 / Math.max(scale, 0.5))))}
           </div>
         </div>
       </div>
+      {side.played === false ? null : (
       <div
         style={{
           display: "flex",
@@ -470,6 +730,7 @@ function MatchSide({
       >
         {side.score}
       </div>
+      )}
     </div>
   );
 }

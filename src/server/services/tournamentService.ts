@@ -924,6 +924,8 @@ export async function registerForTournament(
     skipInviteGate?: boolean;
     /** Substitutions only: a replacement joins after the event has started. */
     allowAfterStart?: boolean;
+    /** Skip the "you're registered" emails (admin test prefill). */
+    silent?: boolean;
   },
 ): Promise<RegisterTournament> {
   const tournamentDoc = await findByAnyId(tournamentId);
@@ -1041,7 +1043,7 @@ export async function registerForTournament(
   await rCol.insertOne(doc);
 
   for (const player of input.Players) {
-    if (player.Email) {
+    if (player.Email && !options?.silent) {
       void sendEmail(
         player.Email,
         registerTournamentEmail(
@@ -1132,6 +1134,109 @@ export async function adminAddParticipants(
       skipInviteGate: true,
     },
   );
+}
+
+/**
+ * Admin: fill every open spot with random existing users, as full teams. For
+ * testing brackets and groups without signing people up by hand. Players are
+ * not emailed, and only active accounts not already in the event are picked.
+ */
+export async function adminPrefillParticipants(
+  tournamentId: string,
+): Promise<{ added: number }> {
+  const found = await findByAnyId(tournamentId);
+  if (!found) throw new ServiceError("Tournament not found");
+  const tournament = serializeTournament(found);
+  if (tournament.Start) {
+    throw new ServiceError(
+      "Registration is closed. This tournament has already started.",
+    );
+  }
+  if (tournament.TournamentSize <= 0) {
+    throw new ServiceError("Set a tournament size before prefilling");
+  }
+
+  const ids = relatedIdsFromDoc(found);
+  const existing = await (
+    await registrations()
+  )
+    .find(asDocFilter<RegisterTournamentDoc>(byAnyTournamentId(ids)))
+    .toArray();
+  const open = tournament.TournamentSize - existing.length;
+  if (open <= 0) throw new ServiceError("Tournament is already full");
+
+  const taken = new Set(
+    existing.flatMap((r) => serializeRegistration(r).Players.map((p) => p.User_id)),
+  );
+  const perTeam = rosterSize(tournament.Team, tournament.RosterCount);
+  const pool = await (
+    await users()
+  )
+    .aggregate<{ user_id: string; user_name: string; first_name: string }>([
+      {
+        $match: {
+          user_id: { $nin: [...taken] },
+          isDeleted: { $ne: true },
+          isBanned: { $ne: true },
+          isSuspended: { $ne: true },
+        },
+      },
+      { $sample: { size: open * perTeam } },
+      { $project: { user_id: 1, user_name: 1, first_name: 1 } },
+    ])
+    .toArray();
+
+  const teamCount = Math.floor(pool.length / perTeam);
+  if (teamCount === 0) {
+    throw new ServiceError("Not enough available users to make a team");
+  }
+
+  let added = 0;
+  let lastError: ServiceError | null = null;
+  for (let t = 0; t < teamCount; t++) {
+    const members = pool.slice(t * perTeam, (t + 1) * perTeam);
+    const players: Player[] = await Promise.all(
+      members.map(async (u) => ({
+        UserName: u.user_name || u.first_name || "Player",
+        GameUserName: "",
+        User_id: u.user_id,
+        Email: "",
+        Icon: await playerIconForUser(u.user_id),
+        Verified: false,
+      })),
+    );
+    const teamName =
+      perTeam === 1
+        ? players[0].UserName
+        : `${players[0].UserName}'s team`;
+    try {
+      await registerForTournament(
+        tournamentId,
+        {
+          TeamName: teamName,
+          Icon: FALLBACKS.team,
+          Players: players,
+          RefNumber: "",
+          PaymentChannel: "",
+          Amount: 0,
+        },
+        {
+          autoCheckIn: true,
+          waiveFee: true,
+          skipInviteGate: true,
+          silent: true,
+        },
+      );
+      added++;
+    } catch (error) {
+      // A clashing team name or a user who just registered elsewhere --
+      // skip that team and keep filling the rest.
+      if (!(error instanceof ServiceError)) throw error;
+      lastError = error;
+    }
+  }
+  if (added === 0 && lastError) throw lastError;
+  return { added };
 }
 
 async function addPlayersToExistingTeam(

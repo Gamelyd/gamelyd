@@ -4,6 +4,13 @@ import { computeLeagueStandings } from "@/lib/leagueStandings";
 import { computeBrStandings } from "@/lib/brStandings";
 import { resolvePodium } from "@/lib/podium";
 import { roundLabel } from "@/lib/roundLabel";
+import {
+  buildBracketModel,
+  type BracketNode,
+  type BracketSlot,
+  type WingLayout,
+} from "@/lib/bracketModel";
+import { knockoutRoundsForBracket } from "@/lib/knockoutSeries";
 import { iconMapFromTeams } from "@/lib/teamIcons";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import type { Draw, Teams } from "@/lib/schemas/draw";
@@ -43,6 +50,12 @@ export interface ExportSide {
   name: string;
   score: number;
   won: boolean;
+  /** Whether a result exists for this side. Unplayed slots show no score. */
+  played?: boolean;
+  /** A "Group A winner"-style slot waiting for a team. */
+  placeholder?: boolean;
+  /** Nobody in this slot yet: drawn as a blank crest and a dim "TBD". */
+  empty?: boolean;
   /** Crest URL, or "" when the team has none and initials stand in. */
   icon: string;
 }
@@ -53,11 +66,22 @@ export interface ExportMatch {
   played: boolean;
   /** When it is due, for fixture lists. Empty when the host has not set a time. */
   when: string;
+  /** Bracket only: one team goes straight through ("Auto qualified"). */
+  bye?: boolean;
+  /** Bracket only: a lone final drawn as one team per side of the trophy. */
+  solo?: boolean;
 }
 
 export interface ExportColumn {
   label: string;
   matches: ExportMatch[];
+  /**
+   * Bracket only: each card's centre and the wing's height, in match slots,
+   * from the shared layout -- so connectors meet the cards on uneven sides.
+   * Absent means evenly spaced.
+   */
+  centres?: number[];
+  units?: number;
 }
 
 /**
@@ -198,17 +222,49 @@ export function kickOff(draw: { Date?: string; Time?: string }): string {
   return time ? `${day}, ${time}` : day;
 }
 
+function bracketSide(slot: BracketSlot, icons: IconLookup): ExportSide {
+  const name = slot.team?.TeamName?.trim() ?? "";
+  return {
+    name: name || slot.label || "TBD",
+    score: slot.score,
+    won: slot.won,
+    played: slot.played,
+    placeholder: !name && Boolean(slot.label),
+    empty: !name,
+    icon: name ? icons(name, slot.team?.Icon) : "",
+  };
+}
+
+function bracketMatch(node: BracketNode, icons: IconLookup): ExportMatch {
+  return {
+    home: bracketSide(node.team1, icons),
+    away: bracketSide(node.team2, icons),
+    played: Boolean(node.draw?.Played),
+    when: "",
+    bye: Boolean(node.bye),
+  };
+}
+
+/** Group names as the page reads them: the saved groups, else the draws. */
+function bracketGroupNames(tournament: Tournament, draws: Draw[]): string[] {
+  const fromDoc = (tournament.Groups ?? [])
+    .map((g) => g.GroupName?.trim() ?? "")
+    .filter(Boolean);
+  if (fromDoc.length > 0) return fromDoc;
+  const seen = new Set<string>();
+  for (const draw of draws) {
+    const name = draw.Group?.trim();
+    if (name) seen.add(name);
+  }
+  return [...seen];
+}
+
 /**
- * The bracket as the page draws it: two wings facing each other with the final
- * between them, rather than one long left-to-right run of columns.
- *
- * That shape is the whole point. Laid out flat it reads as a list of fixtures
- * grouped by round, which is not what anyone means by a bracket.
- *
- * Rounds are ordered by how many matches they hold rather than by `Stage`,
- * because stage numbering is not consistently directional: some events count up
- * toward the final and others count down. Match count cannot be ambiguous, since
- * a round always feeds one half its size.
+ * The bracket exactly as the page draws it -- built by the same
+ * `buildBracketModel` the page uses, so the download cannot drift from what
+ * the host is looking at. Every round is there from the start, unplayed ones
+ * as TBD or "Group A winner" placeholders, with byes and two-leg aggregates
+ * handled the same way.
  *
  * League and battle royale are excluded outright. Their fixtures pass the
  * knockout predicate, but a "bracket" of a round robin means nothing -- those
@@ -218,6 +274,7 @@ export function buildBracket(
   tournament: Tournament,
   draws: Draw[],
   icons: IconLookup = () => "",
+  teamCount = 0,
 ): { left: ExportColumn[]; right: ExportColumn[]; final: ExportFinal | null } {
   const empty = { left: [], right: [], final: null };
   if (
@@ -227,59 +284,69 @@ export function buildBracket(
     return empty;
   }
 
-  const byStage = new Map<number, Draw[]>();
-  for (const draw of draws) {
-    if (!isKnockoutDraw(draw)) continue;
-    byStage.set(draw.Stage, [...(byStage.get(draw.Stage) ?? []), draw]);
-  }
-  const rounds = [...byStage.entries()].sort(
-    ([stageA, a], [stageB, b]) => b.length - a.length || stageB - stageA,
-  );
-  if (rounds.length === 0) return empty;
+  const isGroups = tournament.TournamentMode === "GROUPS";
+  const model = buildBracketModel({
+    rounds: knockoutRoundsForBracket(draws, tournament.KnockoutFormat),
+    groupNames: bracketGroupNames(tournament, draws),
+    advancePerGroup: tournament.AdvancePerGroup || 2,
+    teamCount: isGroups ? 0 : teamCount,
+    isGroupMode: isGroups,
+    knockoutLive: draws.some(isKnockoutDraw),
+  });
+  if (model.leaves.length === 0) return empty;
 
-  // The last round is the final: it becomes the centrepiece, not a column.
-  const [finalStage, finalDraws] = rounds[finalIndexOf(rounds)];
-  const isFinal = finalDraws.length === 1;
-  const wings = isFinal ? rounds.slice(0, -1) : rounds;
+  const champion = model.champion?.TeamName?.trim()
+    ? {
+        name: model.champion.TeamName.trim(),
+        score: 0,
+        won: true,
+        icon: icons(model.champion.TeamName, model.champion.Icon),
+      }
+    : null;
+  const final: ExportFinal = model.finalDraw
+    ? { ...matchOf(model.finalDraw, icons), champion }
+    : {
+        home: bracketSide({ score: 0, played: false, won: false }, icons),
+        away: bracketSide({ score: 0, played: false, won: false }, icons),
+        played: false,
+        champion,
+      };
 
-  const left: ExportColumn[] = [];
-  const right: ExportColumn[] = [];
-  for (const [stage, list] of wings) {
-    const label = roundLabel(list.length, stage, tournament.TournamentMode);
-    const half = Math.ceil(list.length / 2);
-    left.push({ label, matches: list.slice(0, half).map((d) => matchOf(d, icons)) });
-    right.push({ label, matches: list.slice(half).map((d) => matchOf(d, icons)) });
-  }
-
-  let final: ExportFinal | null = null;
-  if (isFinal) {
-    const match = matchOf(finalDraws[0], icons);
-    const champion = match.home.won ? match.home : match.away.won ? match.away : null;
-    final = { home: match.home, away: match.away, played: match.played, champion };
-  }
-  // A lone final with no earlier rounds still needs something in the wings, or
-  // there is nothing to look at but a trophy.
-  if (isFinal && left.length === 0 && right.length === 0 && final) {
-    left.push({
-      label: roundLabel(1, finalStage, tournament.TournamentMode),
-      matches: [
+  // A lone match: the page puts one team either side of the trophy.
+  if (model.leaves.length === 1) {
+    const only = bracketMatch(model.leaves[0], icons);
+    return {
+      left: [
+        { label: "", matches: [{ ...only, solo: true }], centres: [0.5], units: 1 },
+      ],
+      right: [
         {
-          home: final.home,
-          away: final.away,
-          played: final.played,
-          when: "",
+          label: "",
+          matches: [{ ...only, home: only.away, away: only.home, solo: true }],
+          centres: [0.5],
+          units: 1,
         },
       ],
-    });
-    return { left, right, final: { ...final, home: final.home, away: final.away } };
+      final,
+    };
   }
 
-  return { left, right, final };
-}
-
-/** The final is the last round once they are ordered widest-first. */
-function finalIndexOf(rounds: [number, Draw[]][]): number {
-  return rounds.length - 1;
+  const wing = (
+    cols: BracketNode[][],
+    labels: string[],
+    layout: WingLayout,
+  ): ExportColumn[] =>
+    cols.map((col, i) => ({
+      label: (labels[i] ?? "").toUpperCase(),
+      matches: col.map((node) => bracketMatch(node, icons)),
+      centres: layout.centres[i],
+      units: layout.units,
+    }));
+  return {
+    left: wing(model.leftCols, model.leftLabels, model.leftLayout),
+    right: wing(model.rightCols, model.rightLabels, model.rightLayout),
+    final,
+  };
 }
 
 const GROUP_HEADERS = ["P", "W", "D", "L", "GD", "Pts"];
@@ -557,7 +624,12 @@ export function buildExportModel(
   const icons = iconLookupFor(participants);
   switch (view) {
     case "bracket": {
-      const { left, right, final } = buildBracket(tournament, draws, icons);
+      const { left, right, final } = buildBracket(
+        tournament,
+        draws,
+        icons,
+        participants.length,
+      );
       return left.length > 0 || right.length > 0
         ? { kind: "bracket", left, right, final }
         : null;
@@ -640,12 +712,12 @@ const TEAM_CARD_H = 162;
 const TEAM_GAP = 16;
 export const TEAMS_PER_ROW = 4;
 
-const MATCH_CARD_H = 96;
+const MATCH_CARD_H = 108;
 const BRACKET_LABEL_H = 34;
 export const BRACKET_COL_MIN = 300;
 export const BRACKET_COL_GAP = 18;
 /** The fork joining a pair of matches to the one they feed. */
-export const BRACKET_FORK_W = 26;
+export const BRACKET_FORK_W = 44;
 /** The trophy column between the two wings. */
 export const BRACKET_TROPHY_W = 190;
 /**
@@ -752,7 +824,12 @@ export function paginateExport(model: ExportModel): ExportPage[] {
   if (model.kind === "bracket") {
     const columns = [...model.left, ...model.right];
     const rounds = columns.length;
-    const deepest = Math.max(1, ...columns.map((c) => c.matches.length));
+    // Uneven wings are padded to line up with the trophy, so size by the
+    // layout's height, not just the busiest column.
+    const deepest = Math.max(
+      1,
+      ...columns.map((c) => Math.max(c.units ?? 0, c.matches.length)),
+    );
     const unit = BRACKET_COL_MIN + BRACKET_COL_GAP + BRACKET_FORK_W;
     const needW = rounds * unit + BRACKET_TROPHY_W;
     const needH = BRACKET_LABEL_H + deepest * MATCH_CARD_H;
@@ -804,6 +881,9 @@ export function paginateExport(model: ExportModel): ExportPage[] {
         .map((column) => ({
           ...column,
           matches: column.matches.slice(from, from + rowsPerPage),
+          // A slice no longer matches the whole-wing layout: space evenly.
+          centres: undefined,
+          units: undefined,
         }))
         .filter((column) => column.matches.length > 0);
 

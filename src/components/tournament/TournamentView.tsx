@@ -46,6 +46,7 @@ import {
 } from "./TournamentAnnouncements";
 import { TournamentStageControls } from "./TournamentStageControls";
 import { NextStageModal } from "./NextStageModal";
+import { Modal } from "@/components/ui/Modal";
 import { Confirm } from "@/components/ui/Confirm";
 import { Markdown } from "@/components/ui/Markdown";
 import { formatMoney } from "@/lib/currency";
@@ -492,6 +493,8 @@ export function TournamentView({
     [tournament, draws, participants],
   );
   const [previewQualifiers, setPreviewQualifiers] = useState(false);
+  /** Series key of the bracket match open for editing, if any. */
+  const [bracketEditKey, setBracketEditKey] = useState<string | null>(null);
   const [showUnplayed, setShowUnplayed] = useState(false);
   const [showMine, setShowMine] = useState(false);
 
@@ -1311,7 +1314,43 @@ export function TournamentView({
                   previewTeams={
                     previewQualifiers && canPreview ? qualifierPreview : undefined
                   }
+                  onMatchClick={
+                    canManage && !isFinished
+                      ? (d) => setBracketEditKey(seriesKey(d))
+                      : undefined
+                  }
                 />
+                <Modal
+                  open={bracketEditKey !== null}
+                  onClose={() => setBracketEditKey(null)}
+                  title="Edit match"
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    {(bracketEditKey
+                      ? seriesGamesById.get(bracketEditKey) ?? []
+                      : []
+                    ).map((d, _i, games) => (
+                      <Fixture
+                        key={d.DrawId || d._id}
+                        eventVenues={eventVenues}
+                        timeZoneLabel={tzLabel}
+                        draw={d}
+                        canManage={
+                          canManage &&
+                          !isFinished &&
+                          !isFixtureStageLocked(d, draws)
+                        }
+                        onUpdated={handleDrawUpdated}
+                        knockoutFormat={tournament.KnockoutFormat}
+                        seriesGames={games}
+                        hostPicksLevel={knockoutHostPicks(
+                          tournament.TournamentMode,
+                          d,
+                        )}
+                      />
+                    ))}
+                  </div>
+                </Modal>
               </div>
             );
 

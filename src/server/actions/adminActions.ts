@@ -42,6 +42,7 @@ import {
   toggleDeleteOrg,
 } from "@/server/services/orgService";
 import {
+  adminPrefillParticipants,
   adminResetTournament,
   adminSetOwnerCanAddParticipants,
   adminSetOwnerCanReshuffleGroups,
@@ -516,6 +517,23 @@ export async function adminResetTournamentAction(
     return ok(result, `Tournament reset. ${extra} Teams can join again.`);
   } catch (error) {
     if (error instanceof ServiceError) return fail(error.message);
+    return fail("Something went wrong");
+  }
+}
+
+export async function adminPrefillParticipantsAction(
+  id: string,
+): Promise<ActionResult<{ added: number }>> {
+  if (!(await guardAdmin())) return fail("Admin access required");
+  try {
+    const result = await adminPrefillParticipants(id);
+    return ok(
+      result,
+      result.added === 1 ? "1 team added" : `${result.added} teams added`,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError) return fail(error.message);
+    console.error(error);
     return fail("Something went wrong");
   }
 }

@@ -61,10 +61,11 @@ function entry(name: string, players: string[] = []): RegisterTournament {
 }
 
 describe("buildBracket", () => {
+  // Stages count up toward the final, the way the draw service numbers them.
   const draws = [
-    draw({ Stage: 2, Team1: team("A"), Team2: team("B"), Winner: "Team1", Played: true }),
-    draw({ Stage: 2, Team1: team("C"), Team2: team("D"), Winner: "Team2", Played: true }),
-    draw({ Stage: 1, Team1: team("A"), Team2: team("D"), Winner: "Team1", Played: true }),
+    draw({ Stage: 1, DrawId: "s1", Team1: team("A"), Team2: team("B"), Winner: "Team1", Played: true }),
+    draw({ Stage: 1, DrawId: "s2", Team1: team("C"), Team2: team("D"), Winner: "Team2", Played: true }),
+    draw({ Stage: 2, DrawId: "f", Team1: team("A"), Team2: team("D"), Winner: "Team1", Played: true }),
   ];
 
   test("splits each round across two facing wings", () => {
@@ -73,8 +74,8 @@ describe("buildBracket", () => {
     const { left, right } = buildBracket(tournament(), draws);
     assert.equal(left.length, 1);
     assert.equal(right.length, 1);
-    assert.equal(left[0].label, "SEMI FINALS");
-    assert.equal(right[0].label, "SEMI FINALS");
+    assert.equal(left[0].label, "SEMI-FINALS");
+    assert.equal(right[0].label, "SEMI-FINALS");
     assert.equal(left[0].matches[0].home.name, "A");
     assert.equal(right[0].matches[0].home.name, "C");
   });
@@ -90,7 +91,7 @@ describe("buildBracket", () => {
   });
 
   test("no champion until the final is decided", () => {
-    const undecided = [...draws.slice(0, 2), draw({ Stage: 1, Team1: team("A"), Team2: team("D") })];
+    const undecided = [...draws.slice(0, 2), draw({ Stage: 2, DrawId: "f", Team1: team("A"), Team2: team("D") })];
     const { final } = buildBracket(tournament(), undecided);
     assert.equal(final?.champion, null);
     assert.equal(final?.played, false);
@@ -106,9 +107,8 @@ describe("buildBracket", () => {
 
   test("a match with no winner recorded highlights neither side", () => {
     const { left } = buildBracket(tournament(), [
-      draw({ Stage: 2, Team1: team("A"), Team2: team("B"), Team1Score: 3, Played: true }),
-      draw({ Stage: 2, Team1: team("C"), Team2: team("D"), Played: true }),
-      draw({ Stage: 1, Team1: team("A"), Team2: team("C") }),
+      draw({ Stage: 1, DrawId: "a", Team1: team("A"), Team2: team("B"), Team1Score: 3, Team2Score: 3, Played: true }),
+      draw({ Stage: 1, DrawId: "b", Team1: team("C"), Team2: team("D"), Played: true }),
     ]);
     assert.equal(left[0].matches[0].home.won, false);
     assert.equal(left[0].matches[0].away.won, false);
@@ -121,17 +121,49 @@ describe("buildBracket", () => {
     assert.equal(left[0].matches[0].away.name, "TBD");
   });
 
-  test("wings are correct even when stage counts UP to the final", () => {
-    // Real events number rounds in both directions; the match count decides.
-    const countingUp = [
-      draw({ Stage: 1, Team1: team("A"), Team2: team("B"), Winner: "Team1", Played: true }),
-      draw({ Stage: 1, Team1: team("C"), Team2: team("D"), Winner: "Team2", Played: true }),
-      draw({ Stage: 2, Team1: team("A"), Team2: team("D") }),
-    ];
-    const { left, right, final } = buildBracket(tournament(), countingUp);
-    assert.equal(left[0].label, "SEMI FINALS");
-    assert.equal(right[0].label, "SEMI FINALS");
-    assert.ok(final, "the single-match round is the final");
+  test("rounds not played yet are still drawn, as TBD", () => {
+    // Only the first round exists; the page still shows every later round.
+    const firstRound = ["A", "B", "C", "D", "E", "F", "G", "H"].reduce<Draw[]>(
+      (out, name, i, all) =>
+        i % 2 === 0
+          ? [...out, draw({ Stage: 1, DrawId: `q${i}`, Team1: team(name), Team2: team(all[i + 1]) })]
+          : out,
+      [],
+    );
+    const { left, right, final } = buildBracket(tournament(), firstRound);
+    assert.deepEqual(left.map((c) => c.label), ["QUARTER-FINALS", "SEMI-FINALS"]);
+    assert.deepEqual(right.map((c) => c.label), ["QUARTER-FINALS", "SEMI-FINALS"]);
+    assert.equal(left[1].matches[0].home.name, "TBD");
+    assert.equal(left[1].matches[0].home.empty, true);
+    assert.equal(final?.champion, null);
+  });
+
+  test("a team that went through shows no score in its next match", () => {
+    const { left } = buildBracket(tournament(), [
+      draw({ Stage: 1, DrawId: "a", Team1: team("A"), Team2: team("B"), Team1Score: 3, Team2Score: 1, Played: true }),
+      draw({ Stage: 1, DrawId: "b", Team1: team("C"), Team2: team("D") }),
+      draw({ Stage: 1, DrawId: "c", Team1: team("E"), Team2: team("F") }),
+      draw({ Stage: 1, DrawId: "d", Team1: team("G"), Team2: team("H") }),
+    ]);
+    const next = left[1].matches[0].home;
+    assert.equal(next.name, "A");
+    assert.equal(next.played, false);
+    assert.equal(next.score, 0);
+  });
+
+  test("a groups tournament shows the placeholder bracket before knockouts", () => {
+    const { left, right } = buildBracket(
+      tournament({
+        TournamentMode: "GROUPS",
+        AdvancePerGroup: 2,
+        Groups: [{ GroupName: "A" }, { GroupName: "B" }],
+      } as Partial<Tournament>),
+      [],
+    );
+    const names = [...left, ...right].flatMap((c) =>
+      c.matches.flatMap((m) => [m.home, m.away]),
+    );
+    assert.ok(names.some((s) => s.name === "A winner" && s.placeholder));
   });
 
   test("a lone final still gives the wings something to show", () => {
@@ -248,14 +280,16 @@ describe("availableExportViews", () => {
     assert.deepEqual(views, ["bracket", "teams", "unplayed"]);
   });
 
-  test("a groups tournament offers its group tables", () => {
+  test("a groups tournament offers its group tables and the bracket ahead", () => {
+    // The page shows the knockout bracket as placeholders before it is
+    // drawn, so the download does too.
     const views = availableExportViews(
       tournament({ TournamentMode: "GROUPS" }),
       [draw({ Stage: 1, Group: "A", Team1: team("A"), Team2: team("B") })],
       [entry("A")],
     );
     assert.ok(views.includes("groups"));
-    assert.ok(!views.includes("bracket"));
+    assert.ok(views.includes("bracket"));
   });
 
   test("buildExportModel returns null rather than an empty picture", () => {

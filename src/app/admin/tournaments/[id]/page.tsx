@@ -23,6 +23,7 @@ import {
 } from "@/server/actions/adminActions";
 import { AddParticipants, upsertParticipant } from "@/components/tournament/AddParticipants";
 import { SubstituteTeam } from "@/components/admin/SubstituteTeam";
+import { PrefillParticipants } from "@/components/admin/PrefillParticipants";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
 import { TournamentCoverPicker } from "@/components/tournament/TournamentCoverPicker";
 
@@ -293,6 +294,12 @@ export default function AdminTournamentManagePage() {
           onAdded={(registration) =>
             setParticipants((prev) => upsertParticipant(prev, registration))
           }
+        />
+        <PrefillParticipants
+          tournamentId={tournament.TournamentId || id}
+          started={tournament.Start}
+          openSpots={tournament.TournamentSize - participants.length}
+          onDone={() => setReload((r) => r + 1)}
         />
       </div>
 

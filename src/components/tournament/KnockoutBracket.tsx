@@ -5,159 +5,24 @@ import type { Draw, Teams } from "@/lib/schemas/draw";
 import type { GroupQualifier } from "@/lib/schemas/tournament";
 import { FALLBACKS, resolveIcon } from "@/lib/icons";
 import { isSoloVerified, VerifiedName } from "@/components/ui/VerifiedName";
-import {
-  groupPlaceholderPairs,
-  isKnockoutBye,
-  pairSequential,
-  splitHalves,
-} from "@/lib/knockoutSeed";
+import { isKnockoutBye } from "@/lib/knockoutSeed";
 import { reasonByTeamName } from "@/lib/groupQualifiers";
-
-type Round = { stage: number; matches: Draw[] };
-
-type Slot = {
-  team?: Teams;
-  label?: string;
-  score: number;
-  played: boolean;
-  won: boolean;
-};
+import {
+  buildBracketModel,
+  cardSegments,
+  forkSegments,
+  type WingLayout,
+  type BracketNode as MatchNode,
+  type BracketRound as Round,
+  type BracketSlot as Slot,
+} from "@/lib/bracketModel";
 
 const QualifierReasonContext = createContext<Record<string, string>>({});
 
-type MatchNode = {
-  draw: Draw | null;
-  team1: Slot;
-  team2: Slot;
-  bye?: boolean;
-};
-
-function winnerSide(draw: Draw): "Team1" | "Team2" | null {
-  if (draw.Winner === "Team1" || draw.Winner === "Team2") return draw.Winner;
-  if (!draw.Played) return null;
-  if (draw.Team1Score > draw.Team2Score) return "Team1";
-  if (draw.Team2Score > draw.Team1Score) return "Team2";
-  return null;
-}
-
-function emptySlot(label?: string): Slot {
-  return { score: 0, played: false, won: false, label };
-}
-
-function slotFromDraw(draw: Draw | null, which: "team1" | "team2"): Slot {
-  if (!draw) return emptySlot();
-  if (isKnockoutBye(draw)) {
-    if (which === "team2") return emptySlot();
-    return { team: draw.Team1, score: 0, played: false, won: false };
-  }
-  const team = which === "team1" ? draw.Team1 : draw.Team2;
-  const score = which === "team1" ? draw.Team1Score : draw.Team2Score;
-  const side = winnerSide(draw);
-  const won =
-    (which === "team1" && side === "Team1") ||
-    (which === "team2" && side === "Team2");
-  return { team, score, played: draw.Played, won };
-}
-
-function winnerOf(match: MatchNode): Slot {
-  if (match.draw) {
-    const side = winnerSide(match.draw);
-    if (side === "Team1") {
-      return { ...slotFromDraw(match.draw, "team1"), won: false };
-    }
-    if (side === "Team2") {
-      return { ...slotFromDraw(match.draw, "team2"), won: false };
-    }
-    if (isKnockoutBye(match.draw) && match.draw.Team1) {
-      return { ...slotFromDraw(match.draw, "team1"), won: false };
-    }
-  }
-  if (match.bye) return { ...match.team1, won: false };
-  if (match.team1.won) return { ...match.team1, won: false };
-  if (match.team2.won) return { ...match.team2, won: false };
-  if (match.team1.label && !match.team2.label && !match.team2.team) {
-    return { ...match.team1, won: false };
-  }
-  return emptySlot();
-}
-
-function matchFromDraw(draw: Draw): MatchNode {
-  return {
-    draw,
-    team1: slotFromDraw(draw, "team1"),
-    team2: slotFromDraw(draw, "team2"),
-    bye: isKnockoutBye(draw),
-  };
-}
-
-function matchFromPair(
-  a: string | undefined,
-  b: string | undefined,
-  teams?: Map<string, Teams>,
-): MatchNode {
-  return {
-    draw: null,
-    team1: slotForLabel(a, teams),
-    team2: slotForLabel(b, teams),
-    bye: !b,
-  };
-}
-
-/**
- * A placeholder slot, filled in with the team currently holding that place if
- * one is known. Carrying the whole team rather than its name is what puts the
- * crest on the row -- `TeamRow` reads the image off `slot.team`, so a slot with
- * only a label renders without one.
- */
-function slotForLabel(label?: string, teams?: Map<string, Teams>): Slot {
-  const team = label ? teams?.get(label) : undefined;
-  if (!team) return emptySlot(label);
-  return { team, label, score: 0, played: false, won: false };
-}
-
-/** Reduce a half of the bracket column by column. No extra empty outer slots. */
-function wingColumns(leaves: MatchNode[]): MatchNode[][] {
-  if (leaves.length === 0) return [];
-  const columns: MatchNode[][] = [leaves];
-  let current = leaves;
-  while (current.length > 1) {
-    const next: MatchNode[] = [];
-    for (let i = 0; i < current.length; i += 2) {
-      if (i + 1 < current.length) {
-        next.push({
-          draw: null,
-          team1: winnerOf(current[i]),
-          team2: winnerOf(current[i + 1]),
-        });
-      } else {
-        next.push({
-          draw: null,
-          bye: true,
-          team1: winnerOf(current[i]),
-          team2: emptySlot(),
-        });
-      }
-    }
-    columns.push(next);
-    current = next;
-  }
-  return columns;
-}
-
-function overlayDrawnRounds(
-  columns: MatchNode[][],
-  later: Draw[][],
-): MatchNode[][] {
-  return columns.map((col, index) => {
-    if (index === 0) return col;
-    const drawn = later[index - 1];
-    if (!drawn || drawn.length === 0) return col;
-    return col.map((node, i) => {
-      const draw = drawn[i];
-      return draw ? matchFromDraw(draw) : node;
-    });
-  });
-}
+/** Set when the viewer can edit matches: clicking a drawn match opens it. */
+const MatchClickContext = createContext<((draw: Draw) => void) | undefined>(
+  undefined,
+);
 
 export function KnockoutBracket({
   rounds,
@@ -168,6 +33,7 @@ export function KnockoutBracket({
   knockoutLive = false,
   qualifierReasons = [],
   previewTeams,
+  onMatchClick,
 }: {
   rounds: Round[];
   groupNames?: string[];
@@ -185,59 +51,31 @@ export function KnockoutBracket({
    * nothing is drawn or saved, and it is ignored once the knockout exists.
    */
   previewTeams?: Map<string, Teams>;
+  /**
+   * Hosts and admins: called with the match's draw when a played or scheduled
+   * match is clicked. Placeholders and byes are not clickable.
+   */
+  onMatchClick?: (draw: Draw) => void;
 }) {
-  // Always build from the first knockout round, even if the caller
-  // passes stages newest-first (fixtures do that).
-  const ordered = [...rounds].sort((a, b) => a.stage - b.stage);
-  const last = ordered[ordered.length - 1];
-  const hasFinal =
-    Boolean(last) && last.matches.length === 1 && ordered.length > 1;
-  const earlyRounds = hasFinal ? ordered.slice(0, -1) : ordered;
-  const firstRound = earlyRounds[0]?.matches ?? [];
-  const laterByRound = earlyRounds.slice(1).map((r) => r.matches);
-
-  const names = groupNames.map((name) => name.trim()).filter(Boolean);
-
-  let leaves: MatchNode[] = [];
-
-  if (isGroupMode && !knockoutLive) {
-    if (names.length > 0) {
-      leaves = groupPlaceholderPairs(names, advancePerGroup).map(([a, b]) =>
-        matchFromPair(a, b, previewTeams),
-      );
-    }
-  } else if (knockoutLive || rounds.length > 0) {
-    leaves = firstRound.map(matchFromDraw);
-  } else if (teamCount > 1) {
-    const labels = Array.from({ length: teamCount }, () => undefined);
-    leaves = pairSequential(labels).map(([a, b]) => matchFromPair(a, b));
-  }
-
-  const [leftLeaves, rightLeaves] = splitHalves(leaves);
-  const leftCols = overlayDrawnRounds(
-    wingColumns(leftLeaves),
-    laterByRound.map((matches) => splitHalves(matches)[0]),
-  );
-  const rightCols = overlayDrawnRounds(
-    wingColumns(rightLeaves),
-    laterByRound.map((matches) => splitHalves(matches)[1]),
-  );
-
-  const leftLabels = labelsForWing(leftCols.length);
-  const rightLabels = labelsForWing(rightCols.length);
-
-  const finalDraw = hasFinal
-    ? last.matches[0]
-    : leaves.length === 1
-      ? firstRound[0] ?? null
-      : null;
-  const finalWinner = finalDraw ? winnerSide(finalDraw) : null;
-  const champion =
-    finalWinner === "Team1"
-      ? finalDraw?.Team1
-      : finalWinner === "Team2"
-        ? finalDraw?.Team2
-        : undefined;
+  const {
+    leaves,
+    leftCols,
+    rightCols,
+    leftLabels,
+    rightLabels,
+    leftLayout,
+    rightLayout,
+    finalDraw,
+    champion,
+  } = buildBracketModel({
+    rounds,
+    groupNames,
+    advancePerGroup,
+    teamCount,
+    isGroupMode,
+    knockoutLive,
+    previewTeams,
+  });
 
   if (leaves.length === 0) {
     return (
@@ -252,6 +90,7 @@ export function KnockoutBracket({
     <QualifierReasonContext.Provider
       value={reasonByTeamName(qualifierReasons)}
     >
+      <MatchClickContext.Provider value={onMatchClick}>
       <div className="rounded-2xl border border-primary/25 bg-primary-panel px-3 py-6 shadow-[inset_0_1px_0_0_rgba(11,192,180,0.08)] sm:px-6">
         <div className="mb-6 flex flex-col items-center gap-2">
           <h3 className="text-center font-display text-lg tracking-[0.22em] text-white sm:text-2xl">
@@ -263,39 +102,49 @@ export function KnockoutBracket({
         <div className="-mx-3 overflow-x-auto overscroll-x-contain px-3 pb-2">
           {leaves.length === 1 ? (
             <div className="flex min-w-max items-center justify-center">
-              <MatchCard>
+              <MatchCard draw={leaves[0].draw}>
                 <TeamRow slot={leaves[0].team1} side="left" />
               </MatchCard>
-              <ForkColumn nodes={leaves} side="left" />
-              <Trophy champion={champion} />
-              <ForkColumn nodes={leaves} side="right" />
-              <MatchCard>
+              <ForkColumn
+                nodes={leaves}
+                centres={[0.5]}
+                units={1}
+                side="left"
+                stubs={false}
+              />
+              <Trophy champion={champion} finalDraw={finalDraw} />
+              <ForkColumn
+                nodes={leaves}
+                centres={[0.5]}
+                units={1}
+                side="right"
+                stubs={false}
+              />
+              <MatchCard draw={leaves[0].draw}>
                 <TeamRow slot={leaves[0].team2} side="right" />
               </MatchCard>
             </div>
           ) : (
             <div className="flex min-w-max items-stretch justify-center">
-              <Wing columns={leftCols} side="left" labels={leftLabels} />
-              <Trophy champion={champion} />
-              <Wing columns={rightCols} side="right" labels={rightLabels} />
+              <Wing
+                columns={leftCols}
+                side="left"
+                labels={leftLabels}
+                layout={leftLayout}
+              />
+              <Trophy champion={champion} finalDraw={finalDraw} />
+              <Wing
+                columns={rightCols}
+                side="right"
+                labels={rightLabels}
+                layout={rightLayout}
+              />
             </div>
           )}
         </div>
       </div>
+      </MatchClickContext.Provider>
     </QualifierReasonContext.Provider>
-  );
-}
-
-function roundName(matches: number): string {
-  if (matches <= 1) return "Final";
-  if (matches === 2) return "Semi-finals";
-  if (matches === 4) return "Quarter-finals";
-  return `Round of ${matches * 2}`;
-}
-
-function labelsForWing(columnCount: number): string[] {
-  return Array.from({ length: columnCount }, (_, i) =>
-    roundName(2 ** (columnCount - i)),
   );
 }
 
@@ -315,26 +164,56 @@ function Wing({
   columns,
   side,
   labels,
+  layout,
 }: {
   columns: MatchNode[][];
   side: "left" | "right";
   labels: string[];
+  /** Where each card sits, so connectors meet them even in uneven wings. */
+  layout: WingLayout;
 }) {
   if (columns.length === 0) return null;
   return (
     <div
-      className={`flex items-stretch ${side === "right" ? "flex-row-reverse" : ""}`}
+      // One match-card slot per layout unit, so padding a short wing to line
+      // up with the trophy spreads the cards out instead of squashing them.
+      style={{ minHeight: `calc(var(--slot) * ${layout.units} + 1.75rem)` }}
+      className={`flex items-stretch [--slot:6.25rem] sm:[--slot:6.75rem] ${
+        side === "right" ? "flex-row-reverse" : ""
+      }`}
     >
       {columns.map((col, i) => (
         <div key={`${side}-${i}`} className="flex flex-col">
           <RoundLabel text={labels[i]} />
-          <div className="flex flex-1 items-stretch">
-            <div className="flex flex-1 flex-col justify-around">
-              {col.map((node, j) => (
-                <MatchBox key={j} node={node} side={side} />
-              ))}
+          {/* Mirrored on the right so the connectors sit between rounds,
+              facing the trophy, rather than on the outside edge. */}
+          <div
+            className={`flex flex-1 items-stretch ${
+              side === "right" ? "flex-row-reverse" : ""
+            }`}
+          >
+            <div className="flex flex-1 flex-col">
+              {cardSegments(layout.centres[i] ?? [], layout.units).map(
+                (seg, j) =>
+                  seg.kind === "gap" ? (
+                    <div key={j} style={{ flexGrow: seg.grow }} className="basis-0" />
+                  ) : (
+                    <div
+                      key={j}
+                      style={{ flexGrow: seg.grow }}
+                      className="flex basis-0 flex-col justify-center"
+                    >
+                      <MatchBox node={col[seg.index]} side={side} />
+                    </div>
+                  ),
+              )}
             </div>
-            <ForkColumn nodes={col} side={side} />
+            <ForkColumn
+              nodes={col}
+              centres={layout.centres[i] ?? []}
+              units={layout.units}
+              side={side}
+            />
           </div>
         </div>
       ))}
@@ -342,12 +221,31 @@ function Wing({
   );
 }
 
-function MatchCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="w-36 overflow-hidden rounded-xl border border-primary/15 bg-surface-2 shadow-[0_6px_18px_-8px_rgba(0,0,0,0.8)] sm:w-48">
-      {children}
-    </div>
-  );
+const cardClass =
+  "block w-36 overflow-hidden rounded-xl border border-primary/15 bg-surface-2 text-left shadow-[0_6px_18px_-8px_rgba(0,0,0,0.8)] sm:w-48";
+
+/** A match card; clickable when it holds a real match and the viewer can edit. */
+function MatchCard({
+  children,
+  draw,
+}: {
+  children: ReactNode;
+  draw?: Draw | null;
+}) {
+  const onMatchClick = useContext(MatchClickContext);
+  if (draw && onMatchClick && !isKnockoutBye(draw)) {
+    return (
+      <button
+        type="button"
+        onClick={() => onMatchClick(draw)}
+        title="Edit match"
+        className={`${cardClass} cursor-pointer transition-colors hover:border-primary/60 focus-visible:border-primary focus-visible:outline-none`}
+      >
+        {children}
+      </button>
+    );
+  }
+  return <div className={cardClass}>{children}</div>;
 }
 
 function MatchBox({
@@ -371,43 +269,184 @@ function MatchBox({
   }
   return (
     <div className="py-1.5">
-      <MatchCard>
-        <TeamRow slot={node.team1} side={side} />
+      <MatchCard draw={node.draw}>
+        <TeamRow slot={node.team1} side={side} lost={node.team2.won} />
         <div className="h-px bg-primary/10" />
-        <TeamRow slot={node.team2} side={side} />
+        <TeamRow slot={node.team2} side={side} lost={node.team1.won} />
       </MatchCard>
     </div>
   );
 }
 
-function ForkColumn({
+/**
+ * A match whose winner is known, so its line into the next round lights up. A
+ * bye only counts once the team getting it is known: a predicted bye waiting
+ * on a TBD winner stays dim.
+ */
+function decided(node: MatchNode): boolean {
+  if (node.bye) return Boolean(node.team1.team?.TeamName);
+  return node.team1.won || node.team2.won;
+}
+
+const LIT = "border-primary";
+const DIM = "border-primary/35";
+/** The losing team's line: nearly gone, so the winner's reads at a glance. */
+const LOST = "border-primary/10";
+
+function teamTone(won: boolean, otherWon: boolean): string {
+  if (won) return LIT;
+  if (otherWon) return LOST;
+  return DIM;
+}
+
+/**
+ * The two short lines out of each card, one per team row, joining at the
+ * card's centre where the line to the next round starts. Only the winner's
+ * lights up, so you can see who went through without reading the scores.
+ *
+ * The height is the distance between the two team rows' centres: each row is
+ * h-9 (h-10 from sm) with a 1px divider between them.
+ */
+function TeamStubs({
   nodes,
+  centres,
+  units,
   side,
 }: {
   nodes: MatchNode[];
+  centres: number[];
+  units: number;
   side: "left" | "right";
 }) {
-  const borders =
-    side === "left"
-      ? "rounded-r-sm border-t-2 border-r-2 border-b-2"
-      : "rounded-l-sm border-t-2 border-l-2 border-b-2";
-
+  const inward = side === "left" ? "border-r-2" : "border-l-2";
   return (
-    <div className="flex w-3 flex-col sm:w-5">
-      {nodes.map((node, i) => (
-        <div key={i} className="flex flex-1 items-center py-3">
-          {node.bye ? (
-            <div className="h-0 w-full border-t-2 border-primary/50" />
-          ) : (
-            <div className={`h-full w-full border-primary/50 ${borders}`} />
-          )}
-        </div>
-      ))}
+    <div className="flex w-2.5 shrink-0 flex-col sm:w-3">
+      {cardSegments(centres, units).map((seg, i) => {
+        if (seg.kind === "gap") {
+          return <div key={i} style={{ flexGrow: seg.grow }} className="basis-0" />;
+        }
+        const node = nodes[seg.index];
+        return (
+          <div key={i} style={{ flexGrow: seg.grow }} className="relative basis-0">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
+              {!node || node.bye ? (
+                <div
+                  className={`h-0 border-t-2 ${node && decided(node) ? LIT : DIM}`}
+                />
+              ) : (
+                <div className="flex h-[37px] flex-col sm:h-[41px]">
+                  <div
+                    className={`flex-1 border-t-2 ${inward} ${
+                      side === "left" ? "rounded-tr-sm" : "rounded-tl-sm"
+                    } ${teamTone(node.team1.won, node.team2.won)}`}
+                  />
+                  <div
+                    className={`flex-1 border-b-2 ${inward} ${
+                      side === "left" ? "rounded-br-sm" : "rounded-bl-sm"
+                    } ${teamTone(node.team2.won, node.team1.won)}`}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
+/**
+ * The connectors between one round and the next.
+ *
+ * Each pair of matches gets a "]" from the centre of one card to the centre of
+ * the other, then a single arrow from its midpoint into the match they feed.
+ * Pieces are placed from the wing layout rather than spaced evenly, so they
+ * still meet the cards when a side has an odd number of matches. A match's arm
+ * lights up once it has a winner; the arrow once every feeding match does.
+ */
+function ForkColumn({
+  nodes,
+  centres,
+  units,
+  side,
+  stubs = true,
+}: {
+  nodes: MatchNode[];
+  centres: number[];
+  units: number;
+  side: "left" | "right";
+  /** Per-team lines out of each card. Off where a card shows one team. */
+  stubs?: boolean;
+}) {
+  const inward = side === "left" ? "border-r-2" : "border-l-2";
+  return (
+    <div
+      className={`flex shrink-0 items-stretch ${
+        side === "right" ? "flex-row-reverse" : ""
+      }`}
+    >
+      {stubs ? (
+        <TeamStubs nodes={nodes} centres={centres} units={units} side={side} />
+      ) : null}
+    <div className="flex w-6 shrink-0 flex-col sm:w-10">
+      {forkSegments(centres, units).map((seg, i) => {
+        if (seg.kind === "gap") {
+          return <div key={i} style={{ flexGrow: seg.grow }} className="basis-0" />;
+        }
+        if (seg.kind === "arm") {
+          const lit = nodes[seg.match] ? decided(nodes[seg.match]) : false;
+          const edge =
+            seg.corner === "top"
+              ? `border-t-2 ${side === "left" ? "rounded-tr-sm" : "rounded-tl-sm"}`
+              : `border-b-2 ${side === "left" ? "rounded-br-sm" : "rounded-bl-sm"}`;
+          return (
+            <div
+              key={i}
+              style={{ flexGrow: seg.grow }}
+              className={`flex basis-0 ${side === "right" ? "flex-row-reverse" : ""}`}
+            >
+              <div className={`w-1/2 ${edge} ${inward} ${lit ? LIT : DIM}`} />
+            </div>
+          );
+        }
+        const lit = seg.matches.every((m) => nodes[m] && decided(nodes[m]));
+        const paired = seg.matches.length === 2;
+        return (
+          // Zero height, so it sits exactly on the midpoint between the arms.
+          <div key={i} className="relative h-0">
+            <div
+              className={`absolute inset-x-0 top-0 flex -translate-y-1/2 items-center ${
+                side === "right" ? "flex-row-reverse" : ""
+              } ${lit ? "text-primary" : "text-primary/35"}`}
+            >
+              {paired ? <div className="w-1/2 shrink-0" /> : null}
+              <div className={`h-0 flex-1 border-t-2 ${lit ? LIT : DIM}`} />
+              <svg
+                viewBox="0 0 6 8"
+                className={`h-2 w-1.5 shrink-0 ${side === "right" ? "rotate-180" : ""}`}
+                aria-hidden
+              >
+                <path d="M0 0 L6 4 L0 8 Z" fill="currentColor" />
+              </svg>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    </div>
+  );
+}
+
+function TeamRow({
+  slot,
+  side,
+  lost = false,
+}: {
+  slot: Slot;
+  side: "left" | "right";
+  /** The other side won: fade this one so the winner stands out. */
+  lost?: boolean;
+}) {
   const reasons = useContext(QualifierReasonContext);
   const name = slot.team?.TeamName || slot.label || "TBD";
   const filled = Boolean(slot.team?.TeamName);
@@ -466,7 +505,7 @@ function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
       title={reason}
       className={`relative flex h-9 items-center gap-2 px-2 transition-colors sm:h-10 ${
         slot.won ? "bg-primary/12" : "hover:bg-white/5"
-      } ${side === "right" ? "flex-row-reverse" : ""}`}
+      } ${lost ? "opacity-40" : ""} ${side === "right" ? "flex-row-reverse" : ""}`}
     >
       {slot.won ? (
         <span
@@ -482,11 +521,31 @@ function TeamRow({ slot, side }: { slot: Slot; side: "left" | "right" }) {
   );
 }
 
-function Trophy({ champion }: { champion?: Teams }) {
+function Trophy({
+  champion,
+  finalDraw,
+}: {
+  champion?: Teams;
+  finalDraw?: Draw | null;
+}) {
+  const onMatchClick = useContext(MatchClickContext);
+  const clickable = Boolean(finalDraw && onMatchClick);
+  const Body = clickable ? "button" : "div";
   return (
     <div className="mx-1 flex shrink-0 flex-col sm:mx-3">
       <RoundLabel text="Final" />
-      <div className="flex w-16 flex-1 flex-col items-center justify-center gap-1.5 sm:w-24">
+      <Body
+        {...(clickable
+          ? {
+              type: "button" as const,
+              title: "Edit final",
+              onClick: () => finalDraw && onMatchClick?.(finalDraw),
+            }
+          : {})}
+        className={`flex w-16 flex-1 flex-col items-center justify-center gap-1.5 sm:w-24 ${
+          clickable ? "cursor-pointer rounded-xl transition-colors hover:bg-white/5" : ""
+        }`}
+      >
         <span
           className={`grid h-12 w-12 place-items-center rounded-full border sm:h-16 sm:w-16 ${
             champion
@@ -520,7 +579,12 @@ function Trophy({ champion }: { champion?: Teams }) {
             TBD
           </span>
         )}
-      </div>
+        {clickable ? (
+          <span className="text-[9px] uppercase tracking-wider text-primary sm:text-[10px]">
+            Edit
+          </span>
+        ) : null}
+      </Body>
     </div>
   );
 }

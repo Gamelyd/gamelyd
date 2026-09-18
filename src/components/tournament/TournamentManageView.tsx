@@ -17,7 +17,11 @@ import { SelectQualifiers } from "@/components/tournament/SelectQualifiers";
 import { DisqualifyTeams } from "@/components/tournament/DisqualifyTeams";
 import { TournamentAnnouncements } from "@/components/tournament/TournamentAnnouncements";
 import { HostInvitePanel } from "@/components/tournament/HostInvitePanel";
-import { deleteTournamentAction } from "@/server/actions/tournamentActions";
+import {
+  deleteTournamentAction,
+  listParticipantsAction,
+} from "@/server/actions/tournamentActions";
+import { PrefillParticipants } from "@/components/admin/PrefillParticipants";
 import type { Tournament, GroupQualifier } from "@/lib/schemas/tournament";
 import type { RegisterTournament } from "@/lib/schemas/register";
 import type { Draw } from "@/lib/schemas/draw";
@@ -247,6 +251,20 @@ export function TournamentManageView({
                     Adding players isn&apos;t enabled for this tournament yet.
                   </p>
                 )}
+                {isPlatformAdmin ? (
+                  <PrefillParticipants
+                    tournamentId={tournament.TournamentId}
+                    started={tournament.Start}
+                    openSpots={tournament.TournamentSize - participants.length}
+                    onDone={() => {
+                      void listParticipantsAction(tournament.TournamentId).then(
+                        (result) => {
+                          if (result.ok) setParticipants(result.data);
+                        },
+                      );
+                    }}
+                  />
+                ) : null}
               </div>
             ) : null}
             {canAdminister ? (
