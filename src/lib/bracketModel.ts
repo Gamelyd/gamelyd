@@ -1,4 +1,6 @@
 import type { Draw, Teams } from "@/lib/schemas/draw";
+import type { KnockoutFormat } from "@/lib/schemas/common";
+import { knockoutRoundsForBracket, seriesKey } from "@/lib/knockoutSeries";
 import {
   groupPlaceholderPairs,
   isKnockoutBye,
@@ -65,6 +67,11 @@ export interface BracketModel {
   rightLayout: WingLayout;
   finalDraw: Draw | null;
   champion?: Teams;
+}
+
+/** Third-place matches sit outside the bracket, so they never fill a slot. */
+function isThirdPlace(draw: Draw): boolean {
+  return (draw.Kind ?? "").toUpperCase() === "THIRD_PLACE";
 }
 
 export function winnerSide(draw: Draw): "Team1" | "Team2" | null {
@@ -155,48 +162,98 @@ function slotForLabel(label?: string, teams?: Map<string, Teams>): BracketSlot {
   return { team, label, score: 0, played: false, won: false };
 }
 
-/** Reduce a half of the bracket column by column. No extra empty outer slots. */
-function wingColumns(leaves: BracketNode[]): BracketNode[][] {
+/** The next round as the bracket predicts it, from the round before. */
+function nextColumn(current: BracketNode[]): BracketNode[] {
+  const next: BracketNode[] = [];
+  for (let i = 0; i < current.length; i += 2) {
+    if (i + 1 < current.length) {
+      next.push({
+        draw: null,
+        team1: winnerOf(current[i]),
+        team2: winnerOf(current[i + 1]),
+      });
+    } else {
+      next.push({
+        draw: null,
+        bye: true,
+        team1: winnerOf(current[i]),
+        team2: emptySlot(),
+      });
+    }
+  }
+  return next;
+}
+
+/**
+ * Reduce a half of the bracket column by column. No extra empty outer slots.
+ *
+ * Rounds that have been drawn replace the prediction as we go, so the round
+ * after one reads the real result. Overlaying them afterwards left every later
+ * round showing TBD: a semi-final would still be waiting on a quarter-final
+ * the bracket had already predicted but never saw the winner of.
+ */
+function wingColumns(leaves: BracketNode[], pool: DrawPool): BracketNode[][] {
   if (leaves.length === 0) return [];
   const columns: BracketNode[][] = [leaves];
   let current = leaves;
   while (current.length > 1) {
-    const next: BracketNode[] = [];
-    for (let i = 0; i < current.length; i += 2) {
-      if (i + 1 < current.length) {
-        next.push({
-          draw: null,
-          team1: winnerOf(current[i]),
-          team2: winnerOf(current[i + 1]),
-        });
-      } else {
-        next.push({
-          draw: null,
-          bye: true,
-          team1: winnerOf(current[i]),
-          team2: emptySlot(),
-        });
-      }
-    }
-    columns.push(next);
-    current = next;
+    const predicted = nextColumn(current);
+    // Two passes so a tie with both teams known claims its place before one
+    // matched on a single team takes it.
+    const next = predicted.map((node) => pool.take(node, true) ?? node);
+    const filled = next.map((node) =>
+      node.draw ? node : (pool.take(node, false) ?? node),
+    );
+    columns.push(filled);
+    current = filled;
   }
   return columns;
 }
 
-function overlayDrawnRounds(
-  columns: BracketNode[][],
-  later: Draw[][],
-): BracketNode[][] {
-  return columns.map((col, index) => {
-    if (index === 0) return col;
-    const drawn = later[index - 1];
-    if (!drawn || drawn.length === 0) return col;
-    return col.map((node, i) => {
-      const draw = drawn[i];
-      return draw ? matchFromDraw(draw) : node;
-    });
-  });
+const nameOf = (team?: { TeamName?: string }) =>
+  team?.TeamName?.trim().toLowerCase() ?? "";
+
+/**
+ * The rounds already drawn, claimed by the slot they belong in.
+ *
+ * Matched on the teams in them rather than on their position in the round.
+ * Matches are drawn one at a time as the ties feeding them are settled, so a
+ * round is often half full, and counting positions put a match on the wrong
+ * side of the bracket.
+ */
+class DrawPool {
+  private readonly used = new Set<Draw>();
+  constructor(private readonly draws: Draw[]) {}
+
+  /** The drawn tie for this slot, if one of them is it. */
+  take(node: BracketNode, bothKnown: boolean): BracketNode | null {
+    const want = [nameOf(node.team1.team), nameOf(node.team2.team)].filter(
+      Boolean,
+    );
+    if (want.length === 0 || (bothKnown && want.length < 2 && !node.bye)) {
+      return null;
+    }
+    for (const draw of this.draws) {
+      if (this.used.has(draw)) continue;
+      const have = [nameOf(draw.Team1), nameOf(draw.Team2)].filter(Boolean);
+      const hit = isKnockoutBye(draw)
+        ? have[0] === want[0]
+        : bothKnown
+          ? want.length === 2 &&
+            have.length === 2 &&
+            want.every((name) => have.includes(name))
+          : want.some((name) => have.includes(name));
+      if (!hit) continue;
+      this.used.add(draw);
+      return matchFromDraw(draw);
+    }
+    return null;
+  }
+
+  /** Whatever is left: a final, or a round drawn before this slot existed. */
+  remaining(): Draw[] {
+    return this.draws.filter((draw) => !this.used.has(draw));
+  }
 }
 
 /**
@@ -238,6 +295,11 @@ export function layoutWing(cols: { length: number }[]): WingLayout {
   };
 }
 
+/** The team that goes through from a node: a winner, or a bye's lone team. */
+export function nodeWinner(node: BracketNode): BracketSlot {
+  return winnerOf(node);
+}
+
 export function roundName(matches: number): string {
   if (matches <= 1) return "Final";
   if (matches === 2) return "Semi-finals";
@@ -263,12 +325,8 @@ export function buildBracketModel({
   // Always build from the first knockout round, even if the caller
   // passes stages newest-first (fixtures do that).
   const ordered = [...rounds].sort((a, b) => a.stage - b.stage);
-  const last = ordered[ordered.length - 1];
-  const hasFinal =
-    Boolean(last) && last.matches.length === 1 && ordered.length > 1;
-  const earlyRounds = hasFinal ? ordered.slice(0, -1) : ordered;
-  const firstRound = earlyRounds[0]?.matches ?? [];
-  const laterByRound = earlyRounds.slice(1).map((r) => r.matches);
+  const firstRound = ordered[0]?.matches ?? [];
+  const pool = new DrawPool(ordered.slice(1).flatMap((round) => round.matches));
 
   const names = groupNames.map((name) => name.trim()).filter(Boolean);
 
@@ -288,20 +346,25 @@ export function buildBracketModel({
   }
 
   const [leftLeaves, rightLeaves] = splitHalves(leaves);
-  const leftCols = overlayDrawnRounds(
-    wingColumns(leftLeaves),
-    laterByRound.map((matches) => splitHalves(matches)[0]),
-  );
-  const rightCols = overlayDrawnRounds(
-    wingColumns(rightLeaves),
-    laterByRound.map((matches) => splitHalves(matches)[1]),
-  );
+  const leftCols = wingColumns(leftLeaves, pool);
+  const rightCols = wingColumns(rightLeaves, pool);
 
-  const finalDraw = hasFinal
-    ? last.matches[0]
-    : leaves.length === 1
-      ? firstRound[0] ?? null
-      : null;
+  // The final is whatever is left once both halves have claimed their rounds:
+  // the match between the two finalists.
+  const finalists = [
+    leftCols[leftCols.length - 1]?.[0],
+    rightCols[rightCols.length - 1]?.[0],
+  ].map((node) => (node ? nameOf(winnerOf(node).team) : ""));
+  const leftovers = pool.remaining();
+  const finalDraw =
+    leaves.length === 1
+      ? (firstRound[0] ?? null)
+      : (leftovers.find((draw) => {
+          const have = [nameOf(draw.Team1), nameOf(draw.Team2)];
+          return finalists.every((name) => name && have.includes(name));
+        }) ??
+        leftovers.find((draw) => !isThirdPlace(draw)) ??
+        null);
   const finalWinner = finalDraw ? winnerSide(finalDraw) : null;
   const champion =
     finalWinner === "Team1"
@@ -451,4 +514,194 @@ export function teamRoute(
     index = Math.floor(index / 2);
   }
   return { steps, outAt: null };
+}
+
+/**
+ * What each knockout tie is called, keyed by series.
+ *
+ * Named by how far the tie is from the final rather than by how many matches
+ * share its stage. An uneven bracket can hold a semi-final and a quarter-final
+ * in the same round -- one half having had a shorter route -- and labelling the
+ * whole stage by its match count called that semi-final a quarter-final.
+ */
+export function knockoutRoundLabels(
+  draws: Draw[],
+  format?: KnockoutFormat,
+): Map<string, string> {
+  const model = buildBracketModel({
+    rounds: knockoutRoundsForBracket(draws, format),
+    knockoutLive: true,
+  });
+  const labels = new Map<string, string>();
+  const walk = (cols: BracketNode[][], names: string[]) => {
+    cols.forEach((col, index) => {
+      for (const node of col) {
+        if (node.draw) labels.set(seriesKey(node.draw), names[index] ?? "");
+      }
+    });
+  };
+  walk(model.leftCols, model.leftLabels);
+  walk(model.rightCols, model.rightLabels);
+  if (model.finalDraw) labels.set(seriesKey(model.finalDraw), roundName(1));
+  return labels;
+}
+
+/** Rounds left to the final, so sections read widest-first. */
+export function roundRank(label: string): number {
+  const name = label.trim().toLowerCase();
+  if (name.startsWith("final")) return 1;
+  if (name.startsWith("semi")) return 2;
+  if (name.startsWith("quarter")) return 4;
+  const of = /round of (\d+)/.exec(name);
+  return of ? Number(of[1]) / 2 : 99;
+}
+
+/** A match the bracket says can be drawn now, and what it is drawn from. */
+export interface ReadyMatch {
+  team1: Teams;
+  /** Absent for a bye: one side had nobody to play. */
+  team2?: Teams;
+  stage: number;
+  /** Stable identity, from the ties feeding it, so it is only drawn once. */
+  seed: string;
+  kind: "" | "FINAL" | "THIRD_PLACE";
+}
+
+/**
+ * Every match whose two feeding ties are settled but which has not been drawn.
+ *
+ * A match depends only on the two ties that feed it, never on the rest of its
+ * round. Waiting for a whole round stalls an uneven bracket, where one half is
+ * a round ahead and its next match would wait on ties it has nothing to do
+ * with.
+ */
+export function readyMatches(
+  model: BracketModel,
+  options: { excluded?: Set<string>; thirdPlace?: boolean } = {},
+): ReadyMatch[] {
+  const out: ReadyMatch[] = [];
+  const stages = new Map<BracketNode, number>();
+  for (const node of [...model.leftCols, ...model.rightCols].flat()) {
+    if (node.draw) stages.set(node, node.draw.Stage);
+  }
+  const live = (team?: Teams) => {
+    const name = team?.TeamName?.trim();
+    return name && !options.excluded?.has(name) ? team : undefined;
+  };
+  const seedOf = (feeders: (BracketNode | undefined)[]) =>
+    feeders.map((f) => (f?.draw ? seriesKey(f.draw) : "bye")).join("|");
+
+  const walk = (columns: BracketNode[][]) => {
+    columns.forEach((column, index) => {
+      if (index === 0) return;
+      const previous = columns[index - 1];
+      column.forEach((node, position) => {
+        if (node.draw) return;
+        const feeders = [previous[position * 2], previous[position * 2 + 1]];
+        const stage =
+          Math.max(...feeders.map((f) => (f && stages.get(f)) || 0)) + 1;
+        if (stage <= 1) return;
+        const team1 = live(feeders[0] && nodeWinner(feeders[0]).team);
+        const team2 = feeders[1]
+          ? live(nodeWinner(feeders[1]).team)
+          : undefined;
+        if (!team1) return;
+        // Both feeders have to be settled, unless this is a bye with one.
+        if (feeders[1] && !team2) return;
+        out.push({ team1, team2, stage, seed: seedOf(feeders), kind: "" });
+        stages.set(node, stage);
+      });
+    });
+  };
+  walk(model.leftCols);
+  walk(model.rightCols);
+
+  if (model.finalDraw || model.leaves.length <= 1) return out;
+  const finalists = [
+    model.leftCols[model.leftCols.length - 1]?.[0],
+    model.rightCols[model.rightCols.length - 1]?.[0],
+  ];
+  const teams = finalists.map((node) => live(node && nodeWinner(node).team));
+  const stage =
+    Math.max(...finalists.map((node) => (node && stages.get(node)) || 0)) + 1;
+  if (!teams[0] || !teams[1] || stage <= 1) return out;
+  const seed = seedOf(finalists);
+  out.push({ team1: teams[0], team2: teams[1], stage, seed: `final:${seed}`, kind: "FINAL" });
+  if (options.thirdPlace) {
+    const losers = finalists
+      .map((node) => {
+        if (!node?.draw) return undefined;
+        const side = winnerSide(node.draw);
+        const beaten =
+          side === "Team1" ? node.draw.Team2 : side === "Team2" ? node.draw.Team1 : undefined;
+        return live(beaten);
+      })
+      .filter((team): team is Teams => Boolean(team));
+    if (losers.length === 2) {
+      out.push({
+        team1: losers[0],
+        team2: losers[1],
+        stage,
+        seed: `third:${seed}`,
+        kind: "THIRD_PLACE",
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Drawn matches that no longer follow from the ties feeding them: a result was
+ * corrected and somebody else goes through now.
+ *
+ * Only the match directly below a change is reported. Once it is removed, the
+ * round after it becomes stale in turn, so callers repeat until nothing is
+ * left to clear.
+ */
+export function staleSeries(model: BracketModel): Set<string> {
+  const stale = new Set<string>();
+  const check = (columns: BracketNode[][]) => {
+    columns.forEach((column, index) => {
+      if (index === 0) return;
+      const previous = columns[index - 1];
+      column.forEach((node, position) => {
+        if (!node.draw) return;
+        const feeders = [previous[position * 2], previous[position * 2 + 1]];
+        // Nothing to compare against until a feeder has been drawn at all.
+        if (!feeders.some((feeder) => feeder?.draw)) return;
+        const expected = feeders
+          .map((feeder) => (feeder ? nameOf(nodeWinner(feeder).team) : ""))
+          .filter(Boolean)
+          .sort();
+        if (expected.length === 0) return;
+        const actual = [nameOf(node.draw.Team1), nameOf(node.draw.Team2)]
+          .filter(Boolean)
+          .sort();
+        const same =
+          expected.length === actual.length &&
+          expected.every((name, i) => name === actual[i]);
+        if (!same) stale.add(seriesKey(node.draw));
+      });
+    });
+  };
+  check(model.leftCols);
+  check(model.rightCols);
+
+  if (model.finalDraw) {
+    const finalists = [
+      model.leftCols[model.leftCols.length - 1]?.[0],
+      model.rightCols[model.rightCols.length - 1]?.[0],
+    ]
+      .map((node) => (node ? nameOf(nodeWinner(node).team) : ""))
+      .filter(Boolean)
+      .sort();
+    const actual = [nameOf(model.finalDraw.Team1), nameOf(model.finalDraw.Team2)]
+      .filter(Boolean)
+      .sort();
+    const same =
+      finalists.length === actual.length &&
+      finalists.every((name, i) => name === actual[i]);
+    if (finalists.length > 0 && !same) stale.add(seriesKey(model.finalDraw));
+  }
+  return stale;
 }

@@ -50,7 +50,6 @@ import {
 import { computeLeagueStandings, standingToTeam } from "@/lib/leagueStandings";
 import type { AdvanceGroupStageInput } from "@/lib/schemas/tournament";
 import {
-  pairWithinHalves,
   seedKnockoutPairs,
   type SeedEntry,
 } from "@/lib/knockoutSeed";
@@ -66,13 +65,19 @@ import { isKnockoutDraw } from "@/lib/drawKind";
 import {
   formatForSeriesGames,
   groupKnockoutTies,
-  isKnockoutTieSettled,
   knockoutFormatForRound,
   knockoutLegCount,
-  knockoutTieLoser,
+  knockoutRoundsForBracket,
+  seriesKey,
   knockoutTieWinner,
-  tiesAtStage,
+  teamsStillIn,
 } from "@/lib/knockoutSeries";
+import {
+  buildBracketModel,
+  readyMatches,
+  staleSeries,
+} from "@/lib/bracketModel";
+import { createHash } from "node:crypto";
 import {
   brChampionFromStandings,
   brLobbyComplete,
@@ -304,6 +309,8 @@ export async function newDraw(tournamentId: string): Promise<Draw[]> {
   const stage = (tournament.Stage || 0) + 1;
   const now = new Date().toISOString();
   const drawDocs: DrawDoc[] = [];
+  // Everyone is paired up. Only an odd team left without an opponent gets a
+  // bye, rather than padding the round out to a power of two.
   const pairCount = Math.ceil(ordered.length / 2);
   const roundFormat = knockoutFormatForRound(tournament.KnockoutFormat, {
     finalsUseSeries: tournament.KnockoutFinalsSeries,
@@ -829,7 +836,208 @@ function qualifiersFromGroups(
   return entries;
 }
 
-/** Advances knockout-round winners into the next round. */
+/**
+ * A stable id for an automatically created match, derived from the ties that
+ * feed it. Re-running the generator produces the same ids, so a duplicate
+ * insert is rejected by the database rather than drawing the match twice --
+ * two results saved at the same moment cannot both create it.
+ */
+function derivedId(seed: string): ObjectId {
+  return new ObjectId(createHash("md5").update(seed).digest("hex").slice(0, 24));
+}
+
+/**
+ * Draws every knockout match whose two feeding ties are settled.
+ *
+ * Rounds used to be drawn whole, which stalls an uneven bracket: one half can
+ * be a round ahead, and its next match would wait on ties in the other half
+ * that have nothing to do with it. A match only ever depends on the two ties
+ * that feed it, so that is what is waited on. Called after each result, so
+ * fixtures appear as the tournament is played.
+ */
+async function createReadyKnockoutMatches(
+  tournamentDoc: TournamentDoc,
+  tournament: Tournament,
+  allDraws: Draw[],
+): Promise<Draw[]> {
+  if (
+    tournament.TournamentMode !== "MULTIPLAYER" &&
+    tournament.TournamentMode !== "GROUPS"
+  ) {
+    return [];
+  }
+  const knockoutDraws = allDraws.filter(isKnockoutDraw);
+  if (knockoutDraws.length === 0) return [];
+
+  const format = tournament.KnockoutFormat;
+  const model = buildBracketModel({
+    rounds: knockoutRoundsForBracket(knockoutDraws, format),
+    knockoutLive: true,
+  });
+  const ready = readyMatches(model, {
+    excluded: asDisqualifiedSet(tournament.DisqualifiedTeams),
+    thirdPlace: Boolean(tournament.ThirdPlace),
+  });
+  if (ready.length === 0) return [];
+
+  const now = new Date().toISOString();
+  const created: DrawDoc[] = [];
+  for (const match of ready) {
+    const roundFormat = knockoutFormatForRound(format, {
+      finalsUseSeries: tournament.KnockoutFinalsSeries,
+      isFinal: match.kind === "FINAL",
+      isThirdPlace: match.kind === "THIRD_PLACE",
+    });
+    const legs = match.team2 ? knockoutLegCount(roundFormat) : 1;
+    const seriesId = derivedId(match.seed).toHexString();
+    for (let leg = 0; leg < legs; leg++) {
+      const _id = derivedId(`${match.seed}#${leg}`);
+      created.push({
+        ...knockoutDraw(
+          match.team1,
+          match.team2,
+          tournament.TournamentId,
+          match.stage,
+          now,
+          {
+            seriesId,
+            leg: leg + 1,
+            kind: match.kind === "THIRD_PLACE" ? "THIRD_PLACE" : "",
+          },
+        ),
+        _id,
+        DrawId: _id.toHexString(),
+      });
+    }
+  }
+
+  const dCol = await draws();
+  const stamped = scheduleNewDraws(created, tournament, allDraws.length);
+  // Ignore duplicates: the same match saved twice, or two results recorded at
+  // the same moment, both derive the same id, so the second insert is refused
+  // rather than drawing the match again. Unordered, so the rest still land.
+  await dCol.insertMany(stamped, { ordered: false }).catch((error) => {
+    const failures = (error as { writeErrors?: { code?: number }[] })
+      .writeErrors;
+    const duplicate =
+      (error as { code?: number }).code === 11000 ||
+      (Array.isArray(failures) &&
+        failures.length > 0 &&
+        failures.every((failure) => failure.code === 11000));
+    if (!duplicate) throw error;
+  });
+
+  const maxStage = Math.max(
+    ...created.map((doc) => doc.Stage),
+    tournament.Stage || 0,
+  );
+  const tCol = await tournaments();
+  await tCol.updateOne({ _id: tournamentDoc._id }, {
+    $set: { Stage: maxStage, stage: maxStage, Updated_at: now, updated_at: now },
+  } as unknown as Parameters<typeof tCol.updateOne>[1]);
+
+  const result = stamped.map(serializeDraw);
+  void notifyDrawReady(
+    tournament.TournamentId,
+    tournament.Name,
+    result,
+    `The next match is set in ${tournament.Name}. Check your fixture.`,
+  );
+  return result;
+}
+
+/**
+ * Removes knockout matches that no longer follow from the results they were
+ * drawn from, so a corrected score cannot leave a team in the next round that
+ * did not win. Returns how many ties were removed.
+ *
+ * Only matches after the correction go: the rest of the bracket does not
+ * depend on it. Whatever is removed is drawn again from the new winner.
+ */
+async function removeStaleKnockoutMatches(
+  tournament: Tournament,
+  startingDraws: Draw[],
+): Promise<number> {
+  const dCol = await draws();
+  let allDraws = startingDraws;
+  let removed = 0;
+
+  // One pass clears the matches directly below the change; the round after
+  // that only becomes wrong once those are gone, so repeat until settled.
+  for (let pass = 0; pass < 12; pass++) {
+    const knockoutDraws = allDraws.filter(isKnockoutDraw);
+    if (knockoutDraws.length === 0) break;
+    const model = buildBracketModel({
+      rounds: knockoutRoundsForBracket(knockoutDraws, tournament.KnockoutFormat),
+      knockoutLive: true,
+    });
+    const stale = staleSeries(model);
+    if (stale.size === 0) break;
+    const doomed = allDraws.filter((draw) => stale.has(seriesKey(draw)));
+    if (doomed.length === 0) break;
+    await dCol.deleteMany({
+      DrawId: { $in: doomed.map((draw) => draw.DrawId) },
+    } as never);
+    removed += stale.size;
+    const gone = new Set(doomed.map((draw) => draw.DrawId));
+    allDraws = allDraws.filter((draw) => !gone.has(draw.DrawId));
+  }
+
+  if (removed > 0) {
+    // A third-place match is drawn from the semi-finals, so it goes too.
+    const thirds = allDraws.filter(
+      (draw) => (draw.Kind ?? "").toUpperCase() === "THIRD_PLACE",
+    );
+    if (thirds.length > 0) {
+      await dCol.deleteMany({
+        DrawId: { $in: thirds.map((draw) => draw.DrawId) },
+      } as never);
+    }
+  }
+  return removed;
+}
+
+/**
+ * Brings the knockout in line with the results as they stand: drops matches a
+ * corrected score has made wrong, then draws whatever is ready.
+ */
+export async function advanceKnockout(tournamentId: string): Promise<Draw[]> {
+  const tCol = await tournaments();
+  const ids = await relatedTournamentIds(tournamentId);
+  const tournamentDoc = await tCol.findOne(
+    asDocFilter<TournamentDoc>(byAnyTournamentId(ids)),
+  );
+  if (!tournamentDoc) return [];
+  const tournament = serializeTournament(tournamentDoc);
+  const dCol = await draws();
+  const readDraws = async () =>
+    (
+      await dCol.find(asDocFilter<DrawDoc>(byAnyTournamentId(ids))).toArray()
+    ).map(serializeDraw);
+
+  let allDraws = await readDraws();
+  const removed = await removeStaleKnockoutMatches(tournament, allDraws);
+  if (removed > 0) {
+    allDraws = await readDraws();
+    // The event cannot be over while a round has just been reopened.
+    if (tournament.Winner?.TeamName?.trim()) {
+      await tCol.updateOne({ _id: tournamentDoc._id }, {
+        $unset: { Winner: "", winner: "" },
+        $set: {
+          Active: true,
+          active: true,
+          Updated_at: new Date().toISOString(),
+        },
+      } as unknown as Parameters<typeof tCol.updateOne>[1]);
+    }
+  }
+  return createReadyKnockoutMatches(tournamentDoc, tournament, allDraws);
+}
+
+/**
+ * Draws the matches the latest results have made ready. Kept as a button for
+ * hosts, though matches are normally drawn on their own as results come in.
+ */
 export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
   const tCol = await tournaments();
   const ids = await relatedTournamentIds(tournamentId);
@@ -849,10 +1057,17 @@ export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
     throw new ServiceError("Advance the group stage first");
   }
 
+  const created = await createReadyKnockoutMatches(
+    tournamentDoc,
+    tournament,
+    allDraws,
+  );
+  if (created.length > 0) return created;
+
+  // Nothing was ready: say which results are missing rather than just
+  // refusing, since on an uneven bracket the wait is often one tie.
   const ties = groupKnockoutTies(knockoutDraws, false);
-  const maxStage = Math.max(...ties.map((tie) => tie.stage));
-  const current = tiesAtStage(ties, maxStage);
-  const unresolved = current.filter((tie) => {
+  const unresolved = ties.filter((tie) => {
     const seriesFormat = formatForSeriesGames(tie.games, format);
     return !knockoutTieWinner(tie.games, seriesFormat);
   });
@@ -866,93 +1081,7 @@ export async function drawKnockoutNext(tournamentId: string): Promise<Draw[]> {
       ),
     );
   }
-
-  const dq = asDisqualifiedSet(tournament.DisqualifiedTeams);
-  const winners = current
-    .map((tie) =>
-      knockoutTieWinner(tie.games, formatForSeriesGames(tie.games, format)),
-    )
-    .filter((team): team is Teams => {
-      if (!team) return false;
-      return !dq.has(team.TeamName);
-    });
-  if (winners.length === 1) {
-    const now = new Date().toISOString();
-    await tCol.updateOne({ _id: tournamentDoc._id }, {
-      $set: {
-        Winner: winners[0],
-        winner: winners[0],
-        Active: false,
-        active: false,
-        Updated_at: now,
-        updated_at: now,
-      },
-    } as unknown as Parameters<typeof tCol.updateOne>[1]);
-    return allDraws;
-  }
-  if (winners.length < 2) {
-    throw new ServiceError("The knockout stage is already decided");
-  }
-
-  const now = new Date().toISOString();
-  const nextStage = maxStage + 1;
-  const nextPairs = pairWithinHalves(winners);
-  const isFinal = nextPairs.length === 1;
-  const roundFormat = knockoutFormatForRound(format, {
-    finalsUseSeries: tournament.KnockoutFinalsSeries,
-    isFinal,
-  });
-  const drawDocs: DrawDoc[] = nextPairs.flatMap(([team1, team2]) =>
-    knockoutSeries(
-      team1,
-      team2,
-      tournament.TournamentId,
-      nextStage,
-      now,
-      roundFormat,
-    ),
-  );
-
-  if (tournament.ThirdPlace && current.length === 2 && nextPairs.length === 1) {
-    const losers = current
-      .map((tie) =>
-        knockoutTieLoser(tie.games, formatForSeriesGames(tie.games, format)),
-      )
-      .filter((team): team is Teams => Boolean(team && !dq.has(team.TeamName)));
-    if (losers.length === 2) {
-      drawDocs.push(
-        ...knockoutSeries(
-          losers[0],
-          losers[1],
-          tournament.TournamentId,
-          nextStage,
-          now,
-          knockoutFormatForRound(format, { isThirdPlace: true }),
-          "THIRD_PLACE",
-        ),
-      );
-    }
-  }
-
-  const stamped = scheduleNewDraws(drawDocs, tournament, allDraws.length);
-  await dCol.insertMany(stamped);
-  await tCol.updateOne({ _id: tournamentDoc._id }, {
-    $set: {
-      Stage: nextStage,
-      stage: nextStage,
-      Updated_at: now,
-      updated_at: now,
-    },
-  } as unknown as Parameters<typeof tCol.updateOne>[1]);
-
-  const result = stamped.map(serializeDraw);
-  void notifyDrawReady(
-    tournament.TournamentId,
-    tournament.Name,
-    result,
-    `The next round is drawn in ${tournament.Name}. Check your fixture.`,
-  );
-  return result;
+  throw new ServiceError("Every match in this knockout has been drawn");
 }
 
 export async function getDrawsByTournament(
@@ -993,14 +1122,17 @@ export async function addWinner(drawId: string, winner: string): Promise<Draw> {
   );
   if (!updated) throw new ServiceError("Draw not found");
   const mapped = serializeDraw(updated);
+  await advanceKnockout(mapped.TournamentId).catch((error) =>
+    console.error(error),
+  );
   await maybeFinishKnockout(mapped);
   return hydrateDraw(mapped);
 }
 
 /**
- * Rejects an edit to a fixture in a round the tournament has moved past: once a
- * later knockout round (or the knockout after groups) is drawn, old rounds are
- * frozen so results cannot shift under the bracket built from them.
+ * Rejects an edit the tournament has moved past: a finished event is frozen,
+ * and group results once the knockout is drawn from them. A knockout result
+ * can be corrected while the event runs -- what was drawn from it is redrawn.
  */
 async function assertDrawEditable(drawId: string): Promise<void> {
   const col = await draws();
@@ -1010,9 +1142,18 @@ async function assertDrawEditable(drawId: string): Promise<void> {
   const siblings = await col
     .find(asDocFilter<DrawDoc>(byTournamentId(draw.TournamentId)))
     .toArray();
+  const tCol = await tournaments();
+  const tournamentDoc = await tCol.findOne(
+    asDocFilter<TournamentDoc>(byTournamentId(draw.TournamentId)),
+  );
+  if (tournamentDoc?.Winner?.TeamName?.trim()) {
+    throw new ServiceError(
+      "This tournament has finished, so results can no longer be changed",
+    );
+  }
   if (isFixtureStageLocked(draw, siblings.map(serializeDraw))) {
     throw new ServiceError(
-      "This round is locked because a later round has already been drawn",
+      "Group results are locked once the knockout stage has been drawn",
     );
   }
 }
@@ -1131,6 +1272,11 @@ export async function addScore(
 
   const mapped = serializeDraw(updated);
   await maybeFinishLeague(mapped);
+  // Draw whatever this result has made ready before deciding the event: a
+  // settled tie may put the next match on, not end the tournament.
+  await advanceKnockout(mapped.TournamentId).catch((error) =>
+    console.error(error),
+  );
   await maybeFinishKnockout(mapped);
   if (input.IsFinal === "true" && input.WinnerTeam) {
     const winningTeam =
@@ -1325,22 +1471,20 @@ async function maybeFinishKnockout(draw: Draw): Promise<void> {
   const all = await getDrawsByTournament(draw.TournamentId);
   const ties = groupKnockoutTies(all, false);
   if (ties.length === 0) return;
-  const maxStage = Math.max(...ties.map((tie) => tie.stage));
-  const current = tiesAtStage(ties, maxStage);
-  if (current.length !== 1) return;
-  const seriesFormat = formatForSeriesGames(
-    current[0].games,
-    tournament.KnockoutFormat,
-  );
-  if (!isKnockoutTieSettled(current[0].games, seriesFormat)) {
-    return;
-  }
-  const winner = knockoutTieWinner(current[0].games, seriesFormat);
-  if (!winner) return;
+  // One team left with every tie settled. Looking at the last round instead
+  // would call a half-final a final on an uneven bracket, where one half can
+  // finish a round before the other.
+  const { alive, allSettled } = teamsStillIn(ties, tournament.KnockoutFormat);
+  if (!allSettled || alive.length !== 1) return;
+  const champion = ties
+    .flatMap((tie) => tie.games)
+    .flatMap((game) => [game.Team1, game.Team2])
+    .find((team) => team?.TeamName?.trim() === alive[0]);
+  if (!champion) return;
   await tCol.updateOne({ _id: tournamentDoc._id }, {
     $set: {
-      Winner: winner,
-      winner: winner,
+      Winner: champion,
+      winner: champion,
       Active: false,
       active: false,
       Updated_at: new Date().toISOString(),

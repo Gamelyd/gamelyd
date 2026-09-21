@@ -2,21 +2,15 @@ import type { Draw } from "@/lib/schemas/draw";
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 
 /**
- * A fixture is locked once the tournament has moved past it:
- * - a knockout match once a later knockout round has been drawn, and
- * - a group match once the knockout stage exists.
- * League and battle-royale stages are all generated at once, so they are not
- * stage-locked (only a finished tournament freezes them).
+ * A fixture is locked once the tournament has moved past it.
+ *
+ * Only group matches are: the knockout is drawn from the final tables, so a
+ * changed group result would mean different qualifiers. A knockout result can
+ * always be corrected -- the matches drawn from it are redrawn from the new
+ * winner, which is handled when the score is saved.
  */
 export function isFixtureStageLocked(draw: Draw, draws: Draw[]): boolean {
-  if (isKnockoutDraw(draw)) {
-    const maxKnockoutStage = Math.max(
-      ...draws.filter(isKnockoutDraw).map((d) => d.Stage),
-    );
-    return draw.Stage < maxKnockoutStage;
-  }
-  if (isGroupDraw(draw)) {
-    return draws.some(isKnockoutDraw);
-  }
+  if (isKnockoutDraw(draw)) return false;
+  if (isGroupDraw(draw)) return draws.some(isKnockoutDraw);
   return false;
 }

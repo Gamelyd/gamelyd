@@ -1201,6 +1201,8 @@ function Body({
   scale: number;
 }) {
   if (model.kind === "bracket") {
+    const left = model.left;
+    const right = model.right;
     const trophy = Math.round(BRACKET_TROPHY_W * scale);
     const columnWidth = Math.round(BRACKET_COL_MIN * scale);
     const gap = Math.round(BRACKET_COL_GAP * scale);
@@ -1214,7 +1216,7 @@ function Body({
           gap,
         }}
       >
-        {model.left.map((column, index) => (
+        {left.map((column, index) => (
           <BracketColumn
             key={`l-${column.label}-${index}`}
             column={column}
@@ -1225,7 +1227,7 @@ function Body({
         ))}
         <TrophyColumn final={model.final} scale={scale} width={trophy} />
         {/* Outermost round sits furthest from the centre on this side too. */}
-        {[...model.right].reverse().map((column, index) => (
+        {[...right].reverse().map((column, index) => (
           <BracketColumn
             key={`r-${column.label}-${index}`}
             column={column}

@@ -29,6 +29,7 @@ import {
 import { isGroupDraw, isKnockoutDraw } from "@/lib/drawKind";
 import {
   formatForSeriesGames,
+  teamsStillIn,
   groupKnockoutTies,
   isKnockoutTieSettled,
   knockoutRulesSummary,
@@ -107,8 +108,30 @@ export function TournamentStageControls({
         formatForSeriesGames(tie.games, format),
       ),
     );
+  // Decided when one team is left standing, not when the latest round holds a
+  // single tie: an uneven bracket can have one half finish a round early.
+  const knockoutSurvivors = teamsStillIn(knockoutTies, format);
   const knockoutDecided =
-    knockoutRoundComplete && latestKnockoutTies.length === 1;
+    knockoutSurvivors.allSettled && knockoutSurvivors.alive.length === 1;
+  /**
+   * The matches holding this round up. Naming them saves a host hunting
+   * through the fixtures for the one result that has not been recorded.
+   */
+  const openMatches = latestKnockoutTies
+    .filter(
+      (tie) =>
+        !isKnockoutTieSettled(tie.games, formatForSeriesGames(tie.games, format)),
+    )
+    .map((tie) => {
+      const game = tie.games[0];
+      return `${game?.Team1?.TeamName || "TBD"} v ${game?.Team2?.TeamName || "TBD"}`;
+    });
+  const waitingOn =
+    openMatches.length > 0
+      ? `Matches are drawn as results come in. Still to play: ${openMatches.join(
+          ", ",
+        )}.`
+      : "Matches are drawn as results come in. Record the latest results from the Fixtures tab.";
 
   const standingSections = useMemo(
     () =>
@@ -399,11 +422,11 @@ export function TournamentStageControls({
               </h2>
               <p className="mb-4 text-sm text-body">
                 {knockoutRoundComplete
-                  ? "This round is complete. Draw the next round from the winners."
-                  : "Record the current round's results from the Fixtures tab, then draw the next round."}
+                  ? "This round is complete. The next matches are drawn from the winners."
+                  : waitingOn}
               </p>
               <Button loading={busy} onClick={requestKnockoutNext}>
-                Draw next knockout round
+                Draw any matches that are ready
               </Button>
             </>
           )
@@ -451,11 +474,11 @@ export function TournamentStageControls({
             </h2>
             <p className="mb-4 text-sm text-body">
               {knockoutRoundComplete
-                ? "This round is complete. Draw the next round from the winners."
-                : "Finish every match in this round before drawing the next stage."}
+                ? "This round is complete. The next matches are drawn from the winners."
+                : waitingOn}
             </p>
             <Button loading={busy} onClick={requestKnockoutNext}>
-              Draw next knockout round
+              Draw any matches that are ready
             </Button>
           </>
         ) : (

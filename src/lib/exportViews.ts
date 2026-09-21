@@ -6,11 +6,13 @@ import { resolvePodium } from "@/lib/podium";
 import { roundLabel } from "@/lib/roundLabel";
 import {
   buildBracketModel,
+  knockoutRoundLabels,
+  roundRank,
   type BracketNode,
   type BracketSlot,
   type WingLayout,
 } from "@/lib/bracketModel";
-import { knockoutRoundsForBracket } from "@/lib/knockoutSeries";
+import { knockoutRoundsForBracket, seriesKey } from "@/lib/knockoutSeries";
 import { iconMapFromTeams } from "@/lib/teamIcons";
 import { FALLBACKS, resolveIcon, resolvePlayerIcon } from "@/lib/icons";
 import type { Draw, Teams } from "@/lib/schemas/draw";
@@ -508,6 +510,7 @@ export function buildUnplayed(
     draws.filter((draw) => !draw.Played),
     icons,
     "widest",
+    draws,
   );
 }
 
@@ -529,6 +532,7 @@ export function buildMyMatches(
     draws.filter((draw) => drawIds.has(draw.DrawId)),
     icons,
     "newest",
+    draws,
   );
 }
 
@@ -545,17 +549,34 @@ function sectionise(
   draws: Draw[],
   icons: IconLookup,
   order: "widest" | "newest",
+  /** Every draw, so knockout ties can be named from the whole bracket. */
+  all: Draw[] = draws,
 ): ExportColumn[] {
   if (draws.length === 0) return [];
 
+  // Knockout ties are named by depth in the bracket, as the fixtures tab and
+  // the bracket do: a stage can hold a semi-final and a quarter-final at once.
+  // League matchdays and battle-royale lobbies stay grouped by stage.
+  const bracketed =
+    tournament.TournamentMode === "MULTIPLAYER" ||
+    tournament.TournamentMode === "GROUPS";
+  const byDepth = bracketed
+    ? knockoutRoundLabels(all, tournament.KnockoutFormat)
+    : new Map<string, string>();
   const groups = new Map<string, Draw[]>();
-  const rounds = new Map<number, Draw[]>();
+  const rounds = new Map<string, { stage: number; list: Draw[] }>();
   for (const draw of draws) {
     if (isGroupDraw(draw)) {
       const name = draw.Group.trim() || "Group";
       groups.set(name, [...(groups.get(name) ?? []), draw]);
     } else {
-      rounds.set(draw.Stage, [...(rounds.get(draw.Stage) ?? []), draw]);
+      // Anything with no place in the bracket -- a third-place match, a league
+      // matchday -- falls back to its stage, named once the section is whole.
+      const depth = byDepth.get(seriesKey(draw));
+      const key = depth ? depth.toUpperCase() : `stage:${draw.Stage}`;
+      const entry = rounds.get(key) ?? { stage: draw.Stage, list: [] };
+      entry.list.push(draw);
+      rounds.set(key, entry);
     }
   }
 
@@ -565,15 +586,20 @@ function sectionise(
   )) {
     sections.push({ label: name, matches: list.map((d) => matchOf(d, icons)) });
   }
-  const roundList = [...rounds.entries()].sort(
-    ([stageA, a], [stageB, b]) =>
-      order === "widest" ? b.length - a.length || stageA - stageB : stageB - stageA,
+  const named = [...rounds.entries()].map(([key, { stage, list }]) => ({
+    label: key.startsWith("stage:")
+      ? roundLabel(list.length, stage, tournament.TournamentMode)
+      : key,
+    stage,
+    list,
+  }));
+  const roundList = named.sort((a, b) =>
+    order === "widest"
+      ? roundRank(b.label) - roundRank(a.label) || a.stage - b.stage
+      : roundRank(a.label) - roundRank(b.label) || b.stage - a.stage,
   );
-  for (const [stage, list] of roundList) {
-    sections.push({
-      label: roundLabel(list.length, stage, tournament.TournamentMode),
-      matches: list.map((d) => matchOf(d, icons)),
-    });
+  for (const { label, list } of roundList) {
+    sections.push({ label, matches: list.map((d) => matchOf(d, icons)) });
   }
   return sections;
 }

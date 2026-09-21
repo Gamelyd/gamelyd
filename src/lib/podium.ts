@@ -9,6 +9,7 @@ import {
   groupKnockoutTies,
   knockoutTieLoser,
   knockoutTieWinner,
+  teamsStillIn,
 } from "@/lib/knockoutSeries";
 
 export type Podium = {
@@ -60,15 +61,29 @@ function knockoutPodium(
   let first: Teams | undefined;
   let second: Teams | undefined;
   if (ties.length > 0) {
-    const maxStage = Math.max(...ties.map((tie) => tie.stage));
-    const last = ties.filter((tie) => tie.stage === maxStage);
-    if (last.length === 1) {
-      const format = formatForSeriesGames(
-        last[0].games,
-        tournament.KnockoutFormat,
-      );
-      first = knockoutTieWinner(last[0].games, format) ?? undefined;
-      second = knockoutTieLoser(last[0].games, format) ?? undefined;
+    // Decided when one team is left standing and nothing is outstanding.
+    // Reading the last round instead called a semi-final a final: on an
+    // uneven bracket one half can play its last match a round early, and the
+    // match that decides the event may not have been drawn yet.
+    const { alive, allSettled } = teamsStillIn(ties, tournament.KnockoutFormat);
+    if (allSettled && alive.length === 1) {
+      const decider = ties
+        .filter((tie) =>
+          tie.games.some((game) =>
+            [game.Team1, game.Team2].some(
+              (team) => team?.TeamName?.trim() === alive[0],
+            ),
+          ),
+        )
+        .sort((a, b) => b.stage - a.stage)[0];
+      if (decider) {
+        const format = formatForSeriesGames(
+          decider.games,
+          tournament.KnockoutFormat,
+        );
+        first = knockoutTieWinner(decider.games, format) ?? undefined;
+        second = knockoutTieLoser(decider.games, format) ?? undefined;
+      }
     }
   }
   if (!first?.TeamName?.trim()) {

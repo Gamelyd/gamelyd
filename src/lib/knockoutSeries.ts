@@ -332,3 +332,39 @@ export function legCaption(
   }
   return `Game ${leg} of ${total}`;
 }
+
+/**
+ * Teams still in the knockout: everyone who has played and not been knocked
+ * out. One team left, with every tie settled, means the event is decided.
+ *
+ * Counting survivors rather than looking at the last round is what makes this
+ * work on an uneven bracket, where the final round of one half can be settled
+ * while the other half is still playing.
+ */
+export function teamsStillIn(
+  ties: KnockoutTie[],
+  format: KnockoutFormat | undefined,
+): { alive: string[]; allSettled: boolean } {
+  const seen = new Set<string>();
+  const out = new Set<string>();
+  let allSettled = true;
+  for (const tie of ties) {
+    const seriesFormat = formatForSeriesGames(tie.games, format);
+    const settled = isKnockoutTieSettled(tie.games, seriesFormat);
+    if (!settled) allSettled = false;
+    for (const game of tie.games) {
+      for (const team of [game.Team1, game.Team2]) {
+        const name = team?.TeamName?.trim();
+        if (name) seen.add(name);
+      }
+    }
+    if (!settled) continue;
+    const loser = knockoutTieLoser(tie.games, seriesFormat);
+    const name = loser?.TeamName?.trim();
+    if (name) out.add(name);
+  }
+  return {
+    alive: [...seen].filter((name) => !out.has(name)),
+    allSettled,
+  };
+}

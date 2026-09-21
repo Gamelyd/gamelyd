@@ -66,10 +66,10 @@ import {
   resolvedQualifyingNames,
 } from "@/lib/groupQualifiers";
 import { placeName, isKnockoutBye } from "@/lib/knockoutSeed";
+import { knockoutRoundLabels, roundRank } from "@/lib/bracketModel";
 import { isGroupDraw, isKnockoutDraw, isThirdPlaceDraw } from "@/lib/drawKind";
 import { isFixtureStageLocked } from "@/lib/fixtureLock";
 import {
-  groupKnockoutTies,
   knockoutRoundsForBracket,
   knockoutRulesSummary,
   seriesKey,
@@ -576,6 +576,52 @@ export function TournamentView({
     }
     return [...map.entries()].sort((a, b) => b[0] - a[0]);
   }, [hydratedDraws]);
+
+  /**
+   * What each tie is called, worked out from the bracket rather than from how
+   * many matches share a stage, so a semi-final drawn alongside quarter-finals
+   * in an uneven bracket is still called a semi-final.
+   */
+  const roundLabelBySeries = useMemo(
+    () => knockoutRoundLabels(hydratedDraws, tournament.KnockoutFormat),
+    [hydratedDraws, tournament.KnockoutFormat],
+  );
+
+  /** Group results freeze once the knockout is drawn; knockout ones do not. */
+  const fixtureLocked = (draw: Draw) => isFixtureStageLocked(draw, draws);
+
+  /**
+   * Knockout fixtures under one heading per round, newest round first.
+   *
+   * Grouped by what each tie is called rather than by the stage it was drawn
+   * in: matches are drawn as results come in, so quarter-finals on one half of
+   * an uneven bracket can be drawn later than the other half's and would
+   * otherwise appear as a second "Quarter-finals" further down the page.
+   */
+  const knockoutSections = useMemo(() => {
+    const sections = new Map<string, Draw[]>();
+    const stageCounts = new Map<number, number>();
+    for (const d of hydratedDraws) {
+      if (isGroupDraw(d) || d.BRTeams.length > 0) continue;
+      stageCounts.set(d.Stage, (stageCounts.get(d.Stage) ?? 0) + 1);
+    }
+    for (const d of hydratedDraws) {
+      if (isGroupDraw(d) || d.BRTeams.length > 0) continue;
+      const label = isThirdPlaceDraw(d)
+        ? "THIRD PLACE"
+        : (
+            roundLabelBySeries.get(seriesKey(d)) ||
+            roundLabel(stageCounts.get(d.Stage) ?? 1, d.Stage)
+          ).toUpperCase();
+      sections.set(label, [...(sections.get(label) ?? []), d]);
+    }
+    // Final first, then the third-place match, then back down the rounds.
+    const rank = (label: string) =>
+      label === "THIRD PLACE" ? 1.5 : roundRank(label);
+    return [...sections.entries()]
+      .sort(([a], [b]) => rank(a) - rank(b))
+      .map(([label, matches]) => ({ label, matches }));
+  }, [hydratedDraws, roundLabelBySeries]);
 
   const seriesGamesById = useMemo(() => {
     const map = new Map<string, Draw[]>();
@@ -1557,73 +1603,32 @@ export function TournamentView({
                 />
               ) : (
                 <>
-                  {knockoutStages.map(([stage, stageDraws]) => {
-                    const cupDraws = stageDraws.filter(
-                      (d) => !isThirdPlaceDraw(d),
-                    );
-                    const thirdDraws = stageDraws.filter(isThirdPlaceDraw);
-                    return (
-                    <div key={`ko-${stage}`}>
-                      {cupDraws.length > 0 ? (
-                        <>
+                  {knockoutSections.map(({ label, matches }) => (
+                    <div key={`ko-${label}`}>
                       <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
-                        {roundLabel(
-                          groupKnockoutTies(cupDraws).length ||
-                            cupDraws.length,
-                          stage,
-                        )}
+                        {label}
                       </div>
                       <div className="flex flex-col items-center gap-8">
-                        {cupDraws.map((d) => (
+                        {matches.map((d) => (
                           <Fixture
                             eventVenues={eventVenues}
                             key={d.DrawId || d._id}
                             mine={mineDrawIds.has(d.DrawId)}
                             timeZoneLabel={tzLabel}
                             draw={d}
-                            canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
+                            canManage={canManage && !isFinished && !fixtureLocked(d)}
                             onUpdated={handleDrawUpdated}
                             knockoutFormat={tournament.KnockoutFormat}
-                            seriesGames={
-                              seriesGamesById.get(seriesKey(d)) ?? [d]
+                            seriesGames={seriesGamesById.get(seriesKey(d)) ?? [d]}
+                            hostPicksLevel={
+                              isThirdPlaceDraw(d) ||
+                              knockoutHostPicks(tournament.TournamentMode, d)
                             }
-                            hostPicksLevel={knockoutHostPicks(
-                              tournament.TournamentMode,
-                              d,
-                            )}
                           />
                         ))}
                       </div>
-                        </>
-                      ) : null}
-                      {thirdDraws.length > 0 ? (
-                        <>
-                          <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
-                            THIRD PLACE
-                          </div>
-                          <div className="flex flex-col items-center gap-8">
-                            {thirdDraws.map((d) => (
-                              <Fixture
-                            eventVenues={eventVenues}
-                                key={d.DrawId || d._id}
-                                mine={mineDrawIds.has(d.DrawId)}
-                            timeZoneLabel={tzLabel}
-                                draw={d}
-                                canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
-                                onUpdated={handleDrawUpdated}
-                                knockoutFormat={tournament.KnockoutFormat}
-                                seriesGames={
-                                  seriesGamesById.get(seriesKey(d)) ?? [d]
-                                }
-                                hostPicksLevel
-                              />
-                            ))}
-                          </div>
-                        </>
-                      ) : null}
                     </div>
-                    );
-                  })}
+                  ))}
                   {groupFixtureSections.map(([name, sectionDraws], index) => (
                     <FixtureGroupPanel
                       key={name}
@@ -1638,7 +1643,7 @@ export function TournamentView({
                           mine={mineDrawIds.has(d.DrawId)}
                           timeZoneLabel={tzLabel}
                           draw={d}
-                          canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
+                          canManage={canManage && !isFinished && !fixtureLocked(d)}
                           onUpdated={handleDrawUpdated}
                         />
                       ))}
@@ -1656,44 +1661,47 @@ export function TournamentView({
                   onViewTeams={() => setTab("teams")}
                 />
               ) : (
-                drawsByStage.map(([stage, stageDraws]) => (
-                  <div key={stage}>
-                    <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
-                      {roundLabel(
-                        tournament.TournamentMode === "MULTIPLAYER"
-                          ? groupKnockoutTies(stageDraws).length ||
-                            stageDraws.length
-                          : stageDraws.length,
+                (tournament.TournamentMode === "MULTIPLAYER"
+                  ? knockoutSections
+                  : drawsByStage.map(([stage, stageDraws]) => ({
+                      label: roundLabel(
+                        stageDraws.length,
                         stage,
                         tournament.TournamentMode,
-                      )}
+                      ),
+                      matches: stageDraws,
+                    }))
+                ).map(({ label, matches }) => (
+                  <div key={label}>
+                    <div className="mb-8 bg-primary-panel px-4 py-5 text-center font-display text-[23px] leading-none tracking-wide text-white">
+                      {label}
                     </div>
                     <div className="flex flex-col items-center gap-8">
-                        {stageDraws.map((d) => (
-                          <Fixture
-                            eventVenues={eventVenues}
-                            key={d.DrawId || d._id}
-                            mine={mineDrawIds.has(d.DrawId)}
-                            timeZoneLabel={tzLabel}
-                            draw={d}
-                            canManage={canManage && !isFinished && !isFixtureStageLocked(d, draws)}
-                            onUpdated={handleDrawUpdated}
-                            knockoutFormat={
-                              tournament.TournamentMode === "MULTIPLAYER"
-                                ? tournament.KnockoutFormat
-                                : undefined
-                            }
-                            seriesGames={
-                              tournament.TournamentMode === "MULTIPLAYER"
-                                ? seriesGamesById.get(seriesKey(d)) ?? [d]
-                                : undefined
-                            }
-                            hostPicksLevel={knockoutHostPicks(
-                              tournament.TournamentMode,
-                              d,
-                            )}
-                          />
-                        ))}
+                      {matches.map((d) => (
+                        <Fixture
+                          eventVenues={eventVenues}
+                          key={d.DrawId || d._id}
+                          mine={mineDrawIds.has(d.DrawId)}
+                          timeZoneLabel={tzLabel}
+                          draw={d}
+                          canManage={canManage && !isFinished && !fixtureLocked(d)}
+                          onUpdated={handleDrawUpdated}
+                          knockoutFormat={
+                            tournament.TournamentMode === "MULTIPLAYER"
+                              ? tournament.KnockoutFormat
+                              : undefined
+                          }
+                          seriesGames={
+                            tournament.TournamentMode === "MULTIPLAYER"
+                              ? seriesGamesById.get(seriesKey(d)) ?? [d]
+                              : undefined
+                          }
+                          hostPicksLevel={
+                            isThirdPlaceDraw(d) ||
+                            knockoutHostPicks(tournament.TournamentMode, d)
+                          }
+                        />
+                      ))}
                     </div>
                   </div>
                 ))
@@ -2216,3 +2224,4 @@ function PencilGlyph() {
     </svg>
   );
 }
+
