@@ -23,7 +23,7 @@ const tie = (id: string, a: string, b: string, won: 1 | 2 | 0, stage: number) =>
     Team2Score: won === 2 ? 2 : 0,
     Winner: won === 1 ? "Team1" : won === 2 ? "Team2" : "",
     Played: won !== 0,
-  }) as Draw;
+  }) as unknown as Draw;
 
 describe("resolvePodium", () => {
   // An uneven bracket: one half reaches the final a round before the other, so
