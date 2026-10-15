@@ -22,6 +22,7 @@ import {
 } from "@/lib/whisperly/schemas";
 import { sha256Hex } from "@/lib/whisperly/signing";
 import {
+  applyAdminEmails,
   checkAppVersion,
   dummyHash,
   hashPassword,
@@ -87,6 +88,7 @@ function deviceFields(d: DeviceInput, ip: string) {
 }
 
 async function sessionFor(user: WlUserDoc, deviceId: string) {
+  user = await applyAdminEmails(user);
   const tokens = await issueTokens(user, deviceId);
   const devices = await wlDevices();
   await devices.updateOne(

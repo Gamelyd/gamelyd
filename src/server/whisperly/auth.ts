@@ -120,7 +120,22 @@ export async function requireDevice(req: Request, rawBody: string): Promise<Devi
 
   const ip = clientIp(req);
   await touchDevice(device, ip, req);
-  return { claims, user, device, ip };
+  return { claims, user: await applyAdminEmails(user), device, ip };
+}
+
+/**
+ * Accounts whose email is in WHISPERLY_ADMIN_EMAILS are admin with access
+ * granted, saved to the database the first time they're seen.
+ * Taking an email off the list doesn't demote it - use the Admin screen or the set-admin script.
+ */
+export async function applyAdminEmails(user: WlUserDoc): Promise<WlUserDoc> {
+  if (!wlEnv.adminEmails.includes(user.email.toLowerCase())) return user;
+  if (user.role === "ADMIN" && user.access === "ACTIVE") return user;
+  const t = new Date().toISOString();
+  const set: Partial<WlUserDoc> = { role: "ADMIN", access: "ACTIVE", updated_at: t };
+  if (user.access !== "ACTIVE") Object.assign(set, { granted_by: "WHISPERLY_ADMIN_EMAILS", granted_at: t });
+  await (await wlUsers()).updateOne({ user_id: user.user_id }, { $set: set });
+  return { ...user, ...set };
 }
 
 export async function requireAdmin(req: Request, rawBody: string): Promise<DeviceContext> {

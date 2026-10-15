@@ -39,6 +39,13 @@ export const wlEnv = {
   get adminNotifyEmail(): string {
     return optional("WHISPERLY_ADMIN_NOTIFY_EMAIL", "");
   },
+  /** Emails that are always admin (comma-separated). They're also given access automatically. */
+  get adminEmails(): string[] {
+    return optional("WHISPERLY_ADMIN_EMAILS", "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+  },
   get minAppVersion(): string {
     return optional("WHISPERLY_MIN_APP_VERSION", "0.0.0");
   },

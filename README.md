@@ -69,6 +69,7 @@ into client code.
 | `WHISPERLY_SECRET_KEY` | server | Whisperly desktop-app API: token signing key (separate from `SECRET_KEY`) |
 | `WHISPERLY_DB_NAME` | server | Whisperly: optional separate database for `whisperly_*` collections |
 | `WHISPERLY_MAIL_FROM` / `WHISPERLY_ADMIN_NOTIFY_EMAIL` | server | Whisperly: email sender + new-signup notifications |
+| `WHISPERLY_ADMIN_EMAILS` | server | Whisperly: comma-separated emails that are always admin + approved (applied at sign-in / licence check) |
 | `WHISPERLY_MIN_APP_VERSION` / `WHISPERLY_MOVE_COOLDOWN_DAYS` | server | Whisperly: oldest allowed app build; days between self-service Mac moves |
 | `WHISPERLY_PUBLIC_URL` | server | Whisperly: public base URL for Stripe return pages |
 | `WHISPERLY_PAYMENTS_ENABLED` / `WHISPERLY_STRIPE_*` | server | Whisperly payments (off by default) |
