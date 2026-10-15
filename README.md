@@ -66,6 +66,12 @@ into client code.
 | `MAIL_FROM` / `ADMIN_EMAIL` | server | From + admin notification address |
 | `NEXT_PUBLIC_APP_URL` | public | Base URL used in emails/links |
 | `NEXT_PUBLIC_PAYSTACK_KEY` | public | Paystack public key |
+| `WHISPERLY_SECRET_KEY` | server | Whisperly desktop-app API: token signing key (separate from `SECRET_KEY`) |
+| `WHISPERLY_DB_NAME` | server | Whisperly: optional separate database for `whisperly_*` collections |
+| `WHISPERLY_MAIL_FROM` / `WHISPERLY_ADMIN_NOTIFY_EMAIL` | server | Whisperly: email sender + new-signup notifications |
+| `WHISPERLY_MIN_APP_VERSION` / `WHISPERLY_MOVE_COOLDOWN_DAYS` | server | Whisperly: oldest allowed app build; days between self-service Mac moves |
+| `WHISPERLY_PUBLIC_URL` | server | Whisperly: public base URL for Stripe return pages |
+| `WHISPERLY_PAYMENTS_ENABLED` / `WHISPERLY_STRIPE_*` | server | Whisperly payments (off by default) |
 
 ## Scripts
 
@@ -73,3 +79,4 @@ into client code.
 - `npm run build` - production build
 - `npm run lint` - ESLint (fails on any `any`)
 - `npx tsc --noEmit` - type check
+- `npm run whisperly:set-admin -- you@email.com` - make a Whisperly account admin (Whisperly API: `/api/whisperly/*`, code in `src/server/whisperly/`)

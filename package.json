@@ -13,7 +13,8 @@
     "catalog:prune-orphans": "tsx scripts/prune-orphan-icon-files.ts",
     "check:payments": "tsx scripts/check-payments.ts",
     "backfill:icons": "tsx scripts/backfill-user-icons.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "whisperly:set-admin": "tsx scripts/whisperly-set-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
