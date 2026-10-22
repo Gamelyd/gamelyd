@@ -1,7 +1,7 @@
 import "server-only";
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { wlEnv } from "./env";
-import type { WlDeviceDoc, WlNonceDoc, WlPaymentDoc, WlUserDoc } from "./documents";
+import type { WlDeviceDoc, WlMeetingDoc, WlNonceDoc, WlPaymentDoc, WlProfileDoc, WlSettingsDoc, WlUserDoc } from "./documents";
 
 /**
  * Whisperly's own Mongo connection and collections. Deliberately separate from
@@ -12,6 +12,9 @@ export const WL_COLLECTIONS = {
   devices: "whisperly_devices",
   nonces: "whisperly_nonces",
   payments: "whisperly_payments",
+  settings: "whisperly_settings",
+  profiles: "whisperly_profiles",
+  meetings: "whisperly_meetings",
 } as const;
 
 const g = globalThis as unknown as { _wlClient?: Promise<MongoClient>; _wlIndexes?: Promise<void> };
@@ -32,6 +35,10 @@ async function ensureIndexes(db: Db): Promise<void> {
     db.collection(WL_COLLECTIONS.nonces).createIndex({ created_at: 1 }, { expireAfterSeconds: 300 }),
     db.collection(WL_COLLECTIONS.payments).createIndex({ payment_id: 1 }, { unique: true }),
     db.collection(WL_COLLECTIONS.payments).createIndex({ stripe_session_id: 1 }, { unique: true, sparse: true }),
+    db.collection(WL_COLLECTIONS.settings).createIndex({ user_id: 1 }, { unique: true }),
+    db.collection(WL_COLLECTIONS.profiles).createIndex({ user_id: 1, profile_id: 1 }, { unique: true }),
+    db.collection(WL_COLLECTIONS.meetings).createIndex({ user_id: 1, meeting_id: 1 }, { unique: true }),
+    db.collection(WL_COLLECTIONS.meetings).createIndex({ user_id: 1, started_at: -1 }),
   ]).then(() => undefined);
 }
 
@@ -57,4 +64,13 @@ export async function wlNonces(): Promise<Collection<WlNonceDoc>> {
 }
 export async function wlPayments(): Promise<Collection<WlPaymentDoc>> {
   return (await wlDb()).collection<WlPaymentDoc>(WL_COLLECTIONS.payments);
+}
+export async function wlSettings(): Promise<Collection<WlSettingsDoc>> {
+  return (await wlDb()).collection<WlSettingsDoc>(WL_COLLECTIONS.settings);
+}
+export async function wlProfiles(): Promise<Collection<WlProfileDoc>> {
+  return (await wlDb()).collection<WlProfileDoc>(WL_COLLECTIONS.profiles);
+}
+export async function wlMeetings(): Promise<Collection<WlMeetingDoc>> {
+  return (await wlDb()).collection<WlMeetingDoc>(WL_COLLECTIONS.meetings);
 }

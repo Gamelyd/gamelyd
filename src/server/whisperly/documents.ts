@@ -71,3 +71,38 @@ export interface WlPaymentDoc {
   created_at: string;
   updated_at: string;
 }
+
+// ---- user data (synced from the app) ----
+// Payloads are stored as the app's JSON string: the server only checks size and
+// shape, so the app's settings and meeting formats can change without a migration.
+
+/** The app's settings (everything except API keys) - collection `whisperly_settings`, one per user. */
+export interface WlSettingsDoc {
+  _id?: ObjectId;
+  user_id: string;
+  data: string;
+  updated_at: string;
+}
+
+/** A context profile (CV, job description, notes) - collection `whisperly_profiles`. */
+export interface WlProfileDoc {
+  _id?: ObjectId;
+  user_id: string;
+  profile_id: string;
+  name: string;
+  data: string;
+  updated_at: string;
+}
+
+/** A recent meeting (the app keeps only its newest few here) - collection `whisperly_meetings`. */
+export interface WlMeetingDoc {
+  _id?: ObjectId;
+  user_id: string;
+  meeting_id: string;
+  title: string;
+  preview: string;
+  started_at: number;
+  ended_at: number | null;
+  data: string;
+  updated_at: string;
+}

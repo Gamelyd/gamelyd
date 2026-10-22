@@ -6,7 +6,7 @@ import { isFresh, signaturePayload, verifyEd25519 } from "@/lib/whisperly/signin
 import { checkResetCode, compareVersions, hashResetCode, licenseStatus, moveEligibility } from "@/lib/whisperly/rules";
 import { createRateLimiter } from "@/lib/whisperly/rateLimit";
 import { signWlToken, verifyWlToken } from "@/lib/whisperly/tokens";
-import { signupSchema } from "@/lib/whisperly/schemas";
+import { dataIdSchema, meetingSaveSchema, profileSaveSchema, settingsSaveSchema, signupSchema } from "@/lib/whisperly/schemas";
 
 function deviceKey() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -161,5 +161,27 @@ describe("misc rules", () => {
     assert.equal(licenseStatus("ACTIVE", new Date(Date.now() - 1000).toISOString(), now), "EXPIRED");
     assert.equal(licenseStatus("ACTIVE", null, now), "ACTIVE");
     assert.equal(licenseStatus("PENDING", null, now), "PENDING");
+  });
+});
+
+describe("synced data schemas", () => {
+  test("settings must be an object", () => {
+    assert.equal(settingsSaveSchema.safeParse({ settings: { language: "en" } }).success, true);
+    assert.equal(settingsSaveSchema.safeParse({ settings: "nope" }).success, false);
+  });
+  test("profiles keep extra fields and reject bad ids", () => {
+    const profile = { id: "p-1", name: "CV", updatedAt: 1, items: [{ id: "i", kind: "file", name: "cv.md", text: "# Me", addedAt: 1 }] };
+    const ok = profileSaveSchema.safeParse({ profile });
+    assert.equal(ok.success, true);
+    assert.equal(ok.success && (ok.data.profile as { updatedAt?: number }).updatedAt, 1);
+    assert.equal(profileSaveSchema.safeParse({ profile: { ...profile, id: "../x" } }).success, false);
+    assert.equal(profileSaveSchema.safeParse({ profile: { ...profile, items: [{ ...profile.items[0], kind: "url" }] } }).success, false);
+  });
+  test("meetings need id, title and start time; the rest is kept", () => {
+    const meeting = { id: "m1", title: "Interview", startedAt: 1, utterances: [{ text: "hi" }] };
+    const ok = meetingSaveSchema.safeParse({ meeting });
+    assert.equal(ok.success && Array.isArray((ok.data.meeting as { utterances?: unknown }).utterances), true);
+    assert.equal(meetingSaveSchema.safeParse({ meeting: { id: "m1", title: "x" } }).success, false);
+    assert.equal(dataIdSchema.safeParse({ id: "a b" }).success, false);
   });
 });

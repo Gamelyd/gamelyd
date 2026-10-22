@@ -33,8 +33,10 @@ export function clientIp(req: Request): string {
 export async function readBody<S extends z.ZodType>(
   req: Request,
   schema: S,
+  maxChars = 64 * 1024,
 ): Promise<{ raw: string; data: z.infer<S> }> {
   const raw = await req.text();
+  if (raw.length > maxChars) throw new WlError("TOO_LARGE", `Too much data (limit ${Math.round(maxChars / 1024 / 1024 * 10) / 10} MB).`, 413);
   let json: unknown;
   try {
     json = raw ? JSON.parse(raw) : {};

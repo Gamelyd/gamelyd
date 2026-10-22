@@ -58,4 +58,43 @@ export const adminAccessSchema = z.object({
 
 export const adminResetDeviceSchema = z.object({ userId: z.string().min(1).max(64) });
 
+// ---- user data ----
+
+/** Max request sizes (characters of JSON) for synced data. Mongo documents top out at 16 MB. */
+export const DATA_LIMITS = { settings: 512 * 1024, profile: 6 * 1024 * 1024, meeting: 12 * 1024 * 1024 } as const;
+
+const dataId = z.string().trim().min(1).max(64).regex(/^[\w-]+$/, "Invalid id");
+
+/** The app's settings object (API keys are never part of it). Stored as-is. */
+export const settingsSaveSchema = z.object({ settings: z.record(z.string(), z.unknown()) });
+
+export const profileSaveSchema = z.object({
+  profile: z.looseObject({
+    id: dataId,
+    name: z.string().max(200),
+    items: z
+      .array(
+        z.looseObject({
+          id: z.string().min(1).max(64),
+          kind: z.enum(["file", "text"]),
+          name: z.string().max(300),
+          text: z.string(),
+        }),
+      )
+      .max(500),
+  }),
+});
+
+export const meetingSaveSchema = z.object({
+  meeting: z.looseObject({
+    id: dataId,
+    title: z.string().max(500),
+    startedAt: z.number().finite(),
+    endedAt: z.number().finite().optional(),
+  }),
+  preview: z.string().max(400).default(""),
+});
+
+export const dataIdSchema = z.object({ id: dataId });
+
 export type DeviceInput = z.infer<typeof deviceSchema>;
