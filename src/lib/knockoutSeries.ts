@@ -368,3 +368,74 @@ export function teamsStillIn(
     allSettled,
   };
 }
+
+/**
+ * How far each tie is from the final, counted along what actually happened:
+ * the winner of a tie is followed to the tie they played next. 1 is the final,
+ * 2 a semi-final, and so on.
+ *
+ * Read from the results rather than from the bracket's shape because older
+ * events re-paired the winners of a round freely, so their matches do not sit
+ * where a bracket would predict. A tie is only measured once the chain from it
+ * reaches the match that decided the event; anything still in play is left out
+ * for the caller to name another way.
+ */
+export function tieDepths(
+  ties: KnockoutTie[],
+  format: KnockoutFormat | undefined,
+): Map<string, number> {
+  const winnerOf = new Map<string, string>();
+  for (const tie of ties) {
+    const seriesFormat = formatForSeriesGames(tie.games, format);
+    if (!isKnockoutTieSettled(tie.games, seriesFormat)) continue;
+    const name = knockoutTieWinner(tie.games, seriesFormat)?.TeamName?.trim();
+    if (name) winnerOf.set(tie.seriesId, name.toLowerCase());
+  }
+
+  const plays = (tie: KnockoutTie, name: string) =>
+    tie.games.some((game) =>
+      [game.Team1, game.Team2].some(
+        (team) => team?.TeamName?.trim().toLowerCase() === name,
+      ),
+    );
+
+  /** The tie a winner went on to play: the earliest one after this. */
+  const next = new Map<string, KnockoutTie>();
+  for (const tie of ties) {
+    const name = winnerOf.get(tie.seriesId);
+    if (!name) continue;
+    const after = ties
+      .filter(
+        (other) => other.seriesId !== tie.seriesId && other.stage > tie.stage,
+      )
+      .filter((other) => plays(other, name))
+      .sort((a, b) => a.stage - b.stage)[0];
+    if (after) next.set(tie.seriesId, after);
+  }
+
+  // The chain ends at the match that decided the event. Without one -- the
+  // event is still being played -- nothing can be counted back from.
+  const { alive, allSettled } = teamsStillIn(ties, format);
+  const decided = allSettled && alive.length === 1;
+  const depths = new Map<string, number>();
+  const depthOf = (tie: KnockoutTie, seen: Set<string>): number | null => {
+    const known = depths.get(tie.seriesId);
+    if (known) return known;
+    if (seen.has(tie.seriesId)) return null;
+    seen.add(tie.seriesId);
+    const after = next.get(tie.seriesId);
+    if (!after) {
+      const winner = winnerOf.get(tie.seriesId);
+      if (!decided || !winner || winner !== alive[0]?.toLowerCase()) return null;
+      depths.set(tie.seriesId, 1);
+      return 1;
+    }
+    const beyond = depthOf(after, seen);
+    if (beyond === null) return null;
+    const depth = beyond + 1;
+    depths.set(tie.seriesId, depth);
+    return depth;
+  };
+  for (const tie of ties) depthOf(tie, new Set());
+  return depths;
+}

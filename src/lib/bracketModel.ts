@@ -1,6 +1,11 @@
 import type { Draw, Teams } from "@/lib/schemas/draw";
 import type { KnockoutFormat } from "@/lib/schemas/common";
-import { knockoutRoundsForBracket, seriesKey } from "@/lib/knockoutSeries";
+import {
+  groupKnockoutTies,
+  knockoutRoundsForBracket,
+  seriesKey,
+  tieDepths,
+} from "@/lib/knockoutSeries";
 import {
   groupPlaceholderPairs,
   isKnockoutBye,
@@ -533,16 +538,28 @@ export function knockoutRoundLabels(
     knockoutLive: true,
   });
   const labels = new Map<string, string>();
+  // What actually happened comes first: an older event re-paired the winners
+  // of a round rather than following the bracket, so its matches are not where
+  // the shape would put them. Anything still in play has no such chain, and
+  // falls back to the bracket below.
+  const depths = tieDepths(groupKnockoutTies(draws, false), format);
+  for (const [series, depth] of depths) {
+    labels.set(series, roundName(2 ** (depth - 1)));
+  }
   const walk = (cols: BracketNode[][], names: string[]) => {
     cols.forEach((col, index) => {
       for (const node of col) {
-        if (node.draw) labels.set(seriesKey(node.draw), names[index] ?? "");
+        if (!node.draw) continue;
+        const key = seriesKey(node.draw);
+        if (!labels.has(key)) labels.set(key, names[index] ?? "");
       }
     });
   };
   walk(model.leftCols, model.leftLabels);
   walk(model.rightCols, model.rightLabels);
-  if (model.finalDraw) labels.set(seriesKey(model.finalDraw), roundName(1));
+  if (model.finalDraw && !labels.has(seriesKey(model.finalDraw))) {
+    labels.set(seriesKey(model.finalDraw), roundName(1));
+  }
   return labels;
 }
 
